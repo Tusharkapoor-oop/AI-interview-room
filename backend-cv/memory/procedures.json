@@ -1,0 +1,32 @@
+{
+  "software_engineer": [
+    "Start with system design: ask the candidate to architect a real-world system they've used. Focus on scalability and trade-offs.",
+    "Follow with coding depth: ask to implement a core component of their proposed architecture.",
+    "Probe edge cases: ask what happens at 100× scale, on failure, or with corrupt input.",
+    "End with team dynamics: ask how they've led or contributed to technical decisions in a team."
+  ],
+  "data_scientist": [
+    "Start with a real dataset problem: feature engineering, handling missing values, and selection rationale.",
+    "Follow with model selection: why not use a simpler model? What would overfit here?",
+    "Probe evaluation: how would you detect data leakage? How do you measure fairness in your model?",
+    "End with deployment: how would you monitor model drift in production?"
+  ],
+  "machine_learning_engineer": [
+    "Start with ML system design: design a recommendation system for [domain they've worked in].",
+    "Probe training pipelines: how do you handle class imbalance, distributed training, or GPU memory issues?",
+    "Ask about serving: latency vs accuracy trade-offs, quantization, batching strategies.",
+    "End with debugging: how do you debug a model that performs well offline but poorly in production?"
+  ],
+  "frontend_engineer": [
+    "Start with a real performance problem: how would you optimize a React app rendering 10k rows?",
+    "Follow with architecture: how do you organize state in a large-scale frontend application?",
+    "Probe accessibility: walk me through how you ensure WCAG 2.1 AA compliance in your components.",
+    "End with collaboration: how do you work with designers to maintain design fidelity under deadline?"
+  ],
+  "default": [
+    "Start with a challenge: describe the hardest technical problem you've solved.",
+    "Probe depth: why did you choose that approach over alternatives?",
+    "Ask about impact: how did you measure the success of your solution?",
+    "End with growth: what would you do differently with what you know now?"
+  ]
+}

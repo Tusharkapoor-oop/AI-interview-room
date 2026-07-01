@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-07-01T14:30:38.344Z",
+  "backend": {
+    "status": "OPEN",
+    "pid": 22856
+  },
+  "frontend": {
+    "status": "CLOSED",
+    "pid": 22984
+  }
+}

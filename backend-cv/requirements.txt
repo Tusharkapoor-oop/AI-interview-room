@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+websockets
+mediapipe
+opencv-python-headless
+pydantic
+sqlalchemy
+openai
+python-dotenv
+httpx  

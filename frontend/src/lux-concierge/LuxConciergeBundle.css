@@ -1,0 +1,247 @@
+/* ==========================================================================
+   ULTRA-LUXURIOUS DESIGN SYSTEM TOKENS & SCOPED STYLES
+   Namespace: .lux-
+   Non-Destructive Isolated Stylesheet
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+.lux-container {
+  /* Colors */
+  --lux-onyx: #0B0B0D;
+  --lux-charcoal: #121214;
+  --lux-ivory: #F7F5F2;
+  --lux-champagne: #C9A76B;
+  --lux-champagne-light: #E4C896;
+  --lux-champagne-glow: rgba(201, 167, 107, 0.4);
+  --lux-accent-gradient: linear-gradient(90deg, #0B0B0D, #2A2A2F, #C9A76B);
+  
+  /* Typography */
+  --lux-font-serif: 'Cormorant Garamond', Georgia, serif;
+  --lux-font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  /* Spacing Scale (8px base) */
+  --lux-space-8: 8px;
+  --lux-space-16: 16px;
+  --lux-space-24: 24px;
+  --lux-space-32: 32px;
+  --lux-space-48: 48px;
+  --lux-space-64: 64px;
+
+  /* Scoped Container Styles */
+  background-color: var(--lux-onyx);
+  color: var(--lux-ivory);
+  font-family: var(--lux-font-sans);
+  font-weight: 300;
+  line-height: 1.6;
+  position: relative;
+  overflow-x: hidden;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.lux-container *, .lux-container *::before, .lux-container *::after {
+  box-sizing: border-box;
+}
+
+/* Reduced Motion Override */
+.lux-container.lux-reduced-motion *,
+.lux-container.lux-reduced-motion *::before,
+.lux-container.lux-reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* Typography Classes */
+.lux-heading-serif {
+  font-family: var(--lux-font-serif);
+  font-weight: 700;
+  font-size: clamp(48px, 6vw, 72px);
+  line-height: 1.1;
+  color: var(--lux-ivory);
+  margin: 0;
+}
+
+.lux-body-sans {
+  font-family: var(--lux-font-sans);
+  font-weight: 300;
+  font-size: clamp(16px, 2vw, 20px);
+  color: rgba(247, 245, 242, 0.85);
+}
+
+.lux-ui-sans {
+  font-family: var(--lux-font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Button & CTA Styles */
+.lux-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lux-space-16) var(--lux-space-32);
+  border-radius: 9999px;
+  background: var(--lux-charcoal);
+  border: 1px solid var(--lux-champagne);
+  color: var(--lux-champagne);
+  font-family: var(--lux-font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 24px var(--lux-champagne-glow);
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.lux-btn-primary:hover, .lux-btn-primary:focus-visible {
+  background: var(--lux-champagne);
+  color: var(--lux-onyx);
+  box-shadow: 0 0 36px rgba(201, 167, 107, 0.7);
+  transform: translateY(-2px);
+}
+
+.lux-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lux-space-16) var(--lux-space-32);
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid rgba(247, 245, 242, 0.25);
+  color: var(--lux-ivory);
+  font-family: var(--lux-font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.lux-btn-ghost:hover, .lux-btn-ghost:focus-visible {
+  border-color: var(--lux-ivory);
+  background: rgba(247, 245, 242, 0.05);
+}
+
+/* Cinematic Hero Section */
+.lux-hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lux-space-64) var(--lux-space-24);
+  text-align: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, #1e1e24 0%, var(--lux-onyx) 70%);
+}
+
+.lux-hero-particles {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(1px 1px at 20% 30%, rgba(201, 167, 107, 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 60% 70%, rgba(247, 245, 242, 0.3), transparent),
+    radial-gradient(1px 1px at 80% 20%, rgba(201, 167, 107, 0.5), transparent),
+    radial-gradient(2px 2px at 40% 80%, rgba(201, 167, 107, 0.25), transparent);
+  background-size: 200px 200px;
+  animation: luxShimmer 25s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes luxShimmer {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(-100px) rotate(3deg); }
+}
+
+.lux-hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 860px;
+}
+
+.lux-hero-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(201, 167, 107, 0.4);
+  background: rgba(201, 167, 107, 0.08);
+  color: var(--lux-champagne);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: var(--lux-space-24);
+}
+
+/* Concierge Popup Modal */
+.lux-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 11, 13, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: var(--lux-space-24);
+  animation: luxFadeIn 0.3s ease;
+}
+
+@keyframes luxFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lux-modal-card {
+  background: var(--lux-charcoal);
+  border: 1px solid rgba(201, 167, 107, 0.35);
+  border-radius: 20px;
+  max-width: 620px;
+  width: 100%;
+  padding: var(--lux-space-48);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 40px rgba(201, 167, 107, 0.15);
+  position: relative;
+  animation: luxScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes luxScaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.lux-modal-mascot {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--lux-champagne);
+  background: radial-gradient(circle, #2A2A2F, #0B0B0D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: var(--lux-space-24);
+  box-shadow: 0 0 20px rgba(201, 167, 107, 0.3);
+}
+
+.lux-progress-bar {
+  height: 4px;
+  background: rgba(247, 245, 242, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: var(--lux-space-24) 0;
+}
+
+.lux-progress-fill {
+  height: 100%;
+  background: var(--lux-champagne);
+  transition: width 0.4s ease;
+  box-shadow: 0 0 10px var(--lux-champagne);
+}

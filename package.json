@@ -1,0 +1,12 @@
+{
+  "name": "ai-interview-docs",
+  "version": "1.0.0",
+  "description": "Document generation script for AI Interview Room",
+  "main": "generate_pdfs.js",
+  "scripts": {
+    "generate": "node generate_pdfs.js"
+  },
+  "dependencies": {
+    "md-to-pdf": "^5.2.5"
+  }
+}
