@@ -3,9 +3,17 @@ services:
     name: aegis-ai-interview
     env: docker
     plan: free
+    dockerfilePath: ./Dockerfile
     autoDeploy: true
+    healthCheckPath: /api/health
     envVars:
       - key: PORT
         value: 8000
       - key: PYTHONUNBUFFERED
-        value: 1
+        value: "1"
+      - key: OPENAI_API_KEY
+        sync: false   # Set this in Render Dashboard → Environment
+    disk:
+      name: aegis-db
+      mountPath: /app/backend-cv
+      sizeGB: 1

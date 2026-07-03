@@ -97,9 +97,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Allow all origins in production (Render serves frontend from same domain, but keep open for API access)
+RAW_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [o.strip() for o in RAW_ORIGINS.split(",") if o.strip()] if RAW_ORIGINS else []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
