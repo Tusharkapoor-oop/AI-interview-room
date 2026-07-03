@@ -116,7 +116,7 @@ export default function ArtifactViewer({ sessionId }) {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`http://localhost:8000/api/v1/artifacts/${sessionId}`);
+      const resp = await fetch(`/api/v1/artifacts/${sessionId}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       setArtifacts(data.artifacts || []);

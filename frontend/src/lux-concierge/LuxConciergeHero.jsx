@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function LuxConciergeHero({ onBegin, onExplore }) {
+export default function LuxConciergeHero({ onBegin, onExplore, onDirectEnter, onSecurityDash }) {
   const [typedText, setTypedText] = useState('');
   const fullSubhead = 'An elite, non-disruptive AI proctoring sanctuary powered by edge WebGPU biometrics.';
 
@@ -34,20 +34,36 @@ export default function LuxConciergeHero({ onBegin, onExplore }) {
           <span style={{ borderRight: '2px solid var(--lux-champagne)', marginLeft: '4px' }} />
         </p>
 
-        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button 
             className="lux-btn-primary" 
             onClick={onBegin}
             aria-label="Begin your interview journey and open concierge"
           >
-            Begin Your Journey ✨
+            Begin Onboarding Tour ✨
+          </button>
+          <button 
+            className="lux-btn-primary" 
+            onClick={onDirectEnter}
+            aria-label="Launch Live Interview Room Directly"
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: '1px solid #fbbf24', boxShadow: '0 0 15px rgba(245, 158, 11, 0.4)' }}
+          >
+            ⚡ Enter Live Interview Room →
+          </button>
+          <button 
+            className="lux-btn-ghost" 
+            onClick={onSecurityDash}
+            aria-label="View Security Forensics Dashboard"
+            style={{ borderColor: 'rgba(239,68,68,0.5)', color: '#f87171' }}
+          >
+            🛡️ Security Intel Dashboard
           </button>
           <button 
             className="lux-btn-ghost" 
             onClick={onExplore}
             aria-label="Explore platform features"
           >
-            Explore Features ↓
+            Explore Specs ↓
           </button>
         </div>
       </div>

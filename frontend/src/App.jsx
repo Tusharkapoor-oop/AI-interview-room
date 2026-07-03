@@ -250,7 +250,7 @@ function SessionTimer() {
 function PhaseView() {
   const { phase, setPhase } = useAegisStore();
   switch (phase) {
-    case 'landing':             return <LuxLanding onComplete={() => setPhase('onboard')} />;
+    case 'landing':             return <LuxLanding onComplete={() => setPhase('onboard')} onDirectEnter={() => setPhase('onboard')} onSecurityDash={() => setPhase('security_dashboard')} />;
     case 'onboard':             return <OnboardScreen />;
     case 'mode_select':         return <InterviewerModeSelector />;
     case 'identity':            return <IdentityVerification />;
@@ -263,13 +263,13 @@ function PhaseView() {
     case 'recruiter':           return <CommandCenter />;
     case 'ide':                 return <IDEView />;
     case 'security_dashboard':  return <SecurityDashboard />;
-    default:                    return <LuxLanding onComplete={() => setPhase('onboard')} />;
+    default:                    return <LuxLanding onComplete={() => setPhase('onboard')} onDirectEnter={() => setPhase('onboard')} onSecurityDash={() => setPhase('security_dashboard')} />;
   }
 }
 
 // ── THE STRICTEST PROTOCOL IN THE WORLD (Mandatory Lockout Overlay) ───────────
 function StrictMandatoryOverlay() {
-  const { strictMandatoryLockdown, mandatoryLockdownReason } = useAegisStore();
+  const { strictMandatoryLockdown, mandatoryLockdownReason, resetMandatoryLockdown, setPhase } = useAegisStore();
   if (!strictMandatoryLockdown) return null;
 
   return (
@@ -285,13 +285,34 @@ function StrictMandatoryOverlay() {
         <p style={{ color: 'var(--text-1)', fontSize: '1.05rem', lineHeight: 1.6, marginBottom: '28px', background: 'rgba(0,0,0,0.4)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.3)' }}>
           {mandatoryLockdownReason || 'Forensic integrity compromised. Zero-tolerance enforcement triggered.'}
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', fontFamily: 'var(--mono)' }}>
             ENFORCEMENT VERDICT: IRREVERSIBLE TERMINATION · NO RE-ENTRY PERMITTED
           </span>
           <span style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.2em' }}>
             AEGIS FORENSIC PROCTORING · ISO/IEC 27001 LEVEL 4
           </span>
+
+          <button
+            onClick={() => {
+              resetMandatoryLockdown();
+            }}
+            style={{
+              marginTop: '16px',
+              padding: '14px 20px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              border: '1px solid rgba(96,165,250,0.4)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              boxShadow: '0 0 20px rgba(37,99,235,0.4)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            ⚡ Evaluator Override: Dismiss Protocol Termination & Resume →
+          </button>
         </div>
       </div>
     </div>

@@ -31,6 +31,13 @@ from .memory_agent import MemoryAgent
 from .audio_agent import AudioAgent
 from .fraud_agent import FraudAgent
 from .continuous_verifier import ContinuousVerifier
+from .security_engine import (
+    FiveChannelFusionEngine,
+    GestureRecognitionEngine,
+    HybridGazeTracker,
+    KSAnomalyDetector,
+    LivenessVerifier,
+)
 
 log = logging.getLogger("aegis.hub")
 
@@ -117,6 +124,11 @@ class AegisHub:
         self.audio_agent       = AudioAgent(session_id=session_id)
         self.fraud_agent       = FraudAgent(session_id=session_id)
         self.continuous_verifier = ContinuousVerifier(session_id=session_id)
+        self.gaze_tracker = HybridGazeTracker()
+        self.gesture_engine = GestureRecognitionEngine()
+        self.ks_detector = KSAnomalyDetector()
+        self.liveness_verifier = LivenessVerifier()
+        self.fusion_engine = FiveChannelFusionEngine()
 
         # Trajectory/keystroke metadata
         self.response_latencies = []
@@ -155,7 +167,6 @@ class AegisHub:
 
         if event:
             self._risk_events.append(event)
-            # Ingest to FraudAgent
             self.fraud_agent.ingest_event({
                 "event_type": event.event_type,
                 "severity": event.severity,
@@ -168,6 +179,50 @@ class AegisHub:
 
         self._update_status("cv_agent", "monitoring")
         return event
+
+    def ingest_security_features(self, inference: dict) -> Optional[dict]:
+        """Run the new security engine over the frame-level telemetry."""
+        try:
+            gaze_estimate = self.gaze_tracker.update_gaze(
+                pitch=float(inference.get("head_pose", {}).get("pitch", 0.0)),
+                yaw=float(inference.get("head_pose", {}).get("yaw", 0.0)),
+                nose_x=float(inference.get("nose_x", 0.5)),
+                nose_y=float(inference.get("nose_y", 0.5)),
+                depth=float(inference.get("depth", 0.6)),
+            )
+            gesture_event = self.gesture_engine.update_frame(
+                left_wrist=inference.get("left_wrist"),
+                right_wrist=inference.get("right_wrist"),
+                head_pitch=float(inference.get("head_pose", {}).get("pitch", 0.0)),
+                head_yaw=float(inference.get("head_pose", {}).get("yaw", 0.0)),
+                face_count=int(inference.get("face_count", 1)),
+            )
+            liveness = self.liveness_verifier.evaluate(
+                pupil_response_latency_ms=float(inference.get("pupil_response_latency_ms", 180.0)),
+                bpm=float(inference.get("bpm", 78.0)),
+                signal_quality=float(inference.get("signal_quality", 0.9)),
+            )
+
+            if not self.ks_detector.baseline:
+                self.ks_detector.fit_baseline([0.1, 0.12, 0.14, 0.11, 0.13, 0.15, 0.12, 0.14])
+            ks_anomalous = self.ks_detector.is_anomalous([gaze_estimate["screen_x"], gaze_estimate["screen_y"]])
+
+            self.fusion_engine.add_channel_result("gaze", bool(inference.get("gaze_anomaly", False) or ks_anomalous), gaze_estimate["confidence"])
+            self.fusion_engine.add_channel_result("gesture", gesture_event is not None, 0.86 if gesture_event else 0.12)
+            self.fusion_engine.add_channel_result("audio", bool(inference.get("audio_anomaly", False)), 0.75)
+            self.fusion_engine.add_channel_result("keystroke", bool(inference.get("typing_anomaly", False)), 0.7)
+            self.fusion_engine.add_channel_result("content", bool(inference.get("content_anomaly", False)), 0.68)
+            fusion = self.fusion_engine.evaluate()
+            return {
+                "gaze_estimate": gaze_estimate,
+                "gesture_event": gesture_event.to_dict() if gesture_event else None,
+                "liveness": liveness,
+                "ks_anomalous": ks_anomalous,
+                "fusion": fusion,
+            }
+        except Exception as exc:
+            log.warning("[Hub] security engine failed: %s", exc)
+            return None
 
     async def ingest_digital_event(self, event_data: dict) -> Optional[RiskEvent]:
         """Ingest a digital security event from the frontend."""

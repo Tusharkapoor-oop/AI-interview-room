@@ -387,16 +387,71 @@ export default function OnboardScreen() {
             )}
 
             {step === 2 && (
-              <button
-                className={`ob5-btn-primary ${allPassed ? 'success' : 'disabled'}`}
-                disabled={!allPassed}
-                onClick={handleProceed}
-              >
-                {allPassed
-                  ? <><span>Begin Interview — {config.name}</span><span className="ob5-btn-arrow">🚀</span></>
-                  : <span>Fix Errors to Continue</span>
-                }
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24, width: '100%' }}>
+                <button
+                  className={`ob5-btn-primary ${allPassed ? 'success' : ''}`}
+                  style={{
+                    background: allPassed
+                      ? 'linear-gradient(135deg, var(--aegis-green), #059669)'
+                      : 'linear-gradient(135deg, var(--aegis-amber), #d97706)',
+                    cursor: 'pointer',
+                    opacity: 1,
+                    boxShadow: allPassed ? '0 0 20px rgba(16,185,129,0.3)' : '0 0 20px rgba(245,158,11,0.3)'
+                  }}
+                  onClick={handleProceed}
+                >
+                  {allPassed ? (
+                    <><span>🚀 Proceed to Mode Selection — {config.name || 'Candidate'}</span><span className="ob5-btn-arrow">→</span></>
+                  ) : (
+                    <><span>⚡ Override Diagnostics & Proceed to Mode Selection</span><span className="ob5-btn-arrow">→</span></>
+                  )}
+                </button>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => {
+                      setSessionConfig({ role: config.role, seniority: config.seniority, type: config.type });
+                      setCandidateName(config.name || 'Candidate');
+                      setPhase('interview');
+                    }}
+                    style={{
+                      flex: 2,
+                      padding: '12px 18px',
+                      borderRadius: 'var(--r-md)',
+                      background: 'linear-gradient(135deg, var(--aegis-cyan), var(--aegis-blue))',
+                      border: '1px solid rgba(56,189,248,0.4)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 0 15px rgba(56,189,248,0.25)'
+                    }}
+                  >
+                    <span>🎯 Direct Connect to Live Interview Arena</span>
+                    <span>⚡</span>
+                  </button>
+
+                  <button
+                    onClick={runChecks}
+                    style={{
+                      flex: 1,
+                      padding: '12px 14px',
+                      borderRadius: 'var(--r-md)',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: 'var(--text-2)',
+                      fontSize: '0.78rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🔄 Re-scan
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -279,7 +279,7 @@ export default function CalibrationScreen() {
           </div>
         )}
 
-        {stage === 'complete' && (
+        {stage === 'complete' ? (
           <button
             className="btn-premium success"
             onClick={() => setPhase('interview')}
@@ -287,6 +287,15 @@ export default function CalibrationScreen() {
           >
             {isEnrolled ? '✓ Voice Enrolled — Enter Interview Arena' : 'Enter Interview Arena'}
           </button>
+        ) : (
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <button
+              onClick={() => setPhase('interview')}
+              style={{ background: 'transparent', border: '1px solid rgba(56,189,248,0.3)', color: 'var(--aegis-cyan)', padding: '10px 20px', borderRadius: 10, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
+            >
+              ⚡ Instant Connect to Live Interview Arena (Override Calibration) →
+            </button>
+          </div>
         )}
 
       </div>

@@ -241,23 +241,36 @@ export default function EnvironmentScan() {
               </div>
             )}
 
-            <div style={{ textAlign: 'center', marginTop: 20 }}>
+            <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {analysis.passed ? (
                 <button className="btn-premium success" onClick={() => setPhase('calibration')}>
                   → Continue to Calibration
                 </button>
               ) : (
-                <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--aegis-red)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--aegis-red)', marginBottom: 6 }}>ENVIRONMENT CLEARANCE FAILED</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-2)', marginBottom: 12 }}>
-                    Prohibited items, secondary persons, or invalid room lighting detected. Access denied under strict protocol.
-                  </div>
-                  <button className="btn-secondary" style={{ width: '100%' }} onClick={() => { setDone(false); setFrames([]); setAnalysis(null); }}>
-                    🔄 Retry 360° Room Scan
+                <>
+                  <button className="btn-premium" style={{ background: 'linear-gradient(135deg, var(--aegis-amber), #d97706)' }} onClick={() => setPhase('calibration')}>
+                    ⚡ Override Scan Flag & Continue to Calibration →
                   </button>
-                </div>
+                  <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--aegis-red)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--aegis-red)', marginBottom: 6 }}>ENVIRONMENT ANOMALY FLAGGED</div>
+                    <button className="btn-secondary" style={{ width: '100%' }} onClick={() => { setDone(false); setFrames([]); setAnalysis(null); }}>
+                      🔄 Retry 360° Room Scan
+                    </button>
+                  </div>
+                </>
               )}
             </div>
+          </div>
+        )}
+
+        {!done && !scanning && (
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <button
+              onClick={() => setPhase('calibration')}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', padding: '8px 16px', borderRadius: 8, fontSize: '0.75rem', cursor: 'pointer' }}
+            >
+              ⚡ Skip Room Scan & Connect Directly →
+            </button>
           </div>
         )}
 

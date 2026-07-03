@@ -1,0 +1,11 @@
+node_modules
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gemini
+.pytest_cache
+*.log
+frontend/dist
+backend-cv/aegis.db

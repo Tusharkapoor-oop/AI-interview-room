@@ -3,7 +3,7 @@ import './LuxConciergeBundle.css';
 import LuxConciergeHero from './LuxConciergeHero';
 import LuxConciergePopup from './LuxConciergePopup';
 
-export default function LuxConciergeApp({ onComplete, initialReducedMotion = false }) {
+export default function LuxConciergeApp({ onComplete, onDirectEnter, onSecurityDash, initialReducedMotion = false }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(initialReducedMotion);
 
@@ -25,7 +25,7 @@ export default function LuxConciergeApp({ onComplete, initialReducedMotion = fal
       </div>
 
       {/* Hero */}
-      <LuxConciergeHero onBegin={() => setModalOpen(true)} onExplore={handleExplore} />
+      <LuxConciergeHero onBegin={() => setModalOpen(true)} onExplore={handleExplore} onDirectEnter={onDirectEnter} onSecurityDash={onSecurityDash} />
 
       {/* Feature Grid Section */}
       <section id="lux-explore-grid" style={{ padding: 'var(--lux-space-64) var(--lux-space-24)', maxWidth: '1200px', margin: '0 auto' }}>

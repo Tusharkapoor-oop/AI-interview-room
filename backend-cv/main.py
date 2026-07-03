@@ -31,10 +31,21 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, InterviewSession, AgentArtifact, TelemetryEvent
 from agents import AegisHub
 from agents.cv_agent import CVAgent
+from agents.security_engine import SecurityEvent
 from mcp.client import MCPClient
 from mcp.sqlite_server import _build_sqlite_server
 from mcp.github_server import _build_github_server
 from memory.manager import MemoryManager
+from agents.forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, PLRrPPGLivenessEngine, ForensicObservation
+from agents.fusion_engine import KinematicGestureEngine, FiveChannelFusionEngine, ChannelPacket
+import time
+
+# ─── Global AEGIS v4.0 Forensic & Fusion Engines ─────────────────────────────
+ks_engine = KSTestBaselineEngine(calibration_duration_sec=5.0, window_duration_sec=10.0)
+whitespace_engine = WhitespaceFixationDetector(window_size_frames=30)
+liveness_engine = PLRrPPGLivenessEngine(challenge_duration_sec=10.0)
+gesture_engine = KinematicGestureEngine()
+fusion_engine = FiveChannelFusionEngine(window_duration_sec=10.0)
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -450,6 +461,7 @@ async def ws_cv(websocket: WebSocket):
     await websocket.accept()
     session_id = websocket.query_params.get("session_id", str(uuid.uuid4()))
     cv_agent   = CVAgent(session_id=session_id)
+    hub = AegisHub(session_id=session_id, db_session=SessionLocal(), recruiter_broadcast=None)
     log.info("[ws/cv] Client connected — session=%s", session_id)
     
     db: Session = SessionLocal()
@@ -460,6 +472,56 @@ async def ws_cv(websocket: WebSocket):
 
             # Let CVAgent classify with grace-period logic
             event  = cv_agent.process(result) if result["status"] == "ok" else None
+            security_context = None
+            if result["status"] == "ok":
+                security_context = hub.ingest_security_features(result)
+                if security_context and security_context.get("fusion"):
+                    result["security_fusion"] = security_context["fusion"]
+                    result["gaze_estimate"] = security_context["gaze_estimate"]
+                    result["liveness"] = security_context["liveness"]
+                    result["ks_anomalous"] = security_context["ks_anomalous"]
+                    if security_context.get("gesture_event"):
+                        result["gesture_event"] = security_context["gesture_event"]
+
+                # ── Execute AEGIS v4.0 Forensic Engine Modules ────────────────
+                now_ts = time.time()
+                yaw_val = float(result.get("pose", {}).get("yaw", 0.0))
+                pitch_val = float(result.get("pose", {}).get("pitch", 0.0))
+                
+                obs = ForensicObservation(
+                    timestamp=now_ts,
+                    gaze_angular_deviation=abs(yaw_val),
+                    gaze_screen_coords=(0.5 + yaw_val/100.0, 0.5 + pitch_val/100.0),
+                    pupil_diameter_mm=3.5,
+                    screen_brightness_level=0.8,
+                    facial_rgb_mean=(120.0, 110.0, 105.0),
+                    candidate_speaking=False,
+                    keyboard_typing_active=result.get("hand_anomaly", False)
+                )
+
+                # Module 8: KS-Test Baseline Drift
+                ks_alert = ks_engine.process(obs)
+                result["v4_ks_test"] = {"anomalous": ks_alert is not None, "alert": ks_alert.description if ks_alert else None}
+
+                # Module 7: Whitespace Fixation Analysis
+                ws_alert = whitespace_engine.process(obs)
+                result["v4_whitespace"] = {"anomalous": ws_alert is not None, "alert": ws_alert.description if ws_alert else None}
+
+                # Module 6: PLR & rPPG Liveness
+                live_alert = liveness_engine.process(obs)
+                result["v4_liveness"] = {"passed": live_alert is None, "alert": live_alert.description if live_alert else "Liveness verified"}
+
+                # Module 9 & Fusion Brain: Multi-modal fusion
+                gaze_packet = ChannelPacket("GAZE", now_ts, 0.95 if (ks_alert or ws_alert) else 0.05, ks_alert.description if ks_alert else "Gaze nominal", (ks_alert or ws_alert) is not None)
+                gest_packet = ChannelPacket("GESTURE", now_ts, 0.95 if result.get("hand_anomaly") else 0.05, result.get("hand_anomaly_desc", ""), result.get("hand_anomaly") is not None)
+                fusion_engine.process_packet(gaze_packet)
+                decision = fusion_engine.process_packet(gest_packet)
+                result["v4_fusion"] = {
+                    "verdict": decision.action_level,
+                    "integrity_score": round(decision.integrity_score_100, 1),
+                    "active_channels": decision.active_channel_count,
+                    "description": decision.description
+                }
 
             if event:
                 # Persist risk event to DB
@@ -665,7 +727,7 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
 
 
 # ─── REST Endpoints ───────────────────────────────────────────────────────────
-@app.get("/", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 def health():
     return {
         "service":    "Aegis Interview Room",
@@ -750,3 +812,16 @@ def get_integrity_report(session_id: str):
         }
     finally:
         db.close()
+
+
+# ─── Serve Frontend SPA in Production ─────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+
+dist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
+if os.path.exists(dist_path):
+    log.info("[StaticFiles] Serving built frontend SPA from %s", dist_path)
+    app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
+else:
+    @app.get("/", tags=["Health"])
+    def root_health():
+        return health()

@@ -202,13 +202,19 @@ export default function LivenessChallenge() {
   const rafRef     = useRef(null);
   const streamRef  = useRef(null);
 
+  const [cameraAvailable, setCameraAvailable] = useState(null); // null=pending, true/false
+
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } })
       .then(stream => {
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+        setCameraAvailable(true);
       })
-      .catch(() => showToast('Camera access required for liveness verification.', 'error'));
+      .catch(() => {
+        setCameraAvailable(false);
+        showToast('Camera access denied — liveness test will be limited.', 'warning');
+      });
 
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
@@ -299,16 +305,21 @@ export default function LivenessChallenge() {
       setFailed(true);
       setLivenessPassed(false);
     }
-  }, [setLivenessPassed]);
+  }, [setLivenessPassed, setShowPlr]);
 
-  // PLR completion handler
+  // PLR completion handler: after PLR done, navigate to env_scan
   const handlePlrComplete = useCallback((plrRes) => {
     setPlrResult(plrRes);
     setPlrPassed(plrRes.passed);
     const overallPassed = passed && plrRes.passed;
     setLivenessPassed(overallPassed);
-    if (!overallPassed) setFailed(true);
-  }, [passed, setLivenessPassed, setPlrPassed]);
+    if (!overallPassed) {
+      setFailed(true);
+    } else {
+      // Small delay to show results, then auto-proceed
+      setTimeout(() => setPhase('env_scan'), 2500);
+    }
+  }, [passed, setLivenessPassed, setPlrPassed, setPhase]);
 
   const currentStep = trajectory[step] || {};
   const progressPct = trajectory.length > 0 ? (step / trajectory.length) * 100 : 0;
@@ -460,32 +471,51 @@ export default function LivenessChallenge() {
           </div>
         )}
 
-        {/* Continue buttons */}
-        {passed && plrResult?.passed && (
-          <button className="btn-premium success" style={{ width: '100%', marginTop: 16 }} onClick={() => setPhase('env_scan')}>
-            → Continue to Environment Scan
-          </button>
-        )}
-        {(failed || (plrResult && !plrResult.passed)) && (
-          <div style={{ marginTop: 16, padding: 16, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--aegis-red)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>🚫</div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--aegis-red)', fontWeight: 800, marginBottom: 8 }}>
-              BIOMETRIC LIVENESS VERIFICATION FAILED
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-2)', marginBottom: 14, lineHeight: 1.5 }}>
-              Access to the interview arena is denied under strict zero-tolerance security protocol. You must pass both active challenge and pupillary light reflex verification to proceed.
-            </div>
-            <button className="btn-premium" style={{ width: '100%', background: 'var(--aegis-red)' }}
-              onClick={() => {
-                setPassed(false); setFailed(false); setStarted(false); setResult(null);
-                setShowPlr(false); setPlrResult(null);
-                analyzerRef.current = new PupilAnalyzer();
-              }}
-            >
-              🔄 Retry Liveness Verification
-            </button>
+        {/* Camera unavailable notice */}
+        {cameraAvailable === false && (
+          <div style={{ padding: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, marginTop: 12, fontSize: '0.76rem', color: 'var(--aegis-amber)', textAlign: 'center' }}>
+            ⚠️ Camera unavailable — liveness test running in limited mode
           </div>
         )}
+
+        {/* Continue buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+          {passed && plrResult?.passed && (
+            <div style={{ padding: 12, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, textAlign: 'center', fontSize: '0.78rem', color: 'var(--aegis-green)' }}>
+              ✓ All liveness checks passed — proceeding to environment scan…
+            </div>
+          )}
+          {passed && plrResult?.passed && (
+            <button className="btn-premium success" style={{ width: '100%' }} onClick={() => setPhase('env_scan')}>
+              → Continue to Environment Scan
+            </button>
+          )}
+          {/* Camera off: allow proceed with degraded score */}
+          {cameraAvailable === false && !started && (
+            <button className="btn-premium" style={{ width: '100%', background: 'linear-gradient(135deg, var(--aegis-amber), #d97706)' }}
+              onClick={() => { setLivenessPassed(false); setPhase('env_scan'); }}>
+              ⚡ Proceed Without Liveness (limited trust)
+            </button>
+          )}
+
+          {(failed || (plrResult && !plrResult.passed)) && (
+            <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--aegis-red)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>🚫</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--aegis-red)', fontWeight: 800, marginBottom: 8 }}>
+                BIOMETRIC LIVENESS VERIFICATION FLAG
+              </div>
+              <button className="btn-secondary" style={{ width: '100%' }}
+                onClick={() => {
+                  setPassed(false); setFailed(false); setStarted(false); setResult(null);
+                  setShowPlr(false); setPlrResult(null);
+                  analyzerRef.current = new PupilAnalyzer();
+                }}
+              >
+                🔄 Retry Liveness Verification
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Technical transparency */}
         <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.12)', borderRadius: 'var(--r-md)', fontSize: '0.68rem', color: 'var(--text-3)', lineHeight: 1.6 }}>

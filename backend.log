@@ -1,0 +1,21 @@
+2026-07-01 19:22:48,987 [WARNING ] aegis — No OPENAI_API_KEY — running in offline mock mode
+2026-07-01 19:22:48,987 [INFO    ] aegis.mcp.client — [MCPClient] Initialized
+2026-07-01 19:22:48,989 [WARNING ] aegis.memory.vector_store — [VectorStore] FAISS/SentenceTransformers not installed — vector search disabled. (No module named 'faiss')
+2026-07-01 19:22:48,989 [INFO    ] aegis.memory.manager — [MemoryManager] Initialized (vector_store size=0)
+W0000 00:00:1782913969.217614   19260 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+W0000 00:00:1782913969.261185   23536 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1782913969.292462   21616 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1782913969.385425   19924 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1782913969.418356   28932 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+2026-07-01 19:22:49,420 [INFO    ] aegis — [main] MediaPipe Tasks detectors (Face & Hand) initialized successfully.
+INFO:     Started server process [5600]
+INFO:     Waiting for application startup.
+2026-07-01 19:22:49,718 [INFO    ] aegis — Aegis v3.0 starting up...
+2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.sqlite — [MCPServer/sqlite] Registered 3 tools
+2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'sqlite' with 3 tools
+2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.github — [MCPServer/github] Registered 2 tools
+2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'github' with 2 tools
+2026-07-01 19:22:49,718 [INFO    ] aegis — MCP servers mounted: ['sqlite', 'sqlite', 'sqlite', 'github', 'github']
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

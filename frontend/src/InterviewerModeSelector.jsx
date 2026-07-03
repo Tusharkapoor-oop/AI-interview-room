@@ -298,7 +298,7 @@ export default function InterviewerModeSelector() {
   const handleLaunch = (modeId) => {
     if (modeId === 'ai') {
       setInterviewMode('ai');
-      setPhase('liveness'); // continue normal candidate flow
+      setPhase('identity'); // continue normal candidate flow: identity -> liveness -> env_scan
     } else {
       setShowLogin(modeId);
     }

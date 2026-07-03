@@ -11,6 +11,20 @@ from .memory_agent import MemoryAgent
 from .audio_agent import AudioAgent
 from .fraud_agent import FraudAgent
 from .continuous_verifier import ContinuousVerifier
+from .security_engine import (
+    FiveChannelFusionEngine,
+    GestureRecognitionEngine,
+    HybridGazeTracker,
+    KSAnomalyDetector,
+    LivenessVerifier,
+)
+
+from .gaze_agent import GazeAgentEvaluator
+from .baseline_agent import BaselineAgentEvaluator
+from .kinematic_agent import KinematicAgentEvaluator
+from .liveness_agent import LivenessAgentEvaluator
+from .deepfake_agent import DeepfakeAgentEvaluator
+from .fusion_agent import FusionAgentEvaluator
 
 __all__ = [
     "AegisHub",
@@ -21,4 +35,15 @@ __all__ = [
     "AudioAgent",
     "FraudAgent",
     "ContinuousVerifier",
+    "FiveChannelFusionEngine",
+    "GestureRecognitionEngine",
+    "HybridGazeTracker",
+    "KSAnomalyDetector",
+    "LivenessVerifier",
+    "GazeAgentEvaluator",
+    "BaselineAgentEvaluator",
+    "KinematicAgentEvaluator",
+    "LivenessAgentEvaluator",
+    "DeepfakeAgentEvaluator",
+    "FusionAgentEvaluator",
 ]

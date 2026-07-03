@@ -9,6 +9,7 @@ export const useAegisStore = create((set, get) => ({
   strictMandatoryLockdown: false,
   mandatoryLockdownReason: '',
   triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason }),
+  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', trustScore: 100 }),
 
   // ── Phase Management ─────────────────────────────────
   phase: 'landing',
@@ -19,11 +20,22 @@ export const useAegisStore = create((set, get) => ({
   interviewMode: 'ai',
   setInterviewMode: (mode) => set({ interviewMode: mode }),
 
-  // ── Identity Verification (Layer 1) ──────────────────────
+  // ── Identity Verification (Layer 1) ──────────────────────────────────────
   identityData: null,
   setIdentityData: (data) => set({ identityData: data }),
   identityVerified: false,
   setIdentityVerified: (v) => set({ identityVerified: v }),
+
+  // ── Face Mesh Baseline (2D landmark array for continuous verification) ──
+  // Stored as flat array of {x, y} normalized coords from registration selfie
+  registeredFaceMesh: null,
+  setRegisteredFaceMesh: (mesh) => set({ registeredFaceMesh: mesh }),
+  faceMatchScore: 100,
+  setFaceMatchScore: (score) => set({ faceMatchScore: score }),
+
+  // ── Camera Permission State ─────────────────────────────────────────────
+  cameraPermission: 'unknown', // 'unknown' | 'granted' | 'denied'
+  setCameraPermission: (state) => set({ cameraPermission: state }),
 
   // ── Session Config (from OnboardScreen) ──────────────
   sessionConfig: {

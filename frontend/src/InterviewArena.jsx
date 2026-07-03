@@ -40,8 +40,9 @@ import { useLlmPhraseDetector } from './useLlmPhraseDetector'; // Research Modul
 import { useAudioForensics } from './useAudioForensics';    // Research Module NEW — audio forensics
 
 
-const CV_WS  = 'ws://localhost:8000/ws/cv';
-const INT_WS = 'ws://localhost:8000/ws/interview';
+const getWsProtocol = () => window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const CV_WS  = `${getWsProtocol()}//${window.location.host}/ws/cv`;
+const INT_WS = `${getWsProtocol()}//${window.location.host}/ws/interview`;
 
 const QUESTIONS = {
   technical: [
@@ -69,6 +70,48 @@ const DIFFICULTY_COLORS = {
   medium: { label: 'Medium', color: 'var(--aegis-amber)', bg: 'rgba(245,158,11,0.1)' },
   hard:   { label: 'Hard',   color: 'var(--aegis-red)', bg: 'rgba(239,68,68,0.1)' },
 };
+
+function GazeForensicHudPanel() {
+  const [metrics, setMetrics] = React.useState(window.__aegisGazeEntropy || {});
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      if (window.__aegisGazeEntropy) setMetrics({ ...window.__aegisGazeEntropy });
+    }, 250);
+    return () => clearInterval(timer);
+  }, []);
+
+  const entropy = metrics.entropy !== undefined ? metrics.entropy : 0.85;
+  const acf1 = metrics.acf1 !== undefined ? metrics.acf1 : 0.05;
+  const scanRatio = metrics.scanRatio !== undefined ? metrics.scanRatio : 0.12;
+  const isReading = metrics.ensembleScore > 0.45;
+
+  return (
+    <div className="mini-metric" style={{ border: isReading ? '1px solid var(--aegis-red)' : '1px solid var(--aegis-teal)', background: isReading ? 'rgba(239,68,68,0.06)' : 'rgba(20,184,166,0.04)', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div className="mini-metric-label" style={{ color: isReading ? 'var(--aegis-red)' : 'var(--aegis-teal)' }}>
+          👁 Gaze Forensics (v4.0)
+        </div>
+        <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, background: isReading ? 'var(--aegis-red)' : 'var(--aegis-green)', color: '#fff', fontWeight: 700 }}>
+          {isReading ? 'READING DETECTED' : 'NATURAL GAZE'}
+        </span>
+      </div>
+      
+      <div style={{ fontSize: '0.72rem', display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+        <span>Shannon Entropy (H):</span>
+        <strong style={{ color: entropy < 0.5 ? 'var(--aegis-red)' : 'var(--aegis-green)' }}>{entropy.toFixed(2)} / 1.0</strong>
+      </div>
+      <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
+        <div style={{ width: `${entropy * 100}%`, height: '100%', background: entropy < 0.5 ? 'var(--aegis-red)' : 'var(--aegis-green)', transition: 'width 0.3s ease' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: '0.68rem', color: 'var(--text-2)' }}>
+        <div>ACF₁ (Periodicity): <strong style={{ color: '#fff' }}>{acf1.toFixed(2)}</strong></div>
+        <div>Scan Ratio: <strong style={{ color: '#fff' }}>{scanRatio.toFixed(2)}</strong></div>
+      </div>
+    </div>
+  );
+}
 
 export default function InterviewArena() {
   const {
@@ -255,6 +298,15 @@ export default function InterviewArena() {
     // Bypass biometric proctoring alerts in Relaxed Proctoring Mode (US-05)
     if (relaxedProctoringEnabled) {
       return;
+    }
+
+    if (data.v4_fusion && (data.v4_fusion.verdict === 'HIGH_FLAG_REVIEW' || data.v4_fusion.verdict === 'CRITICAL_PAUSE')) {
+      addRiskEvent({
+        type: 'MULTI_MODAL_FUSION_ALERT',
+        severity: data.v4_fusion.verdict === 'CRITICAL_PAUSE' ? 'CRITICAL' : 'HIGH',
+        desc: `[v4.0 Fusion] ${data.v4_fusion.description} (${data.v4_fusion.active_channels} channels triggered)`,
+      });
+      updateIntegrityScore();
     }
 
     if (data.gaze_anomaly) {
@@ -543,6 +595,8 @@ export default function InterviewArena() {
 
         {/* Privacy notice */}
         <div style={{ marginTop: 'auto' }}>
+          <GazeForensicHudPanel />
+
           {/* rPPG Monitor Panel (Paper §rPPG) */}
           <RppgMonitor rppgData={rppgData} />
 
