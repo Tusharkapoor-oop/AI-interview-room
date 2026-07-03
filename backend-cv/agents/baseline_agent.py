@@ -9,7 +9,7 @@ artificial posture enforcement.
 """
 
 import math
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 
 class BaselineAgentEvaluator:
