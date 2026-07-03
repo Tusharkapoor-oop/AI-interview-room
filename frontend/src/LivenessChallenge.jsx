@@ -19,7 +19,7 @@
  *   - Measures directional pupil response to screen brightness changes
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 import PlrChallenge from './PlrChallenge';
 
 // Sequence length (paper: longer = better detection)
@@ -205,7 +205,7 @@ export default function LivenessChallenge() {
   const [cameraAvailable, setCameraAvailable] = useState(null); // null=pending, true/false
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } })
+    getGlobalCameraStream()
       .then(stream => {
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
@@ -217,7 +217,6 @@ export default function LivenessChallenge() {
       });
 
     return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop());
       clearTimeout(timerRef.current);
       cancelAnimationFrame(rafRef.current);
     };

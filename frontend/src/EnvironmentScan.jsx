@@ -9,7 +9,7 @@
  *   - Lighting anomaly baseline
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 
 const SCAN_STEPS = [
   { id: 'front',      dir: 'Face the camera normally',          icon: '🟢', angle: 'Front view' },
@@ -71,14 +71,13 @@ export default function EnvironmentScan() {
   const [ready,    setReady]    = useState(false);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+    getGlobalCameraStream()
       .then(s => {
         streamRef.current = s;
         if (videoRef.current) videoRef.current.srcObject = s;
         setReady(true);
       })
       .catch(() => showToast('Camera required for environment scan.', 'error'));
-    return () => streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
   const captureFrame = () => {

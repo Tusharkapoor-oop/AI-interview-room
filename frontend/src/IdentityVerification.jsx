@@ -3,7 +3,7 @@
  * Camera-optional, 2D face mesh extraction and registration, proper phase flow.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 
 // ── Device Fingerprint ────────────────────────────────────────────
 async function generateDeviceFingerprint() {
@@ -92,12 +92,12 @@ function StepSelfieMatch({ onComplete }) {
   const [mesh,setMesh]=useState(null);
 
   const startCam=useCallback(()=>{
-    navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}})
+    getGlobalCameraStream()
       .then(s=>{sRef.current=s;if(vRef.current)vRef.current.srcObject=s;setCamOk(true);setCameraPermission('granted');})
       .catch(()=>{setCamOk(false);setCameraPermission('denied');});
   },[setCameraPermission]);
 
-  useEffect(()=>{startCam();return()=>sRef.current?.getTracks().forEach(t=>t.stop());},[]);
+  useEffect(()=>{startCam();},[]);
 
   const capture=()=>{
     if(!vRef.current||!cRef.current) return;
@@ -105,7 +105,6 @@ function StepSelfieMatch({ onComplete }) {
     ctx.save();ctx.scale(-1,1);ctx.drawImage(vRef.current,-640,0,640,480);ctx.restore();
     setCap(cRef.current.toDataURL('image/jpeg',0.9));
     setMesh(extractFaceMesh2D(ctx.getImageData(0,0,640,480),640,480));
-    sRef.current?.getTracks().forEach(t=>t.stop());
   };
 
   const register=async()=>{

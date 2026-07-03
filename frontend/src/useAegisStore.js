@@ -280,3 +280,27 @@ export const useAegisStore = create((set, get) => ({
   setSpeakerMatchScore: (s) => set({ speakerMatchScore: s }),
 }));
 
+// Global persistent camera stream so camera stays ON uninterrupted across all onboarding steps
+export async function getGlobalCameraStream() {
+  if (window.__aegisGlobalCameraStream && window.__aegisGlobalCameraStream.active) {
+    return window.__aegisGlobalCameraStream;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: 'user' },
+      audio: false
+    });
+    window.__aegisGlobalCameraStream = stream;
+    return stream;
+  } catch (err) {
+    throw err;
+  }
+}
+
+export function stopGlobalCameraStream() {
+  if (window.__aegisGlobalCameraStream) {
+    window.__aegisGlobalCameraStream.getTracks().forEach(t => t.stop());
+    window.__aegisGlobalCameraStream = null;
+  }
+}
+

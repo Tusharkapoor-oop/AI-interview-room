@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream, stopGlobalCameraStream } from './useAegisStore';
 import { useWebSocket } from './useWebSocket';
 import HolographicAvatar from './HolographicAvatar';
 import AudioWaveform from './AudioWaveform';
@@ -210,10 +210,10 @@ export default function InterviewArena() {
 
   // ── Webcam ─────────────────────────────────────────────
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+    getGlobalCameraStream()
       .then(s => { if (videoRef.current) videoRef.current.srcObject = s; })
       .catch(() => showToast('Camera access is required.', 'error'));
-    return () => videoRef.current?.srcObject?.getTracks().forEach(t => t.stop());
+    return () => stopGlobalCameraStream();
   }, []);
 
   // ── Chat scroll ────────────────────────────────────────
