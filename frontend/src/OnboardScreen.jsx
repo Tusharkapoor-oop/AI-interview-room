@@ -7,7 +7,7 @@
  * - Step progress indicator
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 
 const ROLES = [
   { id: 'software_engineer', label: 'Software Engineer', icon: '⚙', color: 'var(--aegis-cyan)' },
@@ -132,8 +132,7 @@ export default function OnboardScreen() {
       let pass = true;
       if (check.id === 'camera' || check.id === 'mic') {
         try {
-          const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          s.getTracks().forEach(t => t.stop());
+          await getGlobalCameraStream();
         } catch { pass = false; }
       } else if (check.id === 'screen') {
         try {
