@@ -25,7 +25,7 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -82,8 +82,8 @@ class InvitationCodeValidator:
         if not effective_code:
             return False, "Invitation code required. Provide code or select Default AI Passkey.", {}
 
-        # Validate format or default match
-        if effective_code != cls.DEFAULT_AI_INVITATION_CODE and not effective_code.startswith("INV-"):
+        # Validate: only the known default code is accepted
+        if effective_code != cls.DEFAULT_AI_INVITATION_CODE:
             return False, f"Invalid invitation code signature: {effective_code}", {}
 
         session_hash = hashlib.sha256(f"{candidate_name}:{normalized_role}:{effective_code}".encode()).hexdigest()[:16]

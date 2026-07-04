@@ -14,9 +14,8 @@ Paper 3 §"Multi-Modal Fraud Detection":
   - Cross-modal verification with visual signals
 """
 import logging
-import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 log = logging.getLogger("aegis.audio_agent")
@@ -38,7 +37,7 @@ class AudioEvent:
     confidence:   float = 0.8
     audio_feature: dict = field(default_factory=dict)
     fraud_signal: bool = False
-    timestamp:    str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp:    str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class AudioAgent:
@@ -79,7 +78,7 @@ class AudioAgent:
           - formant_regularity: float     # 0=natural, 1=synthetic
           - segment_start_ts: float       # unix timestamp
         """
-        ts = audio_features.get("segment_start_ts", datetime.utcnow().timestamp())
+        ts = audio_features.get("segment_start_ts", datetime.now(timezone.utc).timestamp())
         speaking = audio_features.get("speaking", False)
         energy   = audio_features.get("energy", 0.0)
 
@@ -115,8 +114,8 @@ class AudioAgent:
             gap = ts - prev_ts
             if COACHING_GAP_S * 0.7 <= gap <= COACHING_GAP_S * 1.4:
                 self._coaching_gaps.append(gap)
-            else:
-                self._coaching_gaps = []
+            elif len(self._coaching_gaps) > 0:
+                self._coaching_gaps.pop(0)
 
             if len(self._coaching_gaps) >= 5:
                 ev = AudioEvent(

@@ -9,7 +9,7 @@ multi-person bounding box intrusions.
 """
 
 import math
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 
 
 class Keypoint3D:

@@ -9,7 +9,7 @@ export const useAegisStore = create((set, get) => ({
   strictMandatoryLockdown: false,
   mandatoryLockdownReason: '',
   triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason }),
-  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', trustScore: 100 }),
+  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', integrityScore: 100 }),
 
   // ── Phase Management ─────────────────────────────────
   phase: 'landing',
@@ -110,7 +110,12 @@ export const useAegisStore = create((set, get) => ({
         'EXTENSION_IFRAME', 'EXTENSION_WORKER', 'AI_API_CALL', 'SYNTHETIC_PASTE', 'NO_FACE_DETECTED'
       ]);
 
-      const isDisqualified = newEvents.length >= 3 || newEvents.some(e => e.severity === 'CRITICAL' || ZERO_TOLERANCE_SIGNALS.has(e.type));
+      const highSeverityEvents = newEvents.filter(e => e.severity === 'high' || e.severity === 'critical');
+      const mediumEvents = newEvents.filter(e => e.severity === 'medium');
+      const isDisqualified =
+        highSeverityEvents.length >= 1 ||
+        mediumEvents.length >= 2 ||
+        newEvents.some(e => ZERO_TOLERANCE_SIGNALS.has(e.type));
       
       if (isDisqualified && !s.strictMandatoryLockdown) {
         return {
@@ -145,11 +150,11 @@ export const useAegisStore = create((set, get) => ({
     }, 0);
     const newScore = Math.max(100 - penalties, 0);
     
-    if (newScore < 75 && !strictMandatoryLockdown) {
+    if (newScore < 40 && !strictMandatoryLockdown) {
       set({
         integrityScore: newScore,
         strictMandatoryLockdown: true,
-        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Score ${newScore}% < 75% strict threshold). Mandatory terminal enforcement active.`
+        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Score ${newScore}% < 40% strict threshold).`
       });
     } else {
       set({ integrityScore: newScore });
@@ -278,29 +283,43 @@ export const useAegisStore = create((set, get) => ({
   // Live cosine-similarity match score (0–100) vs. enrolled voice profile.
   speakerMatchScore: null,
   setSpeakerMatchScore: (s) => set({ speakerMatchScore: s }),
+
+  // Internal camera stream (not window global)
+  _cameraStream: null,
+  _setCameraStream: (s) => set({ _cameraStream: s }),
 }));
 
-// Global persistent camera stream so camera stays ON uninterrupted across all onboarding steps
+// Camera stream stored in Zustand (not window global) — SSR-safe, race-condition-free
+let _cameraStreamPromise = null;
+
 export async function getGlobalCameraStream() {
-  if (window.__aegisGlobalCameraStream && window.__aegisGlobalCameraStream.active) {
-    return window.__aegisGlobalCameraStream;
+  const existing = useAegisStore.getState()._cameraStream;
+  if (existing && existing.active) {
+    return existing;
   }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' },
-      audio: false
-    });
-    window.__aegisGlobalCameraStream = stream;
-    return stream;
-  } catch (err) {
-    throw err;
-  }
+  if (_cameraStreamPromise) return _cameraStreamPromise;
+  _cameraStreamPromise = (async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+        audio: false
+      });
+      useAegisStore.getState()._setCameraStream(stream);
+      return stream;
+    } catch (err) {
+      _cameraStreamPromise = null;
+      throw err;
+    }
+  })();
+  return _cameraStreamPromise;
 }
 
 export function stopGlobalCameraStream() {
-  if (window.__aegisGlobalCameraStream) {
-    window.__aegisGlobalCameraStream.getTracks().forEach(t => t.stop());
-    window.__aegisGlobalCameraStream = null;
+  const stream = useAegisStore.getState()._cameraStream;
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    useAegisStore.getState()._setCameraStream(null);
   }
+  _cameraStreamPromise = null;
 }
 

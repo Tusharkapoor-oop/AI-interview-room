@@ -17,9 +17,8 @@ Implements paper §3-§6 detection methods:
     * Behavioral anomaly pattern
 """
 import logging
-import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 log = logging.getLogger("aegis.cv_agent")
@@ -36,7 +35,7 @@ class RiskEvent:
     hands_count:  int   = 0
     gaze_quadrant: str  = "CENTER"
     fraud_signal: bool  = False
-    timestamp:    str   = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp:    str   = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # All valid event types (paper §4 + §8 blueprint)
 EVENT_TYPES = {
@@ -161,7 +160,7 @@ class CVAgent:
         self._prev_eye_open = eye_open
 
         if is_blink:
-            now = datetime.utcnow().timestamp()
+            now = datetime.now(timezone.utc).timestamp()
             self._blink_timestamps.append(now)
             # Keep last 60 seconds
             self._blink_timestamps = [t for t in self._blink_timestamps if now - t < 60]
@@ -293,7 +292,7 @@ class CVAgent:
                     avg_prev = sum(prev_vels) / len(prev_vels)
                     # If the snap-back direction is opposite to the reading sweep direction
                     if avg_prev * last_vel < 0 and abs(avg_prev) > 0.002:
-                         now_ts = datetime.utcnow().timestamp()
+                         now_ts = datetime.now(timezone.utc).timestamp()
                          self._saccade_timestamps.append(now_ts)
                          self._saccade_timestamps = [t for t in self._saccade_timestamps if now_ts - t < 15]
                          
@@ -345,7 +344,7 @@ class CVAgent:
         else:
             self._gaze_counter = max(0, self._gaze_counter - 5)
 
-        if self._gaze_counter == self.GRACE_FRAMES:
+        if self._gaze_counter >= self.GRACE_FRAMES:
             if yaw > self.YAW_CRIT:
                 severity = "CRITICAL"
             elif yaw > self.YAW_HIGH or abs(pitch) > self.PITCH_HIGH:
@@ -394,7 +393,7 @@ class CVAgent:
         # ── Hand Anomaly (paper §5) ───────────────────────────
         if hands > self.HANDS_WARN:
             self._hand_counter += 1
-            if self._hand_counter == self.HAND_GRACE_FRAMES:
+            if self._hand_counter >= self.HAND_GRACE_FRAMES:
                 severity = "HIGH" if hands > self.HANDS_HIGH else "MEDIUM"
                 ev = RiskEvent(
                     session_id  = self.session_id,

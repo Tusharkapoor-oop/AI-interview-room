@@ -188,6 +188,151 @@ function ForensicTimeline({ events, sessionSeconds, onJump }) {
   );
 }
 
+// ── Right Panel with Tabs ────────────────────────────────────────
+function RightPanel({ accommodationRequested, relaxedProctoringEnabled, setRelaxedProctoringEnabled, agentStatuses, summaryScore, telemetry, riskEvents, transcript, sessionId }) {
+  const [rightTab, setRightTab] = useState('biometrics');
+  const tabs = [
+    { id: 'biometrics', label: '🧬 Bio' },
+    { id: 'fraud',      label: '🔴 Fraud' },
+    { id: 'gaze',       label: '👁 Gaze' },
+    { id: 'extensions', label: '🛡 Extensions' },
+    { id: 'timeline',   label: '📊 Timeline' },
+    { id: 'trust',      label: '⚡ Trust' },
+  ];
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button key={t.id}
+            onClick={() => setRightTab(t.id)}
+            style={{
+              padding: '4px 10px', borderRadius: 20,
+              border: `1px solid ${rightTab === t.id ? 'var(--aegis-blue)' : 'var(--border)'}`,
+              background: rightTab === t.id ? 'rgba(59,130,246,0.12)' : 'transparent',
+              color: rightTab === t.id ? 'var(--aegis-blue)' : 'var(--text-3)',
+              fontSize: '0.62rem', cursor: 'pointer', fontFamily: 'var(--font)',
+            }}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {rightTab === 'biometrics' && (
+        <>
+          {/* Accessibility Accommodation Status (US-05) */}
+          {accommodationRequested && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(255, 159, 28, 0.08)',
+              border: '1px solid rgba(255, 159, 28, 0.25)',
+              borderRadius: 'var(--r-md)',
+              fontSize: '0.72rem',
+              color: 'var(--aegis-amber)',
+              marginBottom: '12px',
+              lineHeight: '1.4'
+            }}>
+              ♿ Candidate declared visual/motor disability and requested proctoring accommodations.
+            </div>
+          )}
+
+          {/* Relaxed Proctoring Configuration Switch (US-05) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            marginBottom: '14px'
+          }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-2)' }}>
+              ♿ Relaxed Proctoring
+            </span>
+            <button
+              onClick={() => setRelaxedProctoringEnabled(!relaxedProctoringEnabled)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                background: relaxedProctoringEnabled ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: relaxedProctoringEnabled ? 'var(--aegis-green)' : 'var(--text-3)',
+                fontSize: '0.62rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                fontFamily: 'var(--font)',
+                transition: 'all 0.2s'
+              }}
+            >
+              {relaxedProctoringEnabled ? 'ON (BIOMETRICS BYPASSED)' : 'OFF'}
+            </button>
+          </div>
+
+          <AgentStatusPanel statuses={agentStatuses} />
+          <IntegrityGauge score={summaryScore} />
+          <div style={{ height: 180, borderRadius: 'var(--r-lg)', overflow: 'hidden', border: '1px solid var(--border-blue)', flexShrink: 0, background: 'var(--surface)' }}>
+            <Canvas camera={{ position: [0, 0, 6], fov: 50 }}>
+              <CyberAvatar pose={telemetry.pose} anomaly={telemetry.gaze_anomaly} />
+              <OrbitControls enableZoom={false} enablePan={false} />
+            </Canvas>
+          </div>
+          <div style={{ textAlign: 'center', fontSize: '0.6rem', color: 'var(--text-3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginTop: -8 }}>Digital Twin · Zero-Bias Mask Active</div>
+          <div className="metrics-grid">
+            {[
+              { label: 'Gaze Status', val: telemetry.gaze_anomaly ? '⚠ Anomaly' : '✓ Stable', cls: telemetry.gaze_anomaly ? 'alert' : 'safe', flagged: telemetry.gaze_anomaly },
+              { label: 'Hands', val: `${telemetry.hands_visible||0} in frame`, cls: (telemetry.hands_visible||0) > 1 ? 'warn' : 'safe', flagged: (telemetry.hands_visible||0) > 1 },
+              { label: 'Risk Events', val: riskEvents.length, cls: riskEvents.length > 5 ? 'alert' : riskEvents.length > 2 ? 'warn' : 'safe', flagged: false },
+              { label: 'Integrity', val: `${summaryScore}%`, cls: summaryScore >= 80 ? 'safe' : summaryScore >= 50 ? 'warn' : 'alert', flagged: summaryScore < 50 },
+            ].map(m => (
+              <div key={m.label} className={`r-metric ${m.flagged ? 'flagged' : ''}`}>
+                <div className="r-metric-label">{m.label}</div>
+                <div className={`r-metric-val ${m.cls}`}>{m.val}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 12 }}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Head Pose (Euler) — Paper §4.5</div>
+            <div className="euler-row">
+              {[['Pitch', telemetry.pose?.pitch], ['Yaw', telemetry.pose?.yaw], ['Roll', telemetry.pose?.roll]].map(([axis, val]) => (
+                <div key={axis} className="euler-chip">
+                  <div className="euler-axis">{axis}</div>
+                  <div className="euler-val">{Math.round(val || 0)}°</div>
+                </div>
+              ))}
+            </div>
+          </div>
+            <div className="risk-section">
+            <div className="risk-header"><div className="risk-title">⚡ Risk Event Log</div><div className="risk-count">{riskEvents.length} events</div></div>
+            <div className="risk-list">
+              {riskEvents.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', textAlign: 'center', padding: '12px 0' }}>No anomalies detected.</div>}
+              {riskEvents.length > 100 && <div style={{ fontSize: '0.62rem', color: 'var(--text-3)', padding: '4px 8px', textAlign: 'center' }}>Showing last 100 of {riskEvents.length} events</div>}
+              {[...riskEvents].slice(-100).reverse().map(ev => (
+                <div key={ev.id} className={`risk-event ${ev.severity}`}>
+                  <div><div className="risk-ts">{ev.ts}</div></div>
+                  <div><div className="risk-desc">{ev.desc}</div><div className={`risk-severity ${ev.severity}`}>{ev.severity}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-3)' }}>AI Transcript</div>
+            <div className="transcript-section">
+              {transcript.map((line, i) => (<div key={i} className="transcript-line"><span className="ts">{line.ts}</span><span className="ai-tag">{line.speaker}:</span><span>{line.text}</span></div>))}
+            </div>
+          </div>
+          <ArtifactViewer sessionId={sessionId} />
+        </>
+      )}
+
+      {rightTab === 'fraud' && <FraudScorePanel />}
+      {rightTab === 'gaze'  && <GazeHeatmap />}
+      {rightTab === 'extensions' && <ExtensionThreatCatalog />}
+      {rightTab === 'timeline' && <BehaviorTimeline />}
+      {rightTab === 'trust' && <MultiModalTrustScore />}
+    </>
+  );
+}
+
 // ── Main Command Center ──────────────────────────────────────────
 export default function CommandCenter() {
   const {
@@ -268,149 +413,17 @@ export default function CommandCenter() {
 
       {/* ── Right Panel ── */}
       <div className="recruiter-right" role="complementary" aria-label="Integrity analysis panel">
-
-        {/* ── Tab Navigation for right panel ─────────────── */}
-        {(() => {
-          const [rightTab, setRightTab] = useState('biometrics');
-          const tabs = [
-            { id: 'biometrics', label: '🧬 Bio' },
-            { id: 'fraud',      label: '🔴 Fraud' },
-            { id: 'gaze',       label: '👁 Gaze' },
-            { id: 'extensions', label: '🛡 Extensions' },
-            { id: 'timeline',   label: '📊 Timeline' },
-            { id: 'trust',      label: '⚡ Trust' },
-          ];
-          return (
-            <>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-                {tabs.map(t => (
-                  <button key={t.id}
-                    onClick={() => setRightTab(t.id)}
-                    style={{
-                      padding: '4px 10px', borderRadius: 20,
-                      border: `1px solid ${rightTab === t.id ? 'var(--aegis-blue)' : 'var(--border)'}`,
-                      background: rightTab === t.id ? 'rgba(59,130,246,0.12)' : 'transparent',
-                      color: rightTab === t.id ? 'var(--aegis-blue)' : 'var(--text-3)',
-                      fontSize: '0.62rem', cursor: 'pointer', fontFamily: 'var(--font)',
-                    }}
-                  >{t.label}</button>
-                ))}
-              </div>
-
-              {rightTab === 'biometrics' && (
-                <>
-                  {/* Accessibility Accommodation Status (US-05) */}
-                  {accommodationRequested && (
-                    <div style={{
-                      padding: '10px 14px',
-                      background: 'rgba(255, 159, 28, 0.08)',
-                      border: '1px solid rgba(255, 159, 28, 0.25)',
-                      borderRadius: 'var(--r-md)',
-                      fontSize: '0.72rem',
-                      color: 'var(--aegis-amber)',
-                      marginBottom: '12px',
-                      lineHeight: '1.4'
-                    }}>
-                      ♿ Candidate declared visual/motor disability and requested proctoring accommodations.
-                    </div>
-                  )}
-
-                  {/* Relaxed Proctoring Configuration Switch (US-05) */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    marginBottom: '14px'
-                  }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-2)' }}>
-                      ♿ Relaxed Proctoring
-                    </span>
-                    <button
-                      onClick={() => setRelaxedProctoringEnabled(!relaxedProctoringEnabled)}
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: '20px',
-                        border: '1px solid var(--border)',
-                        background: relaxedProctoringEnabled ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                        color: relaxedProctoringEnabled ? 'var(--aegis-green)' : 'var(--text-3)',
-                        fontSize: '0.62rem',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        fontFamily: 'var(--font)',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {relaxedProctoringEnabled ? 'ON (BIOMETRICS BYPASSED)' : 'OFF'}
-                    </button>
-                  </div>
-
-                  <AgentStatusPanel statuses={agentStatuses} />
-                  <IntegrityGauge score={summaryScore} />
-                  <div style={{ height: 180, borderRadius: 'var(--r-lg)', overflow: 'hidden', border: '1px solid var(--border-blue)', flexShrink: 0, background: 'var(--surface)' }}>
-                    <Canvas camera={{ position: [0, 0, 6], fov: 50 }}>
-                      <CyberAvatar pose={telemetry.pose} anomaly={telemetry.gaze_anomaly} />
-                      <OrbitControls enableZoom={false} enablePan={false} />
-                    </Canvas>
-                  </div>
-                  <div style={{ textAlign: 'center', fontSize: '0.6rem', color: 'var(--text-3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginTop: -8 }}>Digital Twin · Zero-Bias Mask Active</div>
-                  <div className="metrics-grid">
-                    {[
-                      { label: 'Gaze Status', val: telemetry.gaze_anomaly ? '⚠ Anomaly' : '✓ Stable', cls: telemetry.gaze_anomaly ? 'alert' : 'safe', flagged: telemetry.gaze_anomaly },
-                      { label: 'Hands', val: `${telemetry.hands_visible||0} in frame`, cls: (telemetry.hands_visible||0) > 1 ? 'warn' : 'safe', flagged: (telemetry.hands_visible||0) > 1 },
-                      { label: 'Risk Events', val: riskEvents.length, cls: riskEvents.length > 5 ? 'alert' : riskEvents.length > 2 ? 'warn' : 'safe', flagged: false },
-                      { label: 'Integrity', val: `${summaryScore}%`, cls: summaryScore >= 80 ? 'safe' : summaryScore >= 50 ? 'warn' : 'alert', flagged: summaryScore < 50 },
-                    ].map(m => (
-                      <div key={m.label} className={`r-metric ${m.flagged ? 'flagged' : ''}`}>
-                        <div className="r-metric-label">{m.label}</div>
-                        <div className={`r-metric-val ${m.cls}`}>{m.val}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 12 }}>
-                    <div style={{ fontSize: '0.62rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Head Pose (Euler) — Paper §4.5</div>
-                    <div className="euler-row">
-                      {[['Pitch', telemetry.pose?.pitch], ['Yaw', telemetry.pose?.yaw], ['Roll', telemetry.pose?.roll]].map(([axis, val]) => (
-                        <div key={axis} className="euler-chip">
-                          <div className="euler-axis">{axis}</div>
-                          <div className="euler-val">{Math.round(val || 0)}°</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="risk-section">
-                    <div className="risk-header"><div className="risk-title">⚡ Risk Event Log</div><div className="risk-count">{riskEvents.length} events</div></div>
-                    <div className="risk-list">
-                      {riskEvents.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', textAlign: 'center', padding: '12px 0' }}>No anomalies detected.</div>}
-                      {[...riskEvents].reverse().map(ev => (
-                        <div key={ev.id} className={`risk-event ${ev.severity}`}>
-                          <div><div className="risk-ts">{ev.ts}</div></div>
-                          <div><div className="risk-desc">{ev.desc}</div><div className={`risk-severity ${ev.severity}`}>{ev.severity}</div></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
-                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-3)' }}>AI Transcript</div>
-                    <div className="transcript-section">
-                      {transcript.map((line, i) => (<div key={i} className="transcript-line"><span className="ts">{line.ts}</span><span className="ai-tag">{line.speaker}:</span><span>{line.text}</span></div>))}
-                    </div>
-                  </div>
-                  <ArtifactViewer sessionId={sessionId} />
-                </>
-              )}
-
-              {rightTab === 'fraud' && <FraudScorePanel />}
-              {rightTab === 'gaze'  && <GazeHeatmap />}
-              {rightTab === 'extensions' && <ExtensionThreatCatalog />}
-              {rightTab === 'timeline' && <BehaviorTimeline />}
-              {rightTab === 'trust' && <MultiModalTrustScore />}
-            </>
-          );
-        })()}
+        <RightPanel
+          accommodationRequested={accommodationRequested}
+          relaxedProctoringEnabled={relaxedProctoringEnabled}
+          setRelaxedProctoringEnabled={setRelaxedProctoringEnabled}
+          agentStatuses={agentStatuses}
+          summaryScore={summaryScore}
+          telemetry={telemetry}
+          riskEvents={riskEvents}
+          transcript={transcript}
+          sessionId={sessionId}
+        />
       </div>
 
       {/* ── Timeline ── */}

@@ -14,8 +14,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAegisStore } from './useAegisStore';
 
-const TAB_SWITCH_THRESHOLD = 2;    // After N tab switches → HIGH severity
-const PASTE_CHAR_THRESHOLD = 80;   // Characters → suspicious paste (lowered)
+const TAB_SWITCH_THRESHOLD = 5;    // After N tab switches → HIGH severity (P2-6)
+const PASTE_CHAR_THRESHOLD = 200;  // Characters → suspicious paste (P2-7)
 const TYPING_SPEED_THRESHOLD = 14; // Chars/second → AI generation suspected
 const DEVTOOLS_WIDTH_DELTA = 130;  // DevTools panel width heuristic (tighter)
 

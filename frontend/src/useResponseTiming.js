@@ -104,6 +104,7 @@ export function useResponseTiming() {
 
   const audioCtxRef    = useRef(null);
   const analyserRef    = useRef(null);
+  const micStreamRef   = useRef(null);
   const latenciesRef   = useRef([]);       // all latencies in seconds
   const questionTsRef  = useRef(null);
   const listeningRef   = useRef(false);
@@ -118,8 +119,9 @@ export function useResponseTiming() {
     if (audioCtxRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
       audioCtxRef.current = new AudioContext();
-      const source  = audioCtxRef.current.createMediaStreamSource(stream);
+      const source = audioCtxRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioCtxRef.current.createAnalyser();
       analyserRef.current.fftSize = 2048;
       analyserRef.current.smoothingTimeConstant = 0.5;
@@ -223,15 +225,18 @@ export function useResponseTiming() {
     timerRef.current = setInterval(poll, VAD_FRAME_MS);
 
     const handler = () => markQuestionDelivered();
-    window.addEventListener('aegis:question_delivered', handler);
+    window.addEventListener('aegis:candidate_answer', handler);
 
     return () => {
       clearInterval(timerRef.current);
       window.removeEventListener('aegis:question_delivered', handler);
       latenciesRef.current = [];
-      flaggedRef.current   = false;
+      flaggedRef.current = false;
       audioCtxRef.current?.close();
-      audioCtxRef.current  = null;
+      audioCtxRef.current = null;
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+      try { delete window.__aegisResponseTiming; } catch {}
     };
   }, [phase, initAudio, poll, markQuestionDelivered]);
 

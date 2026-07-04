@@ -7,11 +7,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: process.env.VITE_API_URL?.replace(/^http/, 'ws') || 'ws://localhost:8000',
         ws: true,
       },
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
         changeOrigin: true,
       },
     },

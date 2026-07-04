@@ -1,65 +1,86 @@
 """
-main.py — Aegis Interview Room Backend v3.0
-Full agentic architecture: Hub-Spoke + MCP + 4-tier Memory + HITL
+main.py — Aegis Interview Room Backend v3.1
+Security-hardened, multi-session, production-ready architecture.
 
-Changes from v2:
-  - ws/interview now runs the full AegisHub ReAct orchestration loop
-  - ws/cv uses CVAgent spoke (grace-period aware, baseline normalized)
-  - ws/recruiter new endpoint — receives HITL escalations from Hub
-  - /api/v1/mcp/tools — lists all available MCP tools
-  - /api/v1/artifacts/{session_id} — list agent artifacts
-  - MCP client mounted on app startup (sqlite + github servers)
+Changes from v3.0:
+  - JWT authentication for all WS + REST endpoints
+  - Per-session forensic engine instances (race condition fix)
+  - Rate limiting on all WS endpoints
+  - Pydantic validation for WS message payloads
+  - Origin validation for WebSocket connections
+  - OpenTelemetry + Prometheus monitoring
+  - Secret validation on startup (fail-fast)
 """
 import asyncio
 import base64
 import json
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 import cv2
 import mediapipe as mp
 import numpy as np
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.security import HTTPBearer
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, InterviewSession, AgentArtifact, TelemetryEvent
+from database import SessionLocal, InterviewSession, AgentArtifact, TelemetryEvent, User
 from agents import AegisHub
 from agents.cv_agent import CVAgent
-from agents.security_engine import SecurityEvent
 from mcp.client import MCPClient
 from mcp.sqlite_server import _build_sqlite_server
 from mcp.github_server import _build_github_server
 from memory.manager import MemoryManager
 from agents.forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, PLRrPPGLivenessEngine, ForensicObservation
-from agents.fusion_engine import KinematicGestureEngine, FiveChannelFusionEngine, ChannelPacket
-import time
-
-# ─── Global AEGIS v4.0 Forensic & Fusion Engines ─────────────────────────────
-ks_engine = KSTestBaselineEngine(calibration_duration_sec=5.0, window_duration_sec=10.0)
-whitespace_engine = WhitespaceFixationDetector(window_size_frames=30)
-liveness_engine = PLRrPPGLivenessEngine(challenge_duration_sec=10.0)
-gesture_engine = KinematicGestureEngine()
-fusion_engine = FiveChannelFusionEngine(window_duration_sec=10.0)
+from agents.fusion_engine import FiveChannelFusionEngine, ChannelPacket
+from auth import (
+    create_access_token, create_refresh_token, decode_token,
+    hash_password, verify_password, get_current_user_from_ws, validate_origin,
+    ACCESS_TOKEN_EXPIRE_MINUTES, SKIP_AUTH,
+)
+from ratelimit import IPBasedRateLimiter
+from event_batcher import EventBatcher
+from schemas import LoginRequest, RefreshRequest, UserCreate, TokenResponse, WS_MESSAGE_MODELS
+from monitoring import (
+    setup_observability, WS_MESSAGES_TOTAL, WS_LATENCY, SESSIONS_ACTIVE,
+    RISK_EVENTS_TOTAL, metrics_endpoint,
+)
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s [%(levelname)-8s] %(name)s — %(message)s",
 )
 log = logging.getLogger("aegis")
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# ─── Fail-Fast Secret Validation ──────────────────────────────────────────────
 load_dotenv()
+
+REQUIRED_ENV_VARS = ["JWT_SECRET", "DATABASE_URL"]
+missing_vars = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
+if missing_vars:
+    log.error("FATAL: Missing required environment variables: %s", missing_vars)
+    log.error("Copy .env.example to .env and fill in the values.")
+    raise SystemExit(1)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 if not ai_client:
     log.warning("No OPENAI_API_KEY — running in offline mock mode")
+
+# ─── Global Rate Limiter ──────────────────────────────────────────────────────
+ws_rate_limiter = IPBasedRateLimiter(rate=10.0, capacity=20)
+
+# ─── Global DB Event Batcher ─────────────────────────────────────────────────
+event_batcher = EventBatcher(db_session_factory=SessionLocal)
 
 # ─── Global MCP Client (mounted at startup) ───────────────────────────────────
 mcp_client = MCPClient()
@@ -68,6 +89,9 @@ memory_manager = MemoryManager(db_session_factory=SessionLocal)
 # ─── Recruiter HITL Connection Registry ───────────────────────────────────────
 # Maps session_id → WebSocket (recruiter view for that session)
 recruiter_sockets: dict[str, WebSocket] = {}
+
+# ─── Active WS Connections (for graceful shutdown) ────────────────────────────
+active_ws_connections: dict[str, WebSocket] = {}
 
 async def broadcast_to_recruiter(session_id: str, payload: dict):
     """Send HITL event to the recruiter watching this session."""
@@ -81,33 +105,70 @@ async def broadcast_to_recruiter(session_id: str, payload: dict):
 # ─── App Lifecycle ────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Mount MCP servers and initialize memory manager on startup."""
-    log.info("Aegis v3.0 starting up...")
+    """Mount MCP servers, monitoring, and memory manager on startup."""
+    log.info("Aegis v3.1 starting up...")
     mcp_client.mount(_build_sqlite_server(db_session_factory=SessionLocal))
     mcp_client.mount(_build_github_server(ai_client=ai_client))
     log.info("MCP servers mounted: %s", [t["server"] for t in mcp_client.list_tools()])
+    setup_observability(app)
+    await event_batcher.start()
     yield
-    log.info("Aegis shutting down")
+    await event_batcher.stop()
+    log.info("Aegis shutting down — closing %d active connections", SESSIONS_ACTIVE._value.get())
+    for ws_id, ws in list(active_ws_connections.items()):
+        try:
+            await ws.close(code=1001, reason="Server shutting down")
+        except Exception:
+            pass
+    active_ws_connections.clear()
+    log.info("All active connections closed")
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Aegis Interview Room",
     description="Advanced Biometric Proctoring & Assessment Platform — Agentic Architecture",
-    version="3.0.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
-# Allow all origins in production (Render serves frontend from same domain, but keep open for API access)
+security_scheme = HTTPBearer(auto_error=not SKIP_AUTH)
+
+
+async def require_auth(token: str = Depends(security_scheme)) -> dict:
+    """FastAPI dependency — validates JWT or returns dev user in SKIP_AUTH mode."""
+    if SKIP_AUTH:
+        return {"sub": "dev-user", "role": "ADMIN", "email": "dev@aegis.local"}
+    return decode_token(token.credentials)
+
+# Parse allowed origins from env (mandatory in production)
 RAW_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
-ALLOWED_ORIGINS = [o.strip() for o in RAW_ORIGINS.split(",") if o.strip()] if RAW_ORIGINS else []
+if not RAW_ORIGINS:
+    log.warning("ALLOWED_ORIGINS not set — CORS restricted to localhost development only")
+    ALLOWED_ORIGINS = ["http://localhost:5173", "http://localhost:4173", "http://127.0.0.1:5173"]
+else:
+    ALLOWED_ORIGINS = [o.strip() for o in RAW_ORIGINS.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0").split(","),
+)
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), display-capture=(self)"
+    return response
 
 # ─── MediaPipe Setup ──────────────────────────────────────────────────────────
 import threading
@@ -136,7 +197,9 @@ except Exception as e:
 
 face_landmarker = None
 hand_landmarker = None
-cv_lock = threading.Lock()
+cv_pool_size = max(1, os.cpu_count() or 2)
+cv_pool_index = 0
+cv_pool_lock = threading.Lock()
 
 try:
     from mediapipe.tasks import python
@@ -147,16 +210,29 @@ try:
         output_face_blendshapes=True,
         num_faces=1
     )
-    face_landmarker = vision.FaceLandmarker.create_from_options(face_options)
-
     hand_options = vision.HandLandmarkerOptions(
         base_options=python.BaseOptions(model_asset_path=hand_model_path),
         num_hands=2
     )
-    hand_landmarker = vision.HandLandmarker.create_from_options(hand_options)
-    log.info("[main] MediaPipe Tasks detectors (Face & Hand) initialized successfully.")
+
+    # Create a pool of instances for concurrent access
+    face_pool = [vision.FaceLandmarker.create_from_options(face_options) for _ in range(cv_pool_size)]
+    hand_pool = [vision.HandLandmarker.create_from_options(hand_options) for _ in range(cv_pool_size)]
+    face_landmarker = face_pool
+    hand_landmarker = hand_pool
+
+    def acquire_cv_instances():
+        global cv_pool_index
+        with cv_pool_lock:
+            idx = cv_pool_index
+            cv_pool_index = (cv_pool_index + 1) % cv_pool_size
+            return face_pool[idx], hand_pool[idx]
+
+    log.info("[main] MediaPipe Tasks detectors initialized (%d instances in pool)", cv_pool_size)
 except Exception as e:
     log.warning("[main] MediaPipe Tasks not initialized. Using premium simulation: %s", e)
+    def acquire_cv_instances():
+        return None, None
 
 _MODEL_3D = np.array([
     [0.0,    0.0,    0.0   ],
@@ -168,11 +244,9 @@ _MODEL_3D = np.array([
 ], dtype=np.float64)
 _LM_INDICES = [1, 152, 33, 263, 61, 291]
 
-# ── Kalman Filter for pose smoothing ─────────────────────────────
-# Reduces jitter / false-positive gaze anomalies from noisy estimates.
+# ── Kalman Filter Classes (instantiated per-session in ws_cv) ─────
 class KalmanPoseSmoother:
     def __init__(self):
-        # State: [pitch, yaw, roll, d_pitch, d_yaw, d_roll]
         self.kf = cv2.KalmanFilter(6, 3)
         dt = 1.0
         self.kf.transitionMatrix = np.array([
@@ -204,9 +278,7 @@ class KalmanPoseSmoother:
         state = self.kf.statePost
         return float(state[0]), float(state[1]), float(state[2])
 
-_pose_smoother = KalmanPoseSmoother()
 
-# ── Kalman Filter for iris gaze smoothing ─────────────────────────
 class KalmanGazeSmoother:
     def __init__(self):
         self.kf = cv2.KalmanFilter(4, 2)
@@ -234,8 +306,6 @@ class KalmanGazeSmoother:
         state = self.kf.statePost
         return float(state[0]), float(state[1])
 
-_gaze_smoother = KalmanGazeSmoother()
-
 # EAR landmarks for proper blink detection
 # Left eye: 33, 160, 158, 133, 153, 144
 # Right eye: 362, 385, 387, 263, 373, 380
@@ -253,7 +323,7 @@ def _compute_ear(lms, indices: list, w: int, h: int) -> float:
 
 
 
-def _infer_frame(b64_frame: str) -> dict:
+def _infer_frame(b64_frame: str, pose_smoother: KalmanPoseSmoother, gaze_smoother: KalmanGazeSmoother) -> dict:
     """CV inference — runs in thread pool (non-blocking)."""
     if "," in b64_frame:
         b64_frame = b64_frame.split(",")[1]
@@ -284,14 +354,18 @@ def _infer_frame(b64_frame: str) -> dict:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb.copy())
         
-        with cv_lock:
-            try:
-                face_res = face_landmarker.detect(mp_image)
-                hand_res = hand_landmarker.detect(mp_image)
-            except Exception as e:
-                log.error("MediaPipe Task inference error: %s", e)
+        try:
+            f_inst, h_inst = acquire_cv_instances()
+            if f_inst and h_inst:
+                face_res = f_inst.detect(mp_image)
+                hand_res = h_inst.detect(mp_image)
+            else:
                 face_res = None
                 hand_res = None
+        except Exception as e:
+            log.error("MediaPipe Task inference error: %s", e)
+            face_res = None
+            hand_res = None
         
         # Multi-face count (secondary person detection)
         face_count = len(face_res.face_landmarks) if (face_res and face_res.face_landmarks) else 0
@@ -311,7 +385,7 @@ def _infer_frame(b64_frame: str) -> dict:
                 rmat, _ = cv2.Rodrigues(rvec)
                 angles, *_ = cv2.RQDecomp3x3(rmat)
                 # Apply Kalman smoothing to reduce jitter
-                pitch, yaw, roll = _pose_smoother.update(float(angles[0]), float(angles[1]), float(angles[2]))
+                pitch, yaw, roll = pose_smoother.update(float(angles[0]), float(angles[1]), float(angles[2]))
                 pitch = round(pitch, 2)
                 yaw   = round(yaw, 2)
                 roll  = round(roll, 2)
@@ -362,7 +436,7 @@ def _infer_frame(b64_frame: str) -> dict:
                 # Average both eyes, apply Kalman smoothing
                 raw_gaze_h = (left_gaze_h + right_gaze_h) / 2.0
                 raw_gaze_v = (left_gaze_v + right_gaze_v) / 2.0
-                gaze_h, gaze_v = _gaze_smoother.update(raw_gaze_h, raw_gaze_v)
+                gaze_h, gaze_v = gaze_smoother.update(raw_gaze_h, raw_gaze_v)
                 gaze_h = round(gaze_h, 4)
                 gaze_v = round(gaze_v, 4)
 
@@ -438,126 +512,215 @@ def _infer_frame(b64_frame: str) -> dict:
     elif hands_visible > 1:
         severity = "MEDIUM"
 
+    # ── Frame-level metrics for PLR/rPPG liveness engine ─────────
+    frame_brightness = float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()) / 255.0
+
+    face_roi_rgb = (120.0, 110.0, 105.0)
+    if face_detected and lms and len(lms) >= 68:
+        xs_face = [lms[i].x * w for i in range(68)]
+        ys_face = [lms[i].y * h for i in range(68)]
+        x1 = max(0, int(min(xs_face)))
+        y1 = max(0, int(min(ys_face)))
+        x2 = min(w, int(max(xs_face)))
+        y2 = min(h, int(max(ys_face)))
+        if x2 > x1 and y2 > y1:
+            roi = frame[y1:y2, x1:x2]
+            if roi.size > 0:
+                face_roi_rgb = (
+                    float(roi[:, :, 2].mean()),
+                    float(roi[:, :, 1].mean()),
+                    float(roi[:, :, 0].mean()),
+                )
+
+    pupil_diameter_est = 3.5
+    if face_detected and lms and len(lms) >= 478:
+        iris_left = lms[471]
+        iris_right = lms[469]
+        iris_w = abs(iris_right.x - iris_left.x) * w
+        pupil_diameter_est = round((iris_w / w) * 120.0 * 0.3, 2)
+
+    mouth_open = False
+    if face_detected and lms and len(lms) >= 68:
+        upper_lip = lms[13]
+        lower_lip = lms[14]
+        lip_dist = abs(upper_lip.y - lower_lip.y) * h
+        eye_h_px = abs(lms[159].y - lms[145].y) * h if len(lms) >= 478 else h * 0.02
+        mouth_open = lip_dist > eye_h_px * 1.5 if eye_h_px > 0 else False
+
+    eye_open = (ear_left + ear_right) / 2.0 > 0.2 if face_detected else True
+    avg_brightness_val = round(frame_brightness, 4)
+
     return {
-        "status":            "ok",
-        "gaze_anomaly":      gaze_anomaly,
-        "hands_visible":     hands_visible,
-        "face_detected":     face_detected,
-        "face_count":        face_count,
-        "severity":          severity,
-        "pose":              {"pitch": total_pitch, "yaw": total_yaw, "roll": roll},
-        "eye_gaze":          {"h": gaze_h, "v": gaze_v},
-        "head_pose":         {"pitch": pitch, "yaw": yaw, "roll": roll},
-        "ear":               {"left": ear_left, "right": ear_right},
-        "hand_anomaly":      hand_anomaly_detected,
-        "hand_anomaly_desc": hand_anomaly_desc,
-        "timestamp":         datetime.utcnow().isoformat(),
+        "status":              "ok",
+        "gaze_anomaly":        gaze_anomaly,
+        "hands_visible":       hands_visible,
+        "face_detected":       face_detected,
+        "face_count":          face_count,
+        "severity":            severity,
+        "pose":                {"pitch": total_pitch, "yaw": total_yaw, "roll": roll},
+        "eye_gaze":            {"h": gaze_h, "v": gaze_v},
+        "head_pose":           {"pitch": pitch, "yaw": yaw, "roll": roll},
+        "ear":                 {"left": ear_left, "right": ear_right},
+        "hand_anomaly":        hand_anomaly_detected,
+        "hand_anomaly_desc":   hand_anomaly_desc,
+        "frame_brightness":    round(frame_brightness, 4),
+        "avg_brightness":      avg_brightness_val,
+        "eye_open":            eye_open,
+        "face_roi_rgb":        tuple(round(v, 1) for v in face_roi_rgb),
+        "pupil_diameter_mm":   pupil_diameter_est,
+        "candidate_speaking":  mouth_open,
+        "timestamp":           datetime.now(timezone.utc).isoformat(),
     }
 
-async def infer_async(b64_frame: str) -> dict:
+import re
+UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+
+def validate_session_id(session_id: str) -> bool:
+    return bool(UUID_REGEX.match(session_id))
+
+
+async def infer_async(b64_frame: str, pose_smoother: KalmanPoseSmoother, gaze_smoother: KalmanGazeSmoother) -> dict:
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _infer_frame, b64_frame)
+    return await loop.run_in_executor(None, _infer_frame, b64_frame, pose_smoother, gaze_smoother)
 
 
 # ─── WebSocket: CV Proctoring ─────────────────────────────────────────────────
 @app.websocket("/ws/cv")
 async def ws_cv(websocket: WebSocket):
     await websocket.accept()
+
+    # ── Auth ────────────────────────────────────────────────────────────────
+    try:
+        user = await get_current_user_from_ws(websocket)
+        validate_origin(websocket, ALLOWED_ORIGINS)
+    except HTTPException:
+        return
+
+    # ── Rate Limit ──────────────────────────────────────────────────────────
+    if not await ws_rate_limiter.check_websocket(websocket):
+        await websocket.close(code=4003, reason="Rate limit exceeded")
+        return
+
     session_id = websocket.query_params.get("session_id", str(uuid.uuid4()))
-    cv_agent   = CVAgent(session_id=session_id)
-    hub = AegisHub(session_id=session_id, db_session=SessionLocal(), recruiter_broadcast=None)
-    log.info("[ws/cv] Client connected — session=%s", session_id)
-    
+    active_ws_connections[f"cv:{session_id}"] = websocket
+    cv_agent = CVAgent(session_id=session_id)
+
+    # ── Per-session forensic engine instances ───────────────────────────────
+    ks_engine_session = KSTestBaselineEngine(calibration_duration_sec=5.0, window_duration_sec=10.0)
+    whitespace_engine_session = WhitespaceFixationDetector(window_size_frames=30)
+    liveness_engine_session = PLRrPPGLivenessEngine(challenge_duration_sec=10.0)
+    fusion_engine_session = FiveChannelFusionEngine(window_duration_sec=10.0)
+    pose_smoother = KalmanPoseSmoother()
+    gaze_smoother = KalmanGazeSmoother()
+
+    log.info("[ws/cv] Client connected — session=%s, user=%s", session_id, user.get("sub", "unknown"))
+    SESSIONS_ACTIVE.inc()
+
     db: Session = SessionLocal()
     try:
         while True:
-            frame  = await websocket.receive_text()
-            result = await infer_async(frame)
+            # ── Rate limit per-message ─────────────────────────────────────
+            if not await ws_rate_limiter.check_websocket(websocket):
+                await websocket.send_json({"status": "error", "msg": "rate_limited"})
+                continue
 
-            # Let CVAgent classify with grace-period logic
-            event  = cv_agent.process(result) if result["status"] == "ok" else None
-            security_context = None
+            raw = await websocket.receive_text()
+
+            # Handle JSON messages (non-frame) for future extensibility
+            try:
+                msg = json.loads(raw)
+                if isinstance(msg, dict) and msg.get("type") == "ping":
+                    await websocket.send_json({"type": "pong", "timestamp": time.time()})
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            WS_MESSAGES_TOTAL.labels(endpoint="ws_cv").inc()
+            start_ts = time.time()
+            result = await infer_async(raw, pose_smoother, gaze_smoother)
+
+            event = cv_agent.process(result) if result["status"] == "ok" else None
+
             if result["status"] == "ok":
-                security_context = hub.ingest_security_features(result)
-                if security_context and security_context.get("fusion"):
-                    result["security_fusion"] = security_context["fusion"]
-                    result["gaze_estimate"] = security_context["gaze_estimate"]
-                    result["liveness"] = security_context["liveness"]
-                    result["ks_anomalous"] = security_context["ks_anomalous"]
-                    if security_context.get("gesture_event"):
-                        result["gesture_event"] = security_context["gesture_event"]
-
-                # ── Execute AEGIS v4.0 Forensic Engine Modules ────────────────
                 now_ts = time.time()
                 yaw_val = float(result.get("pose", {}).get("yaw", 0.0))
                 pitch_val = float(result.get("pose", {}).get("pitch", 0.0))
-                
+
                 obs = ForensicObservation(
                     timestamp=now_ts,
                     gaze_angular_deviation=abs(yaw_val),
                     gaze_screen_coords=(0.5 + yaw_val/100.0, 0.5 + pitch_val/100.0),
-                    pupil_diameter_mm=3.5,
-                    screen_brightness_level=0.8,
-                    facial_rgb_mean=(120.0, 110.0, 105.0),
-                    candidate_speaking=False,
-                    keyboard_typing_active=result.get("hand_anomaly", False)
+                    pupil_diameter_mm=result.get("pupil_diameter_mm", 3.5),
+                    screen_brightness_level=result.get("frame_brightness", 0.5),
+                    facial_rgb_mean=result.get("face_roi_rgb", (120.0, 110.0, 105.0)),
+                    candidate_speaking=result.get("candidate_speaking", False),
+                    keyboard_typing_active=result.get("hand_anomaly", False),
                 )
 
                 # Module 8: KS-Test Baseline Drift
-                ks_alert = ks_engine.process(obs)
+                ks_alert = ks_engine_session.process(obs)
                 result["v4_ks_test"] = {"anomalous": ks_alert is not None, "alert": ks_alert.description if ks_alert else None}
 
                 # Module 7: Whitespace Fixation Analysis
-                ws_alert = whitespace_engine.process(obs)
+                ws_alert = whitespace_engine_session.process(obs)
                 result["v4_whitespace"] = {"anomalous": ws_alert is not None, "alert": ws_alert.description if ws_alert else None}
 
                 # Module 6: PLR & rPPG Liveness
-                live_alert = liveness_engine.process(obs)
+                live_alert = liveness_engine_session.process(obs)
                 result["v4_liveness"] = {"passed": live_alert is None, "alert": live_alert.description if live_alert else "Liveness verified"}
 
-                # Module 9 & Fusion Brain: Multi-modal fusion
+                # Fusion Brain
                 gaze_packet = ChannelPacket("GAZE", now_ts, 0.95 if (ks_alert or ws_alert) else 0.05, ks_alert.description if ks_alert else "Gaze nominal", (ks_alert or ws_alert) is not None)
-                gest_packet = ChannelPacket("GESTURE", now_ts, 0.95 if result.get("hand_anomaly") else 0.05, result.get("hand_anomaly_desc", ""), result.get("hand_anomaly") is not None)
-                fusion_engine.process_packet(gaze_packet)
-                decision = fusion_engine.process_packet(gest_packet)
+                gest_packet = ChannelPacket("GESTURE", now_ts, 0.95 if result.get("hand_anomaly", False) else 0.05, result.get("hand_anomaly_desc", ""), result.get("hand_anomaly", False))
+                fusion_engine_session.process_packet(gaze_packet)
+                decision = fusion_engine_session.process_packet(gest_packet)
                 result["v4_fusion"] = {
                     "verdict": decision.action_level,
                     "integrity_score": round(decision.integrity_score_100, 1),
                     "active_channels": decision.active_channel_count,
-                    "description": decision.description
+                    "description": decision.description,
                 }
 
             if event:
-                # Persist risk event to DB
                 db_event = TelemetryEvent(
-                    session_id  = session_id,
-                    event_type  = event.event_type,
-                    severity    = event.severity,
-                    confidence  = event.confidence,
-                    pitch       = event.pose.get("pitch"),
-                    yaw         = event.pose.get("yaw"),
-                    roll        = event.pose.get("roll"),
-                    hands_count = event.hands_count,
-                    description = event.description,
+                    session_id=session_id,
+                    event_type=event.event_type,
+                    severity=event.severity,
+                    confidence=event.confidence,
+                    pitch=event.pose.get("pitch"),
+                    yaw=event.pose.get("yaw"),
+                    roll=event.pose.get("roll"),
+                    hands_count=event.hands_count,
+                    description=event.description,
                 )
-                db.add(db_event)
-                db.commit()
+                await event_batcher.add(db_event)
+                RISK_EVENTS_TOTAL.labels(severity=event.severity).inc()
 
-                # Notify recruiter WebSocket in real-time
+                score_val = max(100 - sum(
+                    12 if e.severity == "CRITICAL" else
+                    8 if e.severity == "HIGH" else
+                    4 if e.severity == "MEDIUM" else 1
+                    for e in cv_agent._events_emitted
+                ), 0)
                 await broadcast_to_recruiter(session_id, {
-                    "type":      "RISK_EVENT",
-                    "event":     {
-                        "event_type":  event.event_type,
-                        "severity":    event.severity,
+                    "type": "RISK_EVENT",
+                    "event": {
+                        "event_type": event.event_type,
+                        "severity": event.severity,
                         "description": event.description,
-                        "ts":          event.timestamp,
+                        "ts": event.timestamp,
                     },
-                    "score":     cv_agent.session_id and 100 - (cv_agent.total_events * 4),
+                    "score": score_val,
                 })
 
-            # Always return current inference to candidate frontend
-            result["integrity_score"] = max(100 - cv_agent.total_events * 4, 0)
+            result["integrity_score"] = max(100 - sum(
+                12 if e.severity == "CRITICAL" else
+                8 if e.severity == "HIGH" else
+                4 if e.severity == "MEDIUM" else 1
+                for e in cv_agent._events_emitted
+            ), 0)
             await websocket.send_json(result)
+            WS_LATENCY.labels(endpoint="ws_cv").observe(time.time() - start_ts)
 
     except WebSocketDisconnect:
         log.info("[ws/cv] Disconnected — session=%s, events=%d", session_id, cv_agent.total_events)
@@ -565,133 +728,172 @@ async def ws_cv(websocket: WebSocket):
         log.error("[ws/cv] Error: %s", e, exc_info=True)
     finally:
         db.close()
+        active_ws_connections.pop(f"cv:{session_id}", None)
+        SESSIONS_ACTIVE.dec()
 
 
 # ─── WebSocket: AI Interview (Hub Orchestrator) ───────────────────────────────
 @app.websocket("/ws/interview")
 async def ws_interview(websocket: WebSocket):
     await websocket.accept()
+
+    # ── Auth ────────────────────────────────────────────────────────────────
+    try:
+        user = await get_current_user_from_ws(websocket)
+        validate_origin(websocket, ALLOWED_ORIGINS)
+    except HTTPException:
+        return
+
+    # ── Rate Limit ──────────────────────────────────────────────────────────
+    if not await ws_rate_limiter.check_websocket(websocket):
+        await websocket.close(code=4003, reason="Rate limit exceeded")
+        return
+
     session_id   = str(uuid.uuid4())
+    active_ws_connections[f"interview:{session_id}"] = websocket
     language     = websocket.query_params.get("lang", "en")
     job_role     = websocket.query_params.get("role", "software_engineer")
     candidate_id = websocket.query_params.get("candidate_id", None)
 
     db: Session = SessionLocal()
-
-    # Create DB session record
     db_session = InterviewSession(id=session_id, status="IN_PROGRESS")
     db.add(db_session)
     db.commit()
+    SESSIONS_ACTIVE.inc()
 
-    # HITL broadcast function bound to this session_id
     async def hitl_broadcast(payload: dict):
         payload["session_id"] = session_id
         await broadcast_to_recruiter(session_id, payload)
 
-    # Initialize Hub — loads memory, spins up spokes
+    async def candidate_notify(payload: dict):
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            pass
+
     hub = AegisHub(
-        session_id        = session_id,
-        candidate_id      = candidate_id,
-        language          = language,
-        job_role          = job_role,
-        ai_client         = ai_client,
-        db_session        = db,
-        recruiter_broadcast = hitl_broadcast,
+        session_id=session_id,
+        candidate_id=candidate_id,
+        language=language,
+        job_role=job_role,
+        ai_client=ai_client,
+        db_session=db,
+        recruiter_broadcast=hitl_broadcast,
+        candidate_broadcast=candidate_notify,
+        event_batcher=event_batcher,
     )
 
-    # Write SESSION_PLAN artifact
     plan_artifact = AgentArtifact(
-        session_id    = session_id,
-        agent_name    = "hub",
-        artifact_type = "SESSION_PLAN",
-        content_json  = json.dumps({
-            "session_id":    session_id,
-            "language":      language,
-            "job_role":      job_role,
+        session_id=session_id,
+        agent_name="hub",
+        artifact_type="SESSION_PLAN",
+        content_json=json.dumps({
+            "session_id": session_id,
+            "language": language,
+            "job_role": job_role,
             "memory_loaded": hub._memory_ctx.context_injected,
-            "procedures":    hub._memory_ctx.relevant_procedures[:2],
-            "started_at":    datetime.utcnow().isoformat(),
+            "procedures": hub._memory_ctx.relevant_procedures[:2],
+            "started_at": datetime.now(timezone.utc).isoformat(),
         }),
     )
     db.add(plan_artifact)
     db.commit()
 
-    log.info("[ws/interview] Hub started — session=%s, role=%s", session_id, job_role)
+    log.info("[ws/interview] Hub started — session=%s, role=%s, user=%s", session_id, job_role, user.get("sub", "unknown"))
 
-    # Initial greeting
     await websocket.send_json({
-        "role":           "ai",
-        "message":        (
+        "role": "ai",
+        "message": (
             "Hello! I'm Aria, your AI interviewer for today. "
             "I'm genuinely excited to learn about your background and experience. "
             "Let's start — could you tell me about a technical project you've worked on recently "
             "that you're particularly proud of? What was your specific contribution?"
         ),
-        "session_id":     session_id,
+        "session_id": session_id,
         "agent_statuses": hub.agent_statuses,
         "integrity_score": 100,
     })
 
     try:
         while True:
-            payload = await websocket.receive_json()
-            
-            # Handle digital security telemetry events forwarded from client
-            if payload.get("type") == "telemetry_event":
-                event_data = payload.get("event")
-                await hub.ingest_digital_event(event_data)
+            if not await ws_rate_limiter.check_websocket(websocket):
+                await websocket.send_json({"role": "system", "message": "Rate limit exceeded. Please slow down."})
                 continue
 
-            # Handle audio features
-            if payload.get("type") == "audio_features":
-                features = payload.get("features")
-                await hub.ingest_audio_features(features)
+            raw = await websocket.receive_text()
+            WS_MESSAGES_TOTAL.labels(endpoint="ws_interview").inc()
+            start_ts = time.time()
+
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({"role": "system", "message": "Invalid JSON payload."})
                 continue
 
-            # Handle keystroke baseline profile sync
-            if payload.get("type") == "keystroke_baseline":
-                profile = payload.get("profile")
-                await hub.sync_keystroke_baseline(profile)
+            # ── Pydantic validation ──────────────────────────────────────
+            msg_type = payload.get("type", "user_message")
+            model_cls = WS_MESSAGE_MODELS.get(msg_type)
+            if model_cls:
+                try:
+                    validated = model_cls(**payload)
+                except Exception as ve:
+                    await websocket.send_json({"role": "system", "message": f"Validation error: {ve}"})
+                    continue
+            else:
+                await websocket.send_json({"role": "system", "message": f"Unknown message type: {msg_type}"})
                 continue
 
-            text    = payload.get("message", "").strip()
+            # ── Route validated message by type ─────────────────────────
+            if msg_type == "telemetry_event":
+                await hub.ingest_digital_event(validated.event)
+                continue
+
+            if msg_type == "audio_features":
+                await hub.ingest_audio_features(validated.features)
+                continue
+
+            if msg_type == "keystroke_baseline":
+                await hub.sync_keystroke_baseline(validated.profile)
+                continue
+
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong", "timestamp": time.time()})
+                continue
+
+            # user_message (default)
+            text = validated.message.strip()
             if not text:
                 continue
-
-            # Hub executes full ReAct loop
             response = await hub.think_and_respond(text)
             await websocket.send_json(response)
 
-            # If code review happened — persist artifact
             if response.get("code_review"):
                 cr = response["code_review"]
                 artifact = AgentArtifact(
-                    session_id    = session_id,
-                    agent_name    = "code_review",
-                    artifact_type = "CODE_REVIEW",
-                    content_json  = json.dumps(cr),
+                    session_id=session_id,
+                    agent_name="code_review",
+                    artifact_type="CODE_REVIEW",
+                    content_json=json.dumps(cr),
                 )
                 db.add(artifact)
                 db.commit()
 
+            WS_LATENCY.labels(endpoint="ws_interview").observe(time.time() - start_ts)
+
     except WebSocketDisconnect:
         log.info("[ws/interview] Disconnected — session=%s", session_id)
-
-        # Hub finalization — write episodic memory + risk report
         risk_summary = await hub.end_session()
 
-        # Persist RISK_REPORT artifact
         risk_artifact = AgentArtifact(
-            session_id    = session_id,
-            agent_name    = "cv_agent",
-            artifact_type = "RISK_REPORT",
-            content_json  = json.dumps(risk_summary),
+            session_id=session_id,
+            agent_name="cv_agent",
+            artifact_type="RISK_REPORT",
+            content_json=json.dumps(risk_summary),
         )
         db.add(risk_artifact)
 
-        # Update DB session record
-        db_session.status    = "COMPLETED"
-        db_session.end_time  = datetime.utcnow()
+        db_session.status = "COMPLETED"
+        db_session.end_time = datetime.now(timezone.utc)
         db_session.trust_score = hub.integrity_score
         db.commit()
 
@@ -699,6 +901,8 @@ async def ws_interview(websocket: WebSocket):
         log.error("[ws/interview] Fatal: %s", e, exc_info=True)
     finally:
         db.close()
+        active_ws_connections.pop(f"interview:{session_id}", None)
+        SESSIONS_ACTIVE.dec()
 
 
 # ─── WebSocket: Recruiter / HITL ─────────────────────────────────────────────
@@ -710,24 +914,66 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
     Sends:    HITL decisions (CONTINUE | WARN_CANDIDATE | TERMINATE).
     """
     await websocket.accept()
+
+    try:
+        user = await get_current_user_from_ws(websocket)
+        validate_origin(websocket, ALLOWED_ORIGINS)
+    except HTTPException:
+        return
+
+    if user.get("role") not in ("RECRUITER", "ADMIN"):
+        await websocket.close(code=4003, reason="Insufficient permissions")
+        return
+
+    if not await ws_rate_limiter.check_websocket(websocket):
+        await websocket.close(code=4003, reason="Rate limit exceeded")
+        return
+
     recruiter_sockets[session_id] = websocket
-    log.info("[ws/recruiter] Recruiter connected to session %s", session_id)
+    active_ws_connections[f"recruiter:{session_id}"] = websocket
+    log.info("[ws/recruiter] Recruiter connected to session %s (user=%s)", session_id, user.get("sub", "unknown"))
 
     try:
         while True:
-            decision = await websocket.receive_json()
-            action   = decision.get("action")
+            raw = await websocket.receive_text()
+
+            if not await ws_rate_limiter.check_websocket(websocket):
+                continue
+
+            try:
+                decision = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({"error": "Invalid JSON"})
+                continue
+
+            action = decision.get("action")
+            if action not in ("CONTINUE", "WARN_CANDIDATE", "TERMINATE", "FLAG_FOR_REVIEW", "IGNORE"):
+                await websocket.send_json({"error": "Invalid action"})
+                continue
+
             log.info("[ws/recruiter] HITL decision received: %s for session %s", action, session_id)
 
+            cand_ws = active_ws_connections.get(f"interview:{session_id}")
             if action == "TERMINATE":
-                # In production: signal the interview WS to close
                 log.warning("[ws/recruiter] TERMINATE issued for session %s", session_id)
+                if cand_ws:
+                    await cand_ws.send_json({"type": "session_terminated", "reason": "Reviewer terminated the session."})
             elif action == "WARN_CANDIDATE":
                 log.info("[ws/recruiter] WARN issued for session %s", session_id)
+                if cand_ws:
+                    await cand_ws.send_json({"type": "candidate_warning", "message": "Your session has been flagged. Please ensure compliance with proctoring guidelines."})
+            elif action == "FLAG_FOR_REVIEW":
+                log.info("[ws/recruiter] FLAG_FOR_REVIEW issued for session %s", session_id)
+            elif action == "IGNORE":
+                log.info("[ws/recruiter] IGNORE issued for session %s — no action taken", session_id)
 
     except WebSocketDisconnect:
-        recruiter_sockets.pop(session_id, None)
         log.info("[ws/recruiter] Recruiter disconnected from session %s", session_id)
+    except Exception as e:
+        log.error("[ws/recruiter] Error: %s", e, exc_info=True)
+    finally:
+        recruiter_sockets.pop(session_id, None)
+        active_ws_connections.pop(f"recruiter:{session_id}", None)
 
 
 # ─── REST Endpoints ───────────────────────────────────────────────────────────
@@ -735,7 +981,7 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
 def health():
     return {
         "service":    "Aegis Interview Room",
-        "version":    "3.0.0",
+        "version":    "3.1.0",
         "status":     "operational",
         "ai_online":  ai_client is not None,
         "mcp_tools":  len(mcp_client.list_tools()),
@@ -744,28 +990,111 @@ def health():
     }
 
 
+@app.get("/metrics", tags=["Monitoring"])
+def metrics():
+    """Prometheus metrics endpoint."""
+    return metrics_endpoint()
+
+
+# ─── Auth Endpoints ──────────────────────────────────────────────────────────
+@app.post("/api/v1/auth/register", tags=["Auth"])
+def register(body: UserCreate):
+    """Register a new user."""
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter_by(email=body.email).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Email already registered")
+
+        user = User(
+            email=body.email,
+            password_hash=hash_password(body.password),
+            role=body.role,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        access_token = create_access_token({"sub": user.id, "role": user.role, "email": user.email})
+        refresh_token = create_refresh_token({"sub": user.id})
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/auth/login", tags=["Auth"])
+def login(body: LoginRequest):
+    """Authenticate and return JWT tokens."""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(email=body.email).first()
+        if not user or not verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        user.last_login = datetime.now(timezone.utc)
+        db.commit()
+
+        access_token = create_access_token({"sub": user.id, "role": user.role, "email": user.email})
+        refresh_token = create_refresh_token({"sub": user.id})
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/auth/refresh", tags=["Auth"])
+def refresh_token(body: RefreshRequest):
+    """Refresh an expired access token."""
+    try:
+        payload = decode_token(body.refresh_token)
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        access_token = create_access_token({"sub": payload["sub"]})
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=body.refresh_token,
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+
+# ─── Protected REST Endpoints ────────────────────────────────────────────────
 @app.get("/api/v1/mcp/tools", tags=["MCP"])
-def list_mcp_tools():
-    """List all available MCP tools across all mounted servers."""
+def list_mcp_tools(_: dict = Depends(require_auth)):
+    """List all available MCP tools (authenticated)."""
     return {"tools": mcp_client.list_tools()}
 
 
 @app.post("/api/v1/mcp/invoke", tags=["MCP"])
-async def invoke_mcp_tool(body: dict):
+async def invoke_mcp_tool(body: dict, user: dict = Depends(require_auth)):
     """
-    Invoke an MCP tool directly (for admin/debug use).
-    Production: restrict to admin role only.
+    Invoke an MCP tool directly (admin only).
     """
-    tool_path  = body.get("tool")
-    params     = body.get("params", {})
+    if user.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    tool_path = body.get("tool")
+    params = body.get("params", {})
     session_id = body.get("session_id", "admin")
     result = await mcp_client.invoke(tool_path, params, session_id=session_id)
     return result
 
 
 @app.get("/api/v1/artifacts/{session_id}", tags=["Artifacts"])
-def get_artifacts(session_id: str):
-    """List all agent artifacts for a session."""
+def get_artifacts(session_id: str, _: dict = Depends(require_auth)):
+    """List all agent artifacts for a session (authenticated)."""
+    if not validate_session_id(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session_id format")
     db = SessionLocal()
     try:
         artifacts = (
@@ -777,12 +1106,12 @@ def get_artifacts(session_id: str):
         return {
             "session_id": session_id,
             "artifacts": [{
-                "id":           a.id,
-                "agent":        a.agent_name,
-                "type":         a.artifact_type,
-                "created_at":   a.created_at.isoformat(),
-                "has_content":  bool(a.content_json),
-                "content":      json.loads(a.content_json) if a.content_json else None,
+                "id": a.id,
+                "agent": a.agent_name,
+                "type": a.artifact_type,
+                "created_at": a.created_at.isoformat(),
+                "has_content": bool(a.content_json),
+                "content": json.loads(a.content_json) if a.content_json else None,
             } for a in artifacts]
         }
     finally:
@@ -790,8 +1119,10 @@ def get_artifacts(session_id: str):
 
 
 @app.get("/api/v1/integrity/{session_id}", tags=["Reports"])
-def get_integrity_report(session_id: str):
-    """Generate final integrity report for recruiter review."""
+def get_integrity_report(session_id: str, _: dict = Depends(require_auth)):
+    """Generate final integrity report for recruiter review (authenticated)."""
+    if not validate_session_id(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session_id format")
     db = SessionLocal()
     try:
         session = db.query(InterviewSession).filter_by(id=session_id).first()
@@ -799,20 +1130,20 @@ def get_integrity_report(session_id: str):
             return {"error": "Session not found"}
         events = db.query(TelemetryEvent).filter_by(session_id=session_id).all()
         return {
-            "session_id":      session_id,
-            "status":          session.status,
+            "session_id": session_id,
+            "status": session.status,
             "integrity_score": session.trust_score or 100,
-            "anomaly_count":   len(events),
-            "risk_breakdown":  {
-                "HIGH":   sum(1 for e in events if e.severity == "HIGH"),
+            "anomaly_count": len(events),
+            "risk_breakdown": {
+                "HIGH": sum(1 for e in events if e.severity == "HIGH"),
                 "MEDIUM": sum(1 for e in events if e.severity == "MEDIUM"),
-                "LOW":    sum(1 for e in events if e.severity == "LOW"),
+                "LOW": sum(1 for e in events if e.severity == "LOW"),
             },
-            "gaze_heatmap":    json.loads(session.gaze_heatmap) if session.gaze_heatmap else {},
+            "gaze_heatmap": json.loads(session.gaze_heatmap) if session.gaze_heatmap else {},
             "response_latency": session.response_latency or 0.0,
             "keystroke_profile": json.loads(session.keystroke_profile) if session.keystroke_profile else {},
-            "start":           session.start_time.isoformat() if session.start_time else None,
-            "end":             session.end_time.isoformat() if session.end_time else None,
+            "start": session.start_time.isoformat() if session.start_time else None,
+            "end": session.end_time.isoformat() if session.end_time else None,
         }
     finally:
         db.close()

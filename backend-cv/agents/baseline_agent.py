@@ -47,9 +47,12 @@ class BaselineAgentEvaluator:
         while i < n1 and j < n2:
             val1 = s1_sorted[i]
             val2 = s2_sorted[j]
-            if val1 <= val2:
+            if val1 < val2:
                 i += 1
-            if val2 <= val1:
+            elif val2 < val1:
+                j += 1
+            else:
+                i += 1
                 j += 1
             cdf1 = i / n1
             cdf2 = j / n2

@@ -17,11 +17,10 @@ Architecture notes:
   - All inter-agent messages are typed dataclasses (Pydantic-level safety)
   - HITL gates are broadcast to recruiter WebSocket for approval
 """
-import asyncio
-import json
 import logging
+import re
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from .bias_agent import BiasAuditAgent
@@ -38,6 +37,9 @@ from .security_engine import (
     KSAnomalyDetector,
     LivenessVerifier,
 )
+from .deepfake_agent import DeepfakeAgentEvaluator
+from .kinematic_agent import KinematicAgentEvaluator
+from .liveness_agent import LivenessAgentEvaluator
 
 log = logging.getLogger("aegis.hub")
 
@@ -86,15 +88,19 @@ class AegisHub:
         job_role: str = "software_engineer",
         ai_client=None,
         db_session=None,
-        recruiter_broadcast=None,   # async callable → sends HITL events to recruiter WS
+        recruiter_broadcast=None,    # async callable → sends HITL events to recruiter WS
+        candidate_broadcast=None,    # async callable → sends events to candidate WS (P1-9)
+        event_batcher=None,          # EventBatcher for batch DB writes (P1-7)
     ):
-        self.session_id    = session_id
-        self.candidate_id  = candidate_id
-        self.language      = language
-        self.job_role      = job_role
-        self.ai_client     = ai_client
-        self.db_session    = db_session
-        self._broadcast    = recruiter_broadcast  # HITL escalation channel
+        self.session_id       = session_id
+        self.candidate_id     = candidate_id
+        self.language         = language
+        self.job_role         = job_role
+        self.ai_client        = ai_client
+        self.db_session       = db_session
+        self._broadcast       = recruiter_broadcast
+        self._candidate_ws    = candidate_broadcast
+        self._event_batcher   = event_batcher
 
         # In-context memory (Tier 1)
         self._history: deque = deque(maxlen=50)
@@ -129,10 +135,18 @@ class AegisHub:
         self.ks_detector = KSAnomalyDetector()
         self.liveness_verifier = LivenessVerifier()
         self.fusion_engine = FiveChannelFusionEngine()
+        # Wired dead-code agents (P1-12)
+        self.deepfake_evaluator = DeepfakeAgentEvaluator()
+        self.kinematic_evaluator = KinematicAgentEvaluator()
+        self.liveness_evaluator = LivenessAgentEvaluator()
 
         # Trajectory/keystroke metadata
         self.response_latencies = []
         self.keystroke_profile_data = None
+
+        # KS baseline buffer — collects real gaze data for baseline calibration
+        self._gaze_baseline_buffer: list[float] = []
+        self._baseline_fitted = False
 
         # Load memory at start (Tiers 2+3+4)
         self._memory_ctx = self.memory_agent.retrieve(job_role=job_role)
@@ -146,14 +160,25 @@ class AegisHub:
     async def _maybe_hitl(self, score: int):
         """Broadcast HITL escalation to recruiter if score drops below threshold."""
         if score <= self.SCORE_HITL_THRESHOLD and self._broadcast:
-            await self._broadcast({
+            payload = {
                 "type":    "HITL_ESCALATION",
                 "score":   score,
                 "session": self.session_id,
                 "message": f"Integrity score dropped to {score}. Action required.",
                 "options": ["CONTINUE", "WARN_CANDIDATE", "TERMINATE"],
-                "expires": 30,   # seconds to respond before auto-continue
-            })
+                "expires": 30,
+            }
+            await self._broadcast(payload)
+            # P1-9: Send sanitized transparency update to candidate (no options)
+            if self._candidate_ws:
+                await self._candidate_ws({
+                    "type": "integrity_update",
+                    "data": {
+                        "type": "integrity_notice",
+                        "score": score,
+                        "message": "Your session integrity score has decreased. A reviewer has been notified.",
+                    },
+                })
             log.warning("[Hub] HITL escalation sent — score=%d", score)
 
     async def ingest_cv(self, inference: dict) -> Optional[RiskEvent]:
@@ -203,9 +228,23 @@ class AegisHub:
                 signal_quality=float(inference.get("signal_quality", 0.9)),
             )
 
-            if not self.ks_detector.baseline:
-                self.ks_detector.fit_baseline([0.1, 0.12, 0.14, 0.11, 0.13, 0.15, 0.12, 0.14])
-            ks_anomalous = self.ks_detector.is_anomalous([gaze_estimate["screen_x"], gaze_estimate["screen_y"]])
+            if not self._baseline_fitted:
+                self._gaze_baseline_buffer.append(gaze_estimate["screen_x"])
+                if len(self._gaze_baseline_buffer) >= 30:
+                    self.ks_detector.fit_baseline(self._gaze_baseline_buffer)
+                    self._baseline_fitted = True
+                    log.info("[Hub] KS baseline fitted with %d real gaze samples", len(self._gaze_baseline_buffer))
+            ks_anomalous = self.ks_detector.is_anomalous([gaze_estimate["screen_x"], gaze_estimate["screen_y"]]) if self._baseline_fitted else False
+
+            # P1-12: Wire deepfake + kinematic + liveness evaluators
+            deepfake_risk = self.deepfake_evaluator.evaluate_stream(
+                mouth_velocities=inference.get("mouth_velocities", []),
+                audio_energies=inference.get("audio_energies", []),
+                spectral_artifact_scores=inference.get("spectral_artifact_scores", []),
+            )
+            kinematic_result = self.kinematic_evaluator.evaluate_frame(
+                skeletons=inference.get("skeletons", [])
+            )
 
             self.fusion_engine.add_channel_result("gaze", bool(inference.get("gaze_anomaly", False) or ks_anomalous), gaze_estimate["confidence"])
             self.fusion_engine.add_channel_result("gesture", gesture_event is not None, 0.86 if gesture_event else 0.12)
@@ -219,10 +258,12 @@ class AegisHub:
                 "liveness": liveness,
                 "ks_anomalous": ks_anomalous,
                 "fusion": fusion,
+                "deepfake": deepfake_risk,
+                "kinematic": kinematic_result,
             }
         except Exception as exc:
-            log.warning("[Hub] security engine failed: %s", exc)
-            return None
+            log.error("[Hub] security engine failed: %s", exc, exc_info=True)
+            return {"error": str(exc)}
 
     async def ingest_digital_event(self, event_data: dict) -> Optional[RiskEvent]:
         """Ingest a digital security event from the frontend."""
@@ -231,13 +272,9 @@ class AegisHub:
         # Check if response latency anomaly, record it
         if event_data.get("type") == "RESPONSE_LATENCY_ANOMALY":
             desc = event_data.get("desc", "")
-            try:
-                import re
-                match = re.search(r"(\d+)ms", desc)
-                if match:
-                    self.response_latencies.append(float(match.group(1)))
-            except Exception:
-                pass
+            match = re.search(r"(\d+)ms", desc)
+            if match:
+                self.response_latencies.append(float(match.group(1)))
 
         event = RiskEvent(
             session_id=self.session_id,
@@ -250,8 +287,8 @@ class AegisHub:
         )
         self._risk_events.append(event)
         
-        # Write to DB TelemetryEvent
-        if self.db_session:
+        # Write to DB TelemetryEvent (batched)
+        if self._event_batcher:
             from database import TelemetryEvent
             db_event = TelemetryEvent(
                 session_id=self.session_id,
@@ -260,8 +297,7 @@ class AegisHub:
                 confidence=event.confidence,
                 description=event.description
             )
-            self.db_session.add(db_event)
-            self.db_session.commit()
+            await self._event_batcher.add(db_event)
 
         # Ingest to FraudAgent
         self.fraud_agent.ingest_event({
@@ -309,8 +345,8 @@ class AegisHub:
             )
             self._risk_events.append(event)
             
-            # Write to DB TelemetryEvent
-            if self.db_session:
+            # Write to DB TelemetryEvent (batched)
+            if self._event_batcher:
                 from database import TelemetryEvent
                 db_event = TelemetryEvent(
                     session_id=self.session_id,
@@ -319,8 +355,7 @@ class AegisHub:
                     confidence=event.confidence,
                     description=event.description
                 )
-                self.db_session.add(db_event)
-                self.db_session.commit()
+                await self._event_batcher.add(db_event)
 
             # Ingest to FraudAgent
             self.fraud_agent.ingest_event({
@@ -468,7 +503,7 @@ class AegisHub:
             "agent_statuses": dict(self._agent_statuses),
             "integrity_score": compute_score(self._risk_events),
             "code_review":    code_review.to_dict() if code_review else None,
-            "timestamp":      datetime.utcnow().isoformat(),
+            "timestamp":      datetime.now(timezone.utc).isoformat(),
         }
 
     async def end_session(self):

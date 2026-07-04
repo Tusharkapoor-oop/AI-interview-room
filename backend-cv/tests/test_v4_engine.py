@@ -14,17 +14,15 @@ Tests:
 import sys
 import os
 import unittest
-import math
 import numpy as np
 
 # Ensure backend-cv is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from agents.gaze_benchmark import EmpiricalGazeBenchmark, BenchmarkResult
+from agents.gaze_benchmark import EmpiricalGazeBenchmark
 from agents.forensic_engine import (
     KSTestBaselineEngine,
     WhitespaceFixationDetector,
-    PLRrPPGLivenessEngine,
     ForensicObservation
 )
 from agents.fusion_engine import (

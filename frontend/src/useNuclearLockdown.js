@@ -352,9 +352,15 @@ export function useNuclearLockdown(enabled = true) {
   }, [enabled, phase, fireThreat]);
 
   // ── VECTOR 3: Network Interception ───────────────────────────────────────
+  const origFetchRef = useRef(null);
+  const origOpenRef = useRef(null);
+
   const patchNetwork = useCallback(() => {
+    // Save originals for restoration
+    if (!origFetchRef.current) origFetchRef.current = window.fetch;
+    if (!origOpenRef.current) origOpenRef.current = XMLHttpRequest.prototype.open;
+
     // Override fetch
-    const origFetch = window.fetch;
     window.fetch = function(...args) {
       const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
       const isBlocked = BLOCKED_DOMAINS.some(d => url.includes(d));
@@ -363,11 +369,10 @@ export function useNuclearLockdown(enabled = true) {
           `Outbound AI API call intercepted: ${url.slice(0, 100)} — Interview data being sent to external AI service`,
           `fetch:${url}`, true);
       }
-      return origFetch.apply(this, args);
+      return origFetchRef.current.apply(this, args);
     };
 
     // Override XHR
-    const origOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url, ...rest) {
       const urlStr = String(url);
       const isBlocked = BLOCKED_DOMAINS.some(d => urlStr.includes(d));
@@ -376,9 +381,20 @@ export function useNuclearLockdown(enabled = true) {
           `XHR to AI API intercepted: ${urlStr.slice(0, 100)}`,
           `xhr:${urlStr}`, true);
       }
-      return origOpen.call(this, method, url, ...rest);
+      return origOpenRef.current.call(this, method, url, ...rest);
     };
   }, [phase, fireThreat]);
+
+  const unpatchNetwork = useCallback(() => {
+    if (origFetchRef.current) {
+      window.fetch = origFetchRef.current;
+      origFetchRef.current = null;
+    }
+    if (origOpenRef.current) {
+      XMLHttpRequest.prototype.open = origOpenRef.current;
+      origOpenRef.current = null;
+    }
+  }, []);
 
   // ── VECTOR 4: Event Trustworthiness ──────────────────────────────────────
   const handleKeydown = useCallback((e) => {
@@ -477,8 +493,10 @@ export function useNuclearLockdown(enabled = true) {
     }
   }, [enabled, phase, fireThreat]);
 
-  // ── VECTOR 9: Fullscreen + Focus Lock ────────────────────────────────────
+  // ── VECTOR 9: Fullscreen + Focus Lock (P2-2: accessibility-safe) ─────────
   const requestFullscreen = useCallback(() => {
+    const { relaxedProctoringEnabled, accommodationRequested } = useAegisStore.getState();
+    if (accommodationRequested || relaxedProctoringEnabled) return;
     if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
       document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
     }
@@ -486,12 +504,13 @@ export function useNuclearLockdown(enabled = true) {
 
   const handleFullscreenChange = useCallback(() => {
     if (!enabled || !activePhases.has(phase)) return;
+    const { accommodationRequested, relaxedProctoringEnabled } = useAegisStore.getState();
+    if (accommodationRequested || relaxedProctoringEnabled) return;
     if (!document.fullscreenElement) {
       fullscreenLost.current = true;
       fireThreat('FULLSCREEN_EXIT', 'HIGH',
         'Fullscreen mode exited during interview — candidate may be accessing other applications or windows.',
         `fullscreen:exit:${Date.now()}`, true);
-      // Try to re-acquire fullscreen after 2s
       setTimeout(requestFullscreen, 2000);
     }
   }, [enabled, phase, fireThreat, requestFullscreen]);
@@ -624,9 +643,10 @@ export function useNuclearLockdown(enabled = true) {
       clearInterval(storageInterval);
       clearInterval(workerInterval);
       clearInterval(cssInterval);
+      unpatchNetwork();
     };
   }, [enabled, phase, scanDOM, scanGlobals, detectAdBlocker, scanStylesheets, scanWorkers,
-      patchNetwork, handleKeydown, handlePaste, handleFullscreenChange,
+      patchNetwork, unpatchNetwork, handleKeydown, handlePaste, handleFullscreenChange,
       checkStorageTampering, requestFullscreen]);
 
   return { lockdownOverlay, threatCount, detectedIds: detected.current, detectVirtualMachine };

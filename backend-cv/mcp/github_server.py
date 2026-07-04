@@ -17,9 +17,7 @@ Architecture:
   This server runs as an on-demand subprocess in production (true MCP stdio),
   here implemented as an in-process adapter for simplicity.
 """
-import asyncio
 import logging
-from typing import Optional
 from .client import MCPServer, MCPTool
 
 log = logging.getLogger("aegis.mcp.github")

@@ -12,14 +12,20 @@ Returns a typed CodeReviewResult artifact.
 import hashlib
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 
 log = logging.getLogger("aegis.code_review_agent")
 
 # ── Known LeetCode/HackerRank solution hashes (simplified cheating detection)
 # In production: compare embeddings against a vector DB of known solutions
+# TODO: Populate from solution database at startup (e.g., ./scripts/load_solution_hashes.py)
 KNOWN_SOLUTIONS_HASHES: set = set()
+import logging as _logging
+if not KNOWN_SOLUTIONS_HASHES:
+    _logging.getLogger("aegis.code_review_agent").warning(
+        "KNOWN_SOLUTIONS_HASHES is empty — plagiarism detection is disabled. "
+        "Run scripts/load_solution_hashes.py to populate."
+    )
 
 
 @dataclass
@@ -34,7 +40,7 @@ class CodeReviewResult:
     feedback:      str
     cheating_flag: bool = False
     cheating_note: str  = ""
-    timestamp:     str  = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp:     str  = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         return {

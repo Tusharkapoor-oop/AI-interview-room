@@ -9,7 +9,6 @@ Gracefully degrades if FAISS or sentence-transformers are not installed.
 """
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 

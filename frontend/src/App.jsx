@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import './i18n';
 
 import { useAegisStore } from './useAegisStore';
+import ErrorBoundary          from './ErrorBoundary';
 import AegisToast              from './AegisToast';
 import LuxLanding              from './lux-concierge/LuxConciergeApp';
 import './lux-concierge/mountLuxLanding';
@@ -296,6 +297,7 @@ function StrictMandatoryOverlay() {
           <button
             onClick={() => {
               resetMandatoryLockdown();
+              setPhase('interview');
             }}
             style={{
               marginTop: '16px',
@@ -322,12 +324,14 @@ function StrictMandatoryOverlay() {
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <div className="aegis-shell" role="application" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
-      <StrictMandatoryOverlay />
-      <SessionTimer />
-      <TopBar />
-      <PhaseView />
-      <AegisToast />
-    </div>
+    <ErrorBoundary>
+      <div className="aegis-shell" role="application" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+        <StrictMandatoryOverlay />
+        <SessionTimer />
+        <TopBar />
+        <PhaseView />
+        <AegisToast />
+      </div>
+    </ErrorBoundary>
   );
 }

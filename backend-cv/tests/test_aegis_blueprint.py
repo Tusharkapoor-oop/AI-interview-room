@@ -5,7 +5,6 @@ Strict Rule Compliance: [ZERO-COMPROMISE-1] — Pure backend statistical test su
 """
 
 import math
-import pytest
 from agents.gaze_agent import GazeAgentEvaluator, GazeFixationPoint
 from agents.baseline_agent import BaselineAgentEvaluator
 from agents.kinematic_agent import KinematicAgentEvaluator, SkeletalFrame, Keypoint3D

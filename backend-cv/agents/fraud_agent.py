@@ -9,8 +9,7 @@ Paper §8 Layer 6:
 """
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 
 log = logging.getLogger("aegis.fraud_agent")
 
@@ -60,7 +59,7 @@ class FraudAssessment:
     requires_hitl:    bool
     signal_breakdown: dict = field(default_factory=dict)
     top_signals:      list = field(default_factory=list)
-    generated_at:     str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    generated_at:     str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     notes:            str = ""
 
 
@@ -87,7 +86,7 @@ class FraudAgent:
         self._events.append({
             "type":      event.get("event_type", event.get("type", "UNKNOWN")),
             "severity":  event.get("severity", "LOW"),
-            "timestamp": event.get("timestamp", datetime.utcnow().isoformat()),
+            "timestamp": event.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "fraud_signal": event.get("fraud_signal", False),
         })
 

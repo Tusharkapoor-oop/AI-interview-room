@@ -9,13 +9,11 @@ Implements paper §5, §6 & specification Module 9 & Section 4:
 """
 
 import math
-import time
 import logging
-from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Any
+from dataclasses import dataclass
+from typing import List, Dict, Tuple, Optional
 import numpy as np
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] aegis.fusion_engine: %(message)s")
 log = logging.getLogger("aegis.fusion_engine")
 
 

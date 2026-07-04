@@ -1,0 +1,8 @@
+/* ─── AEGIS Design System v5.0 ────────────────────────────────────
+   Splitted into modules for maintainability
+   ──────────────────────────────────────────────────────────────── */
+
+@import './base.css';
+@import './components.css';
+@import './layout.css';
+@import './animations.css';

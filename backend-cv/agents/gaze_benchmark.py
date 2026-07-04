@@ -12,11 +12,10 @@ Implements paper §4.4 & specification Section 3:
 import math
 import time
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional, Any
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Optional
 import numpy as np
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] aegis.gaze_benchmark: %(message)s")
 log = logging.getLogger("aegis.gaze_benchmark")
 
 # ─── DATA CONTRACTS ─────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ In production:
   - AWS S3 for video/audio artifacts
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey,
     Integer, String, Text, create_engine, Index,
@@ -35,7 +35,7 @@ class Organization(Base):
     name       = Column(String, nullable=False)
     plan_tier  = Column(String, nullable=False, default="STARTER")   # STARTER | PRO | ENTERPRISE
     bipa_region = Column(String, nullable=False, default="US")        # GDPR region awareness
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     users      = relationship("User", back_populates="org")
 
 
@@ -49,7 +49,7 @@ class User(Base):
     role               = Column(String, nullable=False, default="CANDIDATE")
     preferred_language = Column(String, nullable=False, default="en")
     timezone           = Column(String, nullable=False, default="UTC")
-    created_at         = Column(DateTime, default=datetime.utcnow)
+    created_at         = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_login         = Column(DateTime, nullable=True)
     accommodation_mode = Column(Boolean, nullable=False, default=False)   # PRD §4.4 — relaxed proctoring
 
@@ -71,7 +71,7 @@ class Candidate(Base):
     region_code      = Column(String, nullable=False, default="US")
     # Biometric anchor — NOT the raw embedding, just the hash
     face_embedding_hash = Column(String, nullable=True)   # SHA-256 of face geometry
-    created_at       = Column(DateTime, default=datetime.utcnow)
+    created_at       = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     sessions = relationship("InterviewSession", back_populates="candidate")
 
@@ -87,7 +87,7 @@ class Assessment(Base):
     gaze_threshold   = Column(Float,  nullable=False, default=18.0)         # Yaw degrees before flag
     max_gaze_duration = Column(Float, nullable=False, default=3.0)          # Seconds before log
     created_by       = Column(String, ForeignKey("users.id"))
-    created_at       = Column(DateTime, default=datetime.utcnow)
+    created_at       = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     sessions = relationship("InterviewSession", back_populates="assessment")
 
@@ -103,7 +103,7 @@ class InterviewSession(Base):
     assessment_id       = Column(String,  ForeignKey("assessments.id"), nullable=True)
     recruiter_id        = Column(String,  ForeignKey("users.id"), nullable=True)
     data_residency_zone = Column(String,  nullable=False, default="us-east-1")   # GDPR data locality
-    start_time          = Column(DateTime, default=datetime.utcnow)
+    start_time          = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     end_time            = Column(DateTime, nullable=True)
     status              = Column(String,  nullable=False, default="PENDING")     # PENDING | IN_PROGRESS | COMPLETED | ABORTED
     # Aggregate outputs
@@ -144,7 +144,7 @@ class TelemetryEvent(Base):
     roll         = Column(Float,   nullable=True)
     hands_count  = Column(Integer, nullable=True)
     description  = Column(Text,    nullable=True)
-    timestamp    = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp    = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     session = relationship("InterviewSession", back_populates="events")
 
@@ -165,7 +165,7 @@ class BiometricBaseline(Base):
     baseline_yaw    = Column(Float,   nullable=True)
     lighting_lux    = Column(Float,   nullable=True)
     face_lm_quality = Column(Float,   nullable=True)    # 0-1 landmark confidence
-    calibrated_at   = Column(DateTime, default=datetime.utcnow)
+    calibrated_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("InterviewSession")
 
@@ -184,7 +184,7 @@ class EpisodicMemory(Base):
     summary_text   = Column(Text,    nullable=False)   # AI-generated session summary
     risk_snapshot  = Column(Text,    nullable=True)    # JSON: integrity score, event counts
     embedding_ref  = Column(String,  nullable=True)    # FAISS index entry ID (Tier 3 cross-ref)
-    created_at     = Column(DateTime, default=datetime.utcnow)
+    created_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at     = Column(DateTime, nullable=True)   # 90-day auto-purge timestamp
 
     candidate = relationship("Candidate")
@@ -210,7 +210,7 @@ class AgentArtifact(Base):
     artifact_type = Column(String, nullable=False)          # SESSION_PLAN | RISK_REPORT | CODE_REVIEW | etc.
     content_json  = Column(Text,   nullable=True)           # Inline JSON artifact content
     s3_key        = Column(String, nullable=True)           # For large artifacts (PDF reports, videos)
-    created_at    = Column(DateTime, default=datetime.utcnow)
+    created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("InterviewSession")
 
@@ -226,7 +226,7 @@ class MCPInvocationLog(Base):
     tool_path   = Column(String,  nullable=False)    # e.g. "github/get_candidate_repos"
     params_keys = Column(String,  nullable=True)     # JSON array of param names (no values — security)
     result_ok   = Column(Boolean, nullable=True)
-    invoked_at  = Column(DateTime, default=datetime.utcnow)
+    invoked_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # Create all tables

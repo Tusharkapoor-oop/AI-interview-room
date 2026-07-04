@@ -17,11 +17,10 @@ Supports both:
   a) In-process servers (for local MCP adapters — SQLite, filesystem)
   b) Subprocess servers (for remote MCP servers — GitHub, etc.)
 """
-import asyncio
-import json
 import logging
 import uuid
-from typing import Any, Callable, Optional
+from datetime import datetime, timezone
+from typing import Callable
 
 log = logging.getLogger("aegis.mcp.client")
 
@@ -125,7 +124,7 @@ class MCPClient:
             "session_id": session_id,
             "tool":       tool_path,
             "params_keys": list(params.keys()),
-            "timestamp":  __import__("datetime").datetime.utcnow().isoformat(),
+            "timestamp":  datetime.now(timezone.utc).isoformat(),
         }
         self._invocation_log.append(log_entry)
         log.info("[MCPClient] Invoking %s — params_keys=%s", tool_path, list(params.keys()))

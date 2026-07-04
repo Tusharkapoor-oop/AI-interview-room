@@ -463,6 +463,7 @@ export function useGazeEntropy() {
       whitespaceStreak.current  = 0;
       kalmanX.current = new KalmanFilter1D(0.015, 0.0008);
       kalmanY.current = new KalmanFilter1D(0.015, 0.0008);
+      try { delete window.__aegisGazeEntropy; } catch {}
     };
   }, [phase, analyze]);
 

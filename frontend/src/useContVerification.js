@@ -28,6 +28,7 @@ export function useContVerification(videoRef, onAudioFeatures = null) {
   const livenessReRef    = useRef(null);
   const audioCtxRef       = useRef(null);
   const analyserRef       = useRef(null);
+  const micStreamRef      = useRef(null);
   const lastFaceHash      = useRef(null);
   const voiceSilenceCount = useRef(0);
   const rechallengePending = useRef(false);
@@ -79,6 +80,7 @@ export function useContVerification(videoRef, onAudioFeatures = null) {
     if (audioCtxRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
       audioCtxRef.current = new AudioContext();
       analyserRef.current = audioCtxRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
@@ -174,6 +176,8 @@ export function useContVerification(videoRef, onAudioFeatures = null) {
       clearInterval(livenessReRef.current);
       audioCtxRef.current?.close();
       audioCtxRef.current = null;
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
     };
   }, [phase]);
 

@@ -40,9 +40,9 @@ import { useLlmPhraseDetector } from './useLlmPhraseDetector'; // Research Modul
 import { useAudioForensics } from './useAudioForensics';    // Research Module NEW — audio forensics
 
 
-const getWsProtocol = () => window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const CV_WS  = `${getWsProtocol()}//${window.location.host}/ws/cv`;
-const INT_WS = `${getWsProtocol()}//${window.location.host}/ws/interview`;
+const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+const CV_WS  = `${WS_BASE}/ws/cv`;
+const INT_WS = `${WS_BASE}/ws/interview`;
 
 const QUESTIONS = {
   technical: [
@@ -113,7 +113,7 @@ function GazeForensicHudPanel() {
   );
 }
 
-export default function InterviewArena() {
+const InterviewArena = React.memo(function InterviewArena() {
   const {
     telemetry, setTelemetry,
     addRiskEvent, updateIntegrityScore,
@@ -364,7 +364,7 @@ export default function InterviewArena() {
       if (!videoRef.current || !canvasRef.current || cvStatus !== 'connected') return;
       const ctx = canvasRef.current.getContext('2d');
       ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-      sendFrame(canvasRef.current.toDataURL('image/jpeg', 0.45));
+      sendFrame(canvasRef.current.toDataURL('image/jpeg', 0.80));
     }, 150);
     return () => clearInterval(id);
   }, [cvStatus, sendFrame]);
@@ -635,4 +635,6 @@ export default function InterviewArena() {
       )}
     </div>
   );
-}
+});
+
+export default InterviewArena;

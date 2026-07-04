@@ -9,7 +9,7 @@ Paper §8 Layer 2: Continuous Verification
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 log = logging.getLogger("aegis.continuous_verifier")
@@ -21,7 +21,7 @@ class VerifierEvent:
     severity: str
     description: str
     confidence: float = 0.8
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ContinuousVerifier:
     """
@@ -32,12 +32,15 @@ class ContinuousVerifier:
     LIVENESS_INTERVAL_S = 480.0 # 8 minutes
     FACE_DRIFT_THRESHOLD = 0.40 # max deviation in face representation
 
+    FACE_CONSECUTIVE_FAIL_LIMIT = 15  # ~0.5s at 30fps before alerting
+
     def __init__(self, session_id: str, enrolled_face_hash: Optional[str] = None):
         self.session_id = session_id
         self.enrolled_hash = enrolled_face_hash
         self.last_liveness_ts = time.time()
         self.face_history = []
         self.events_emitted = []
+        self._face_fail_count = 0
 
         log.info("[ContinuousVerifier] Initialized for session %s", session_id)
 
@@ -61,12 +64,17 @@ class ContinuousVerifier:
         Flags sudden absence of face or high pose deviations that indicate spoofing.
         """
         if not face_detected:
-            return VerifierEvent(
-                session_id=self.session_id,
-                event_type="FACE_CONSISTENCY_FAIL",
-                severity="HIGH",
-                description="Candidate face is no longer visible in frame. Possible proxy substitution."
-            )
+            self._face_fail_count += 1
+            if self._face_fail_count >= self.FACE_CONSECUTIVE_FAIL_LIMIT:
+                self._face_fail_count = 0
+                return VerifierEvent(
+                    session_id=self.session_id,
+                    event_type="FACE_CONSISTENCY_FAIL",
+                    severity="HIGH",
+                    description="Candidate face not visible for extended period. Possible proxy substitution."
+                )
+            return None
+        self._face_fail_count = max(0, self._face_fail_count - 2)
         return None
 
     def record_liveness_completion(self, passed: bool, score: float) -> Optional[VerifierEvent]:

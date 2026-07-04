@@ -9,13 +9,11 @@ Implements paper §4, §6 & specification Modules 6, 7 & 8:
 """
 
 import math
-import time
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
 import numpy as np
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] aegis.forensic_engine: %(message)s")
 log = logging.getLogger("aegis.forensic_engine")
 
 

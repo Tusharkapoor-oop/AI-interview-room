@@ -158,9 +158,22 @@ export function useKeystrokeDynamics(enabled = true, onBaselineBuilt = null) {
     if (!enabled) return;
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup',   handleKeyUp);
+
+    // Periodic cleanup of stale press timestamps (> 60s old)
+    const cleanupTimer = setInterval(() => {
+      const now = Date.now();
+      const stale = [];
+      for (const [code, ts] of Object.entries(pressTimestamps.current)) {
+        if (now - ts > 60000) stale.push(code);
+      }
+      stale.forEach(code => delete pressTimestamps.current[code]);
+    }, 30000);
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup',   handleKeyUp);
+      clearInterval(cleanupTimer);
+      pressTimestamps.current = {};
     };
   }, [enabled, handleKeyDown, handleKeyUp]);
 

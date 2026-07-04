@@ -23,7 +23,7 @@
  *   - Counts how many cycles show correct directional response
  *   - LIVE if ≥ 4/6 cycles correct
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAegisStore } from './useAegisStore';
 
 const FLASH_CYCLES    = 6;     // total bright/dark alternations
@@ -143,8 +143,9 @@ export default function PlrChallenge({ videoRef, onComplete }) {
   const [cycle, setCycle]     = useState(0);
   const [correct, setCorrect] = useState(0);
   const [result, setResult]   = useState(null);
-  const [livePhysics, setLivePhysics] = useState({ lumDelta: 0.00, snrDb: 1.85, tau: 198 });
+  const [livePhysics, setLivePhysics] = useState({ lumDelta: 0.00, snrDb: 0.0, tau: 0 });
 
+  const mountedRef       = useRef(true);
   const canvasRef        = useRef(null);
   const cycleRef         = useRef(0);
   const correctRef       = useRef(0);
@@ -182,6 +183,26 @@ export default function PlrChallenge({ videoRef, onComplete }) {
     onComplete?.(res);
   }, [onComplete, setPlrPassed]);
 
+  const handleSkipPlr = useCallback(() => {
+    clearInterval(rppgIntervalRef.current);
+    clearTimeout(timerRef.current);
+    setPhase('done');
+    setPlrPassed(null); // null = skipped, neither passed nor failed
+    onComplete?.({ passed: false, skipped: true });
+  }, [onComplete, setPlrPassed]);
+
+  const [showSkip, setShowSkip] = useState(false);
+  const skipTimerRef = useRef(null);
+  useEffect(() => {
+    if (phase === 'running') {
+      skipTimerRef.current = setTimeout(() => setShowSkip(true), 8000);
+      return () => clearTimeout(skipTimerRef.current);
+    }
+    if (phase !== 'running' && showSkip) {
+      setShowSkip(false);
+    }
+  }, [phase, showSkip]);
+
   const runCycle = useCallback(() => {
     if (cycleRef.current >= FLASH_CYCLES) {
       finalize();
@@ -202,15 +223,15 @@ export default function PlrChallenge({ videoRef, onComplete }) {
     timerRef.current = setTimeout(() => {
       const response = sampleEyeBrightness(videoRef?.current, canvasRef.current);
       if (baseline !== null && response !== null) {
-        const delta = response - baseline;
-        setLivePhysics({
+        const delta = baseline - response; // positive = darker (constriction)
+        setLivePhysics(prev => ({
           lumDelta: delta.toFixed(3),
-          snrDb: (1.6 + Math.random() * 1.4).toFixed(2),
+          snrDb: prev.snrDb,
           tau: Math.round(185 + Math.random() * 35),
-        });
+        }));
         const correctResponse =
-          (lastFlashType.current === 'bright' && delta > 0.4) ||
-          (lastFlashType.current === 'dark'   && delta < -0.4);
+          (lastFlashType.current === 'bright' && delta > 0.3) ||
+          (lastFlashType.current === 'dark'   && delta < -0.3);
 
         if (correctResponse) {
           correctRef.current++;
@@ -222,7 +243,9 @@ export default function PlrChallenge({ videoRef, onComplete }) {
       setCycle(cycleRef.current);
       setFlashOn(false);
 
-      timerRef.current = setTimeout(runCycle, randomDuration * 0.4);
+      if (mountedRef.current) {
+        timerRef.current = setTimeout(runCycle, randomDuration * 0.4);
+      }
     }, sampleDelay);
   }, [videoRef, finalize]);
 
@@ -246,7 +269,9 @@ export default function PlrChallenge({ videoRef, onComplete }) {
   }, [runCycle, videoRef]);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       clearTimeout(timerRef.current);
       clearInterval(rppgIntervalRef.current);
     };
@@ -256,33 +281,17 @@ export default function PlrChallenge({ videoRef, onComplete }) {
 
   return (
     <>
-      {/* ── Full-screen flash overlay ── */}
-      {phase === 'running' && (
+      {/* ── Subtle border flash indicator (replaced full-screen overlay) ── */}
+      {phase === 'running' && flashOn && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 9000,
-          background: flashOn
-            ? 'rgba(255, 255, 255, 0.94)'
-            : 'rgba(0, 0, 0, 0.88)',
+          zIndex: 10,
           pointerEvents: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <div style={{
-            textAlign: 'center',
-            color: flashOn ? '#000' : '#fff',
-            transition: 'color 0.2s',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>
-              {flashOn ? '☀️' : '🌑'}
-            </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '2px', opacity: 0.7 }}>
-              PLR + rPPG ACTIVE CHALLENGE — CYCLE {cycle + 1}/{FLASH_CYCLES}
-            </div>
-          </div>
-        </div>
+          border: '8px solid rgba(255, 255, 255, 0.25)',
+          borderRadius: 0,
+          transition: 'border-color 0.1s',
+        }} />
       )}
 
       {/* ── PLR Challenge Card ── */}
@@ -343,12 +352,12 @@ export default function PlrChallenge({ videoRef, onComplete }) {
               color: 'var(--aegis-cyan)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'var(--aegis-gold)' }}>
-                <span>⚡ PLR PHYSICS EQUATION: D(t) = D_min + ΔD · exp(-t / τ)</span>
-                <span>τ_constrict: {livePhysics.tau} ms</span>
+                <span>PLR Current Reading</span>
+                <span>Cycle {cycle + 1}/{FLASH_CYCLES}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
-                <span>ΔL Reflex (Luma Diff): <strong style={{ color: livePhysics.lumDelta !== '0.000' ? 'var(--aegis-green)' : '#fff' }}>{livePhysics.lumDelta}</strong></span>
-                <span>Beer-Lambert Cardiac SNR: <strong style={{ color: 'var(--aegis-cyan)' }}>{livePhysics.snrDb} dB</strong></span>
+                <span>Luma Change: <strong style={{ color: livePhysics.lumDelta !== '0.000' ? 'var(--aegis-green)' : '#fff' }}>{livePhysics.lumDelta}</strong></span>
+                <span>Correct: {correct}/{cycle}</span>
               </div>
             </div>
           </>
@@ -393,6 +402,24 @@ export default function PlrChallenge({ videoRef, onComplete }) {
             }}
           >
             👁 Begin Combined PLR + rPPG Test
+          </button>
+        )}
+
+        {/* Skip button — shown after 8s of running */}
+        {phase === 'running' && showSkip && (
+          <button
+            onClick={handleSkipPlr}
+            style={{
+              width: '100%', padding: '10px 0', marginTop: 8,
+              background: 'rgba(245,158,11,0.12)',
+              border: '1px solid rgba(245,158,11,0.4)',
+              borderRadius: 8, cursor: 'pointer',
+              color: 'var(--aegis-amber)', fontSize: '0.78rem', fontWeight: 700,
+              letterSpacing: '1px', fontFamily: 'var(--font)',
+              transition: 'all 0.2s',
+            }}
+          >
+            ⚡ Skip PLR Test (Degraded Trust Mode)
           </button>
         )}
 
