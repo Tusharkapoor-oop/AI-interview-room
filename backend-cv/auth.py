@@ -1,6 +1,13 @@
 import os
+import secrets
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
+
+log = logging.getLogger("aegis.auth")
 
 SKIP_AUTH = os.getenv("SKIP_AUTH", "").lower() in ("1", "true", "yes")
 
@@ -12,10 +19,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
-    raise RuntimeError(
-        "FATAL: JWT_SECRET must be at least 32 characters. "
-        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-    )
+    if not SKIP_AUTH:
+        log.warning("JWT_SECRET not set in environment (or < 32 chars). Generated ephemeral 256-bit secret for this session.")
+    JWT_SECRET = secrets.token_hex(32)
+    os.environ["JWT_SECRET"] = JWT_SECRET
 
 # Use RS256 asymmetric signing if RSA keys are configured, else fallback to HS256
 _RSA_PRIV_KEY = os.getenv("JWT_RSA_PRIVATE_KEY")

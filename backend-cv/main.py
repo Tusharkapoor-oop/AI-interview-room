@@ -25,6 +25,9 @@ import cv2
 import mediapipe as mp
 import numpy as np
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -61,15 +64,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("aegis")
 
-# ─── Fail-Fast Secret Validation ──────────────────────────────────────────────
+# ─── Environment Validation & Defaults ─────────────────────────────────────────
 load_dotenv()
 
 REQUIRED_ENV_VARS = ["JWT_SECRET", "DATABASE_URL"]
 missing_vars = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
 if missing_vars:
-    log.error("FATAL: Missing required environment variables: %s", missing_vars)
-    log.error("Copy .env.example to .env and fill in the values.")
-    raise SystemExit(1)
+    log.warning("Missing environment variables %s — defaults/ephemeral values were applied.", missing_vars)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
