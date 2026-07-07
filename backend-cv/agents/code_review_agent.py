@@ -10,6 +10,7 @@ Uses OpenAI to assess:
 Returns a typed CodeReviewResult artifact.
 """
 import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -105,7 +106,6 @@ Be honest — do not be overly generous. Assess: correctness, edge cases, comple
 
         if self.ai_client:
             try:
-                import json
                 prompt = (
                     f"Language: {language}\n"
                     f"Question: {question}\n\n"

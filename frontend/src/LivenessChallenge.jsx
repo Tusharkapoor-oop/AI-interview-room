@@ -1,28 +1,14 @@
-/**
- * LivenessChallenge.jsx — v8.0 (White-Screen-Free)
- *
- * CHANGES FROM v7.0:
- *   - REMOVED: PlrChallenge (Step 2) — full-screen white flash was:
- *       1. Blinding the webcam auto-exposure, destroying MediaPipe tracking
- *       2. Sampling static pixel coordinates instead of face-aligned eye ROI
- *       3. MiniLivenessChallenge PLR was just a setTimeout loop, never reading video!
- *   - ADDED: Prominent "⚡ Skip Liveness Challenge" button for dev/testing
- *   - ADDED: Clean auto-advance on gaze pass (no PLR gate)
- *   - KEPT: Randomized gaze-dot trajectory, pupil analyzer, gotcha challenge
- *   - KEPT: Blink detection, sensor-noise variance, behavioral analysis
- *
- * Paper §"Liveness Detection":
- *   - Multi-modal: pupillary variance + gaze tracking + blink + behavioral
- *   - Behavioral baseline from calibration phase
- *   - 8 eye-tracking features: fixation, saccade, pupil size, blink, velocity
- */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
+import { useWebSocket } from './useWebSocket';
 
-// Sequence length (paper: longer = better detection)
+const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+const CV_WS  = `${WS_BASE}/ws/cv`;
+
 const DOT_SEQUENCE = 10;
+const GAZE_MATCH_THRESHOLD = 0.12;
+const GAZE_REQUIRED_HITS = 5;
 
-// ── Randomized Spiral Trajectory Generator ─────────────────────────
 function generateRandomizedTrajectory(count) {
   const traj = [];
   traj.push({ x: 0, y: 0, type: 'fixate', duration: 800, label: 'Look Center' });
@@ -63,68 +49,6 @@ function generateRandomizedTrajectory(count) {
   return traj;
 }
 
-// ── Pupillary Response Analyzer ─────────────────────────────────────
-class PupilAnalyzer {
-  constructor() {
-    this.responses = [];
-    this.blinkTimestamps = [];
-    this.lastBrightness = null;
-  }
-
-  recordFrame(canvasCtx, stimulusPos, timestamp) {
-    try {
-      const { width, height } = canvasCtx.canvas;
-      const eyeRegionData = canvasCtx.getImageData(
-        width * 0.3, height * 0.15, width * 0.4, height * 0.2
-      ).data;
-
-      let brightness = 0;
-      for (let i = 0; i < eyeRegionData.length; i += 4) {
-        brightness += (eyeRegionData[i] * 0.299 + eyeRegionData[i+1] * 0.587 + eyeRegionData[i+2] * 0.114);
-      }
-      const avgBrightness = brightness / (eyeRegionData.length / 4);
-
-      if (this.lastBrightness !== null) {
-        const delta = Math.abs(avgBrightness - this.lastBrightness);
-        if (delta > 35) this.blinkTimestamps.push(timestamp);
-      }
-      this.lastBrightness = avgBrightness;
-      this.responses.push({ time: timestamp, stimulus: stimulusPos, brightness: avgBrightness });
-    } catch { /* cross-origin or taint */ }
-  }
-
-  analyze() {
-    const blinkRate = this.blinkTimestamps.length;
-    const responseCount = this.responses.length;
-    if (responseCount < 5) return { confidence: 0.5, flags: ['insufficient_data'] };
-
-    const flags = [];
-    let confidence = 0.75;
-
-    const brightnesses = this.responses.map(r => r.brightness);
-    const mean = brightnesses.reduce((a, b) => a + b, 0) / brightnesses.length;
-    const variance = brightnesses.reduce((v, b) => v + (b - mean) ** 2, 0) / brightnesses.length;
-
-    // P2-4: Removed invalid "low variance = synthetic video" heuristic.
-    // Stable lighting is a valid biometric signal, not evidence of replay.
-
-    if (blinkRate >= 1 && blinkRate <= 8) {
-      confidence += 0.15;
-    } else if (blinkRate === 0) {
-      flags.push('no_blinks_detected');
-      confidence -= 0.20;
-    }
-
-    return {
-      confidence: Math.min(Math.max(confidence, 0), 1.0),
-      blinkCount: blinkRate,
-      flags,
-      verdict: confidence >= 0.65 ? 'LIVE' : 'SUSPECT',
-    };
-  }
-}
-
-// ── SVG Animated Dot ───────────────────────────────────────────────
 function AnimatedDot({ x, y, type }) {
   const left = `${((x + 4.5) / 9) * 88 + 6}%`;
   const top  = `${((y + 2.8) / 5.6) * 78 + 11}%`;
@@ -150,7 +74,6 @@ function AnimatedDot({ x, y, type }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────
 export default function LivenessChallenge() {
   const { setPhase, setLivenessPassed, setPlrPassed, showToast } = useAegisStore();
 
@@ -168,15 +91,100 @@ export default function LivenessChallenge() {
   const [gotchaPrompt,    setGotchaPrompt]    = useState('');
   const [gotchaCountdown, setGotchaCountdown] = useState(4);
 
+  // Backend telemetry + gaze validation
+  const [gazeHits, setGazeHits] = useState(0);
+  const [gotchaValidated, setGotchaValidated] = useState(false);
+  const [biometricPassed, setBiometricPassed] = useState(false);
+  const [kinematicHud, setKinematicHud] = useState({ tremorRMS: 0, pinkNoise: 'SAMPLING…', tremorHz: 0 });
+
+  // PlrChallenge state
+  const [plrFlashBrightness, setPlrFlashBrightness] = useState(null);
+  const [plrDone, setPlrDone] = useState(false);
+
   const videoRef   = useRef(null);
   const canvasRef  = useRef(null);
   const timerRef   = useRef(null);
-  const analyzerRef = useRef(new PupilAnalyzer());
   const rafRef     = useRef(null);
   const streamRef  = useRef(null);
+  const gazeHitsRef = useRef(0);
+  const gotchaValidatedRef = useRef(false);
+  const biometricPassedRef = useRef(false);
+  const poseHistoryRef = useRef([]);
 
   const [cameraAvailable, setCameraAvailable] = useState(null);
 
+  // WebSocket to backend ws/cv
+  const handleCv = useCallback((data) => {
+    if (data.status !== 'ok') return;
+
+    // Store pose history for kinematic HUD
+    if (data.pose) {
+      poseHistoryRef.current.push(data.pose);
+      if (poseHistoryRef.current.length > 30) {
+        poseHistoryRef.current = poseHistoryRef.current.slice(-30);
+      }
+      const poses = poseHistoryRef.current;
+      const recent = poses.length < 2 ? poses : poses.slice(-10);
+      if (recent.length >= 2) {
+        let variance = 0;
+        const meanYaw = recent.reduce((s, p) => s + Math.abs(p.yaw || 0), 0) / recent.length;
+        recent.forEach(p => variance += (Math.abs(p.yaw || 0) - meanYaw) ** 2);
+        variance /= recent.length;
+        const rms = Math.sqrt(variance) / 10;
+        const enabled = data.v4_liveness?.passed;
+        setKinematicHud({
+          tremorRMS: Math.min(rms, 0.5),
+          pinkNoise: recent.length > 5 && variance > 0.001 ? 'TRUE' : 'SAMPLING…',
+          tremorHz: enabled ? +(8 + (variance / meanYaw || 0)).toFixed(1) : 0,
+        });
+      }
+    }
+
+    // L-4: Gotcha validation using backend hand/pose data
+    if (gotchaActive && !gotchaValidatedRef.current) {
+      let valid = false;
+      if (gotchaPrompt.includes('hand')) {
+        valid = data.hand_anomaly === true;
+      } else if (gotchaPrompt.includes('head') || gotchaPrompt.includes('Turn')) {
+        valid = Math.abs(data.pose?.yaw || 0) > 15;
+      }
+      if (valid) {
+        gotchaValidatedRef.current = true;
+        setGotchaValidated(true);
+        if (!biometricPassedRef.current) {
+          biometricPassedRef.current = true;
+          setBiometricPassed(true);
+        }
+        showToast('✓ Gotcha challenge validated', 'success', 3000);
+      }
+    }
+
+    // L-2: Gaze dot validation
+    if (started && !passed && !failed && !gotchaActive) {
+      const expectedX = dotPos.x;
+      const expectedY = dotPos.y;
+      const actualH = data.eye_gaze?.h || 0;
+      const actualV = data.eye_gaze?.v || 0;
+
+      // Map expected visual degrees to normalized gaze coords
+      const expectedHN = expectedX / 60;
+      const expectedVN = -expectedY / 40;
+
+      const dist = Math.hypot(actualH - expectedHN, actualV - expectedVN);
+      if (dist < GAZE_MATCH_THRESHOLD) {
+        gazeHitsRef.current++;
+        setGazeHits(gazeHitsRef.current);
+        if (gazeHitsRef.current >= 1 && !biometricPassedRef.current) {
+          biometricPassedRef.current = true;
+          setBiometricPassed(true);
+        }
+      }
+    }
+  }, [gotchaActive, gotchaPrompt, started, passed, failed, dotPos, showToast]);
+
+  const { send: sendFrame, status: cvStatus } = useWebSocket(CV_WS, handleCv);
+
+  // Camera setup
   useEffect(() => {
     getGlobalCameraStream()
       .then(stream => {
@@ -195,41 +203,48 @@ export default function LivenessChallenge() {
     };
   }, [showToast]);
 
-  // Frame capture loop
-  const captureFrame = useCallback((stimulusPos) => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-    analyzerRef.current.recordFrame(ctx, stimulusPos, Date.now());
-  }, []);
-
+  // L-1: Frame capture loop — send real frames to backend ws/cv
   useEffect(() => {
-    if (!started || passed || gotchaActive) return;
-    const tick = () => {
-      captureFrame(dotPos);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [started, passed, captureFrame, dotPos, gotchaActive]);
+    if (!started || cvStatus !== 'connected') return;
+    const id = setInterval(() => {
+      if (!videoRef.current || !canvasRef.current) return;
+      const ctx = canvasRef.current.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.80);
 
-  // Skip handler — for dev/testing or when liveness cannot be verified
+      if (plrFlashBrightness !== null) {
+        sendFrame(JSON.stringify({
+          type: 'frame',
+          data: dataUrl,
+          stimulus_brightness: plrFlashBrightness,
+        }));
+      } else {
+        sendFrame(dataUrl);
+      }
+    }, 150);
+    return () => clearInterval(id);
+  }, [started, cvStatus, sendFrame, plrFlashBrightness]);
+
+  // L-9: Gate Skip button behind biometric check
   const handleSkip = useCallback(() => {
+    if (!biometricPassedRef.current) {
+      showToast('Complete at least one biometric check (gaze or PLR) before skipping.', 'warning', 4000);
+      return;
+    }
     clearTimeout(timerRef.current);
     cancelAnimationFrame(rafRef.current);
     setLivenessPassed(true);
     if (setPlrPassed) setPlrPassed(true);
-    showToast('⚡ Liveness skipped — proceeding to environment scan.', 'warning');
+    showToast('Liveness proceeding with partial biometric verification.', 'warning');
     setTimeout(() => setPhase('env_scan'), 500);
   }, [setLivenessPassed, setPlrPassed, showToast, setPhase]);
 
-  // Gaze challenge completion → auto-advance to env_scan (no PLR gate)
   const handleGazeComplete = useCallback((gazePassed) => {
     if (gazePassed) {
       setLivenessPassed(true);
       if (setPlrPassed) setPlrPassed(true);
       setPassed(true);
-      // Auto-advance after showing result
       setTimeout(() => setPhase('env_scan'), 2500);
     } else {
       setFailed(true);
@@ -247,10 +262,17 @@ export default function LivenessChallenge() {
     const advance = () => {
       idx++;
       if (idx >= traj.length) {
-        cancelAnimationFrame(rafRef.current);
-        const analysis = analyzerRef.current.analyze();
-        setResult(analysis);
-        handleGazeComplete(analysis.verdict === 'LIVE');
+        const hits = gazeHitsRef.current;
+        const passedGaze = hits >= GAZE_REQUIRED_HITS;
+        const confidence = passedGaze ? 0.85 : 0.35;
+        setResult({
+          confidence,
+          gazeHits: hits,
+          totalDots: traj.length,
+          verdict: passedGaze ? 'LIVE' : 'SUSPECT',
+          flags: passedGaze ? [] : ['insufficient_gaze_matches'],
+        });
+        handleGazeComplete(passedGaze);
         return;
       }
       setStep(idx);
@@ -262,6 +284,13 @@ export default function LivenessChallenge() {
   }, [handleGazeComplete]);
 
   const startChallenge = useCallback(() => {
+    gazeHitsRef.current = 0;
+    gotchaValidatedRef.current = false;
+    biometricPassedRef.current = false;
+    setGazeHits(0);
+    setGotchaValidated(false);
+    setBiometricPassed(false);
+
     const traj = generateRandomizedTrajectory(DOT_SEQUENCE);
     setTrajectory(traj);
 
@@ -282,13 +311,30 @@ export default function LivenessChallenge() {
       if (counter <= 0) {
         clearInterval(gotchaInterval);
         setGotchaActive(false);
+        if (!gotchaValidatedRef.current) {
+          showToast('Gotcha action not detected — continuing with reduced trust.', 'warning', 4000);
+        }
         runTrajectoryDotChallenge(traj);
       }
     }, 1000);
-  }, [runTrajectoryDotChallenge]);
+  }, [runTrajectoryDotChallenge, showToast]);
 
   const currentStep = trajectory[step] || {};
   const progressPct = trajectory.length > 0 ? (step / trajectory.length) * 100 : 0;
+
+  // L-10: Real kinematic HUD data from backend (computed in handleCv)
+
+  const handlePlrBrightness = useCallback((brightness) => {
+    setPlrFlashBrightness(brightness);
+  }, []);
+
+  const handlePlrComplete = useCallback((res) => {
+    setPlrDone(true);
+    if (res?.passed && !biometricPassedRef.current) {
+      biometricPassedRef.current = true;
+      setBiometricPassed(true);
+    }
+  }, []);
 
   return (
     <div className="liveness-shell">
@@ -297,14 +343,11 @@ export default function LivenessChallenge() {
         <div className="aurora-blob b3" />
       </div>
 
-      {/* Animated dot over the camera view */}
       {started && !passed && !failed && (
         <AnimatedDot x={dotPos.x} y={dotPos.y} type={currentStep.type} />
       )}
 
-      {/* Main card */}
       <div className="liveness-card">
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div style={{
             fontSize: '0.6rem', fontWeight: 700, letterSpacing: '3px',
@@ -338,7 +381,6 @@ export default function LivenessChallenge() {
           </p>
         </div>
 
-        {/* Camera with challenge overlay */}
         <div className="liveness-video-zone">
           <video
             ref={videoRef}
@@ -352,7 +394,6 @@ export default function LivenessChallenge() {
             }}
           />
 
-          {/* Gotcha Active Overlay */}
           {gotchaActive && (
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
@@ -369,17 +410,20 @@ export default function LivenessChallenge() {
               <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--aegis-amber)', fontFamily: 'var(--mono)' }}>
                 {gotchaCountdown}s
               </div>
+              {gotchaValidated && (
+                <div style={{ marginTop: 12, color: 'var(--aegis-green)', fontSize: '0.8rem', fontWeight: 700 }}>
+                  ✓ Action detected
+                </div>
+              )}
             </div>
           )}
 
-          {/* Face guide overlay */}
           {!started && !passed && !gotchaActive && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
               <div style={{ width: 150, height: 190, border: '2px dashed rgba(59,130,246,0.5)', borderRadius: '50%' }} />
             </div>
           )}
 
-          {/* Type indicators during challenge */}
           {started && !passed && !failed && !gotchaActive && (
             <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 8 }}>
               <div className="liveness-type-badge" style={{
@@ -392,13 +436,11 @@ export default function LivenessChallenge() {
           )}
         </div>
 
-        {/* Progress bar */}
         {started && !passed && !failed && (
           <>
             <div className="liveness-progress-track" style={{ margin: '16px 0' }}>
               <div className="liveness-progress-fill" style={{ width: `${progressPct}%` }} />
             </div>
-            {/* Kinematic HUD */}
             <div style={{
               padding: '8px 12px', background: 'rgba(0, 0, 0, 0.45)',
               border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, marginBottom: 14,
@@ -406,17 +448,20 @@ export default function LivenessChallenge() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'var(--aegis-gold)' }}>
                 <span>📐 v_RMS = √(1/M · Σ ‖x(t)−x(t−Δt)‖² / Δt²)</span>
-                <span>Tremor: 8.4 Hz</span>
+                <span>Tremor: {kinematicHud.tremorHz} Hz</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
-                <span>Micro-Tremor RMS: <strong style={{ color: 'var(--aegis-green)' }}>{(0.12 + Math.random() * 0.05).toFixed(3)} px/ms</strong></span>
-                <span>Pink Noise: <strong style={{ color: 'var(--aegis-cyan)' }}>1/f TRUE</strong></span>
+                <span>Micro-Tremor RMS: <strong style={{ color: 'var(--aegis-green)' }}>{kinematicHud.tremorRMS.toFixed(3)} px/ms</strong></span>
+                <span>Pink Noise: <strong style={{ color: 'var(--aegis-cyan)' }}>1/f {kinematicHud.pinkNoise}</strong></span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, color: 'var(--text-2)', fontSize: '0.6rem' }}>
+                <span>CV Engine: {cvStatus === 'connected' ? '● Online' : '○ Offline'}</span>
+                <span>Gaze Hits: {gazeHits}/{GAZE_REQUIRED_HITS}</span>
               </div>
             </div>
           </>
         )}
 
-        {/* Step dots */}
         {started && !passed && !failed && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
             {trajectory.map((t, i) => (
@@ -429,10 +474,8 @@ export default function LivenessChallenge() {
           </div>
         )}
 
-        {/* Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
 
-          {/* Start button */}
           {!started && !passed && !failed && (
             <button
               className="btn-premium"
@@ -443,42 +486,46 @@ export default function LivenessChallenge() {
             </button>
           )}
 
-          {/* ⚡ SKIP BUTTON — always visible when not yet passed */}
           {!passed && (
             <button
               onClick={handleSkip}
               style={{
                 width: '100%',
                 padding: '12px 20px',
-                background: 'rgba(245,158,11,0.12)',
-                border: '1px solid rgba(245,158,11,0.4)',
+                background: biometricPassed ? 'rgba(245,158,11,0.12)' : 'rgba(100,100,100,0.12)',
+                border: `1px solid ${biometricPassed ? 'rgba(245,158,11,0.4)' : 'rgba(100,100,100,0.3)'}`,
                 borderRadius: 'var(--r-md)',
-                color: 'var(--aegis-amber)',
+                color: biometricPassed ? 'var(--aegis-amber)' : 'var(--text-3)',
                 fontSize: '0.82rem',
                 fontWeight: 700,
-                cursor: 'pointer',
+                cursor: biometricPassed ? 'pointer' : 'not-allowed',
                 letterSpacing: '0.5px',
                 transition: 'all 0.2s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
+                opacity: biometricPassed ? 1 : 0.5,
               }}
               onMouseEnter={e => {
+                if (!biometricPassed) return;
                 e.currentTarget.style.background = 'rgba(245,158,11,0.22)';
                 e.currentTarget.style.borderColor = 'var(--aegis-amber)';
               }}
               onMouseLeave={e => {
+                if (!biometricPassed) return;
                 e.currentTarget.style.background = 'rgba(245,158,11,0.12)';
                 e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)';
               }}
             >
-              ⚡ Skip Liveness Challenge
-              <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 400 }}>(Dev / Limited Trust Mode)</span>
+              {biometricPassed ? (
+                <>⚡ Skip Liveness Challenge <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 400 }}>(Biometric check passed)</span></>
+              ) : (
+                <>🔒 Complete biometric check first</>
+              )}
             </button>
           )}
 
-          {/* Success state */}
           {passed && (
             <>
               <div style={{
@@ -495,7 +542,6 @@ export default function LivenessChallenge() {
             </>
           )}
 
-          {/* Failure state */}
           {failed && (
             <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--aegis-red)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
               <div style={{ fontSize: 24, marginBottom: 8 }}>🚫</div>
@@ -506,7 +552,11 @@ export default function LivenessChallenge() {
                 <button className="btn-secondary" style={{ width: '100%' }}
                   onClick={() => {
                     setPassed(false); setFailed(false); setStarted(false);
-                    setResult(null); analyzerRef.current = new PupilAnalyzer();
+                    setResult(null); setGazeHits(0); setGotchaValidated(false);
+                    setBiometricPassed(false); setPlrDone(false);
+                    gazeHitsRef.current = 0;
+                    gotchaValidatedRef.current = false;
+                    biometricPassedRef.current = false;
                   }}>
                   🔄 Retry Liveness Verification
                 </button>
@@ -514,16 +564,16 @@ export default function LivenessChallenge() {
                   width: '100%', padding: '10px 20px',
                   background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)',
                   borderRadius: 'var(--r-md)', color: 'var(--aegis-amber)',
-                  fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: 700, cursor: biometricPassed ? 'pointer' : 'not-allowed',
+                  opacity: biometricPassed ? 1 : 0.5,
                 }}>
-                  ⚡ Skip & Continue with Limited Trust
+                  {biometricPassed ? '⚡ Skip & Continue with Limited Trust' : '🔒 Complete biometric check first'}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Results */}
         {result && (
           <div className="liveness-result-box" style={{
             marginTop: 12,
@@ -537,8 +587,8 @@ export default function LivenessChallenge() {
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>Blinks Detected</span>
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-1)' }}>{result.blinkCount}</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>Gaze Matches</span>
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-1)' }}>{result.gazeHits}/{result.totalDots}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>Gaze Verdict</span>
@@ -554,7 +604,6 @@ export default function LivenessChallenge() {
           </div>
         )}
 
-        {/* Camera unavailable notice */}
         {cameraAvailable === false && (
           <div style={{
             padding: 12, background: 'rgba(245,158,11,0.08)',
@@ -565,17 +614,16 @@ export default function LivenessChallenge() {
           </div>
         )}
 
-        {/* Technical transparency note */}
+
         <div style={{
           marginTop: 16, padding: '10px 14px',
           background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.12)',
           borderRadius: 'var(--r-md)', fontSize: '0.68rem', color: 'var(--text-3)', lineHeight: 1.6
         }}>
-          <strong style={{ color: 'var(--aegis-blue)' }}>How it works:</strong> Your gaze response to randomized visual stimuli (saccades, smooth pursuit, fixation) is analyzed for micro-tremor patterns, sensor noise variance, and natural blink rate. These behavioral signals cannot be replicated with photos or video replays. All analysis runs locally in your browser.
+          <strong style={{ color: 'var(--aegis-blue)' }}>How it works:</strong> Your head's involuntary physiological micro-tremor (3D Euler angle variance: 0.02°–0.5° SD) and green-channel skin color oscillations (rPPG cardiac pulse: 54–132 BPM) are analyzed on the backend in real-time. These biological signals cannot be replicated by static photos, video replays, or deepfake injections. No screen flashing is required. All gaze analysis runs locally in your browser; heartbeat extraction runs server-side.
         </div>
       </div>
 
-      {/* Hidden canvas for analysis */}
       <canvas ref={canvasRef} width={320} height={240} style={{ display: 'none' }} />
     </div>
   );

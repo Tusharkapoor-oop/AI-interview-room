@@ -95,8 +95,15 @@ def _build_sqlite_server(db_session_factory) -> MCPServer:
     ))
 
     # ── Tool: get_integrity_score ────────────────────────────────────────────
-    async def get_integrity_score(session_id: str) -> dict:
-        """Get the aggregated integrity score for a session."""
+    async def get_integrity_score(session_id: str, caller_role: str = "CANDIDATE") -> dict:
+        """Get the aggregated integrity score for a session. Requires authorization."""
+        # H-7: Validate session_id format
+        import re
+        if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', session_id, re.I):
+            return {"error": "Invalid session_id format"}
+        # H-7: Only RECRUITER and ADMIN can access integrity scores
+        if caller_role not in ("RECRUITER", "ADMIN"):
+            return {"error": "Insufficient permissions to access integrity score"}
         db = db_session_factory()
         try:
             from database import InterviewSession

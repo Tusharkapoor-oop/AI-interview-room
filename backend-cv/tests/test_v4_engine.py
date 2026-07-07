@@ -23,6 +23,7 @@ from agents.gaze_benchmark import EmpiricalGazeBenchmark
 from agents.forensic_engine import (
     KSTestBaselineEngine,
     WhitespaceFixationDetector,
+    KinematicGazeLivenessEngine,
     ForensicObservation
 )
 from agents.fusion_engine import (
@@ -39,10 +40,10 @@ class TestAEGISv4Engine(unittest.TestCase):
         """Verify empirical side-by-side gaze benchmark executes across all 5 conditions."""
         benchmark = EmpiricalGazeBenchmark()
         results = benchmark.run_benchmark()
-        
+
         self.assertEqual(len(results), 5)
         self.assertIn("Controlled Studio (500 lux)", results)
-        
+
         # Verify specific metrics cited
         ctrl_res = results["Controlled Studio (500 lux)"]
         self.assertEqual(len(ctrl_res), 2)
@@ -53,7 +54,7 @@ class TestAEGISv4Engine(unittest.TestCase):
     def test_02_ks_test_baseline_and_audio_suppression(self):
         """Verify Module 8 KS-Test baseline calibration, anomaly flagging, and speaking suppression."""
         engine = KSTestBaselineEngine(calibration_duration_sec=2.0, window_duration_sec=1.0)
-        
+
         # 1. Feed calibration frames (natural variation around 5 deg)
         for i in range(70):
             obs = ForensicObservation(
@@ -68,7 +69,7 @@ class TestAEGISv4Engine(unittest.TestCase):
             )
             alert = engine.process(obs)
             self.assertIsNone(alert)
-            
+
         self.assertTrue(engine.is_calibrated)
 
         # 2. Feed active frames matching baseline -> no alert
@@ -124,7 +125,7 @@ class TestAEGISv4Engine(unittest.TestCase):
     def test_03_whitespace_fixation_and_typing_correlation(self):
         """Verify Module 7 detects transparent overlay reading in UI margins while typing."""
         detector = WhitespaceFixationDetector(window_size_frames=80)
-        
+
         # Feed gaze looking exclusively at whitespace margin (x=0.05, y=0.5) while typing
         alert_raised = None
         for i in range(90):
@@ -151,7 +152,7 @@ class TestAEGISv4Engine(unittest.TestCase):
     def test_04_kinematic_gesture_engine_vocabulary(self):
         """Verify Module 9 detects earpiece, reach, shoulder drop, and multi-person."""
         engine = KinematicGestureEngine()
-        
+
         # Test Hand-to-Ear earpiece detection (sustained 60 frames)
         for i in range(65):
             landmarks = {
@@ -167,7 +168,7 @@ class TestAEGISv4Engine(unittest.TestCase):
                 num_detected_poses=1
             )
             packet = engine.process(frame)
-            
+
         self.assertTrue(packet.is_triggered)
         self.assertIn("earpiece suspected", packet.details)
         self.assertGreaterEqual(packet.anomaly_score, 0.90)
@@ -175,7 +176,7 @@ class TestAEGISv4Engine(unittest.TestCase):
     def test_05_five_channel_fusion_zero_compromise_3(self):
         """Verify Section 4 Five-Channel Fusion enforces strict N>=3 rule."""
         fusion = FiveChannelFusionEngine(window_duration_sec=10.0)
-        
+
         # 1. Trigger Channel 1 only -> N=1 -> SILENT_LOG
         p1 = ChannelPacket("GAZE", 1.0, 0.85, "KS anomaly detected", True)
         dec1 = fusion.process_packet(p1)
@@ -205,6 +206,34 @@ class TestAEGISv4Engine(unittest.TestCase):
         dec5 = fusion.process_packet(p5)
         self.assertEqual(dec5.active_channel_count, 5)
         self.assertEqual(dec5.action_level, "CRITICAL_PAUSE")
+
+    def test_06_kinematic_gaze_liveness_engine(self):
+        """Verify KinematicGazeLivenessEngine evaluates micro-tremor and rPPG without screen flash."""
+        engine = KinematicGazeLivenessEngine(challenge_duration_sec=10.0)
+
+        # Simulate 250 frames of live human (with slight micro-tremor and heartbeat color oscillations)
+        for i in range(250):
+            t = i * 0.033
+            # Yaw oscillating slightly around center (0.5), pitch around 0.5
+            yaw_coord = 0.5 + (np.sin(t * 5.0) * 0.002)
+            pitch_coord = 0.5 + (np.cos(t * 4.0) * 0.002)
+            # Green channel pulse at 1.2 Hz (72 BPM)
+            g_val = 110.0 + np.sin(2 * np.pi * 1.2 * t) * 5.0
+            obs = ForensicObservation(
+                timestamp=t,
+                gaze_angular_deviation=0.5,
+                gaze_screen_coords=(yaw_coord, pitch_coord),
+                pupil_diameter_mm=3.5,
+                screen_brightness_level=0.5, # CONSTANT brightness (no white flash!)
+                facial_rgb_mean=(120.0, g_val, 105.0),
+                candidate_speaking=False,
+                keyboard_typing_active=False
+            )
+            alert = engine.process(obs)
+
+        # Should pass without alert (None) because micro-tremor and rPPG are present
+        self.assertIsNone(alert)
+
 
 
 if __name__ == "__main__":

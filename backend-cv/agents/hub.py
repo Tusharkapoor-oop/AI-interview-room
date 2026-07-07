@@ -17,13 +17,17 @@ Architecture notes:
   - All inter-agent messages are typed dataclasses (Pydantic-level safety)
   - HITL gates are broadcast to recruiter WebSocket for approval
 """
+import json
 import logging
 import re
 from collections import deque
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Optional
 
 from .bias_agent import BiasAuditAgent
+from .circuit_breaker import AgentCircuitBreaker
+from .utils import compute_integrity_score
 from .code_review_agent import CodeReviewAgent
 from .cv_agent import CVAgent, RiskEvent
 from .memory_agent import MemoryAgent
@@ -39,7 +43,9 @@ from .security_engine import (
 )
 from .deepfake_agent import DeepfakeAgentEvaluator
 from .kinematic_agent import KinematicAgentEvaluator
-from .liveness_agent import LivenessAgentEvaluator
+from .baseline_agent import BaselineAgentEvaluator
+from .fusion_agent import FusionAgentEvaluator, BehavioralChannelScores
+from .gaze_agent import GazeAgentEvaluator
 
 log = logging.getLogger("aegis.hub")
 
@@ -60,17 +66,6 @@ Rules:
 - NEVER give away answers. Use Socratic questioning to guide thinking.
 - If the candidate seems stressed, acknowledge it warmly before continuing.
 - You have access to the candidate's integrity context but NEVER mention it to them."""
-
-# ── Integrity Score Algorithm ─────────────────────────────────────────────────
-def compute_score(events: list[RiskEvent]) -> int:
-    penalties = sum(
-        8 if e.severity == "HIGH"     else
-        4 if e.severity == "MEDIUM"   else
-        12 if e.severity == "CRITICAL" else 1
-        for e in events
-    )
-    return max(100 - penalties, 0)
-
 
 class AegisHub:
     """
@@ -135,18 +130,24 @@ class AegisHub:
         self.ks_detector = KSAnomalyDetector()
         self.liveness_verifier = LivenessVerifier()
         self.fusion_engine = FiveChannelFusionEngine()
+        self.circuit_breaker = AgentCircuitBreaker()
         # Wired dead-code agents (P1-12)
         self.deepfake_evaluator = DeepfakeAgentEvaluator()
         self.kinematic_evaluator = KinematicAgentEvaluator()
-        self.liveness_evaluator = LivenessAgentEvaluator()
+        self.baseline_evaluator = BaselineAgentEvaluator()
+        self.fusion_agent_evaluator = FusionAgentEvaluator()
+        self.gaze_evaluator = GazeAgentEvaluator()
 
         # Trajectory/keystroke metadata
         self.response_latencies = []
         self.keystroke_profile_data = None
 
         # KS baseline buffer — collects real gaze data for baseline calibration
-        self._gaze_baseline_buffer: list[float] = []
+        self._gaze_baseline_buffer_x: list[float] = []
+        self._gaze_baseline_buffer_y: list[float] = []
         self._baseline_fitted = False
+        self.ks_detector_x = None
+        self.ks_detector_y = None
 
         # Load memory at start (Tiers 2+3+4)
         self._memory_ctx = self.memory_agent.retrieve(job_role=job_role)
@@ -198,7 +199,7 @@ class AegisHub:
                 "timestamp": event.timestamp,
                 "fraud_signal": event.fraud_signal
             })
-            score = compute_score(self._risk_events)
+            score = compute_integrity_score(self._risk_events)
             await self._maybe_hitl(score)
             log.info("[Hub] Risk event logged — %s %s (score=%d)", event.severity, event.event_type, score)
 
@@ -208,58 +209,115 @@ class AegisHub:
     def ingest_security_features(self, inference: dict) -> Optional[dict]:
         """Run the new security engine over the frame-level telemetry."""
         try:
+            pose_dict = inference.get("pose") or inference.get("head_pose") or {}
+            if not isinstance(pose_dict, dict):
+                pose_dict = {}
+            pitch_val = float(pose_dict.get("pitch", 0.0) or 0.0)
+            yaw_val = float(pose_dict.get("yaw", 0.0) or 0.0)
+
             gaze_estimate = self.gaze_tracker.update_gaze(
-                pitch=float(inference.get("head_pose", {}).get("pitch", 0.0)),
-                yaw=float(inference.get("head_pose", {}).get("yaw", 0.0)),
-                nose_x=float(inference.get("nose_x", 0.5)),
-                nose_y=float(inference.get("nose_y", 0.5)),
-                depth=float(inference.get("depth", 0.6)),
+                pitch=pitch_val,
+                yaw=yaw_val,
+                nose_x=float(inference.get("nose_x", 0.5) or 0.5),
+                nose_y=float(inference.get("nose_y", 0.5) or 0.5),
+                depth=float(inference.get("depth", 0.6) or 0.6),
             )
             gesture_event = self.gesture_engine.update_frame(
                 left_wrist=inference.get("left_wrist"),
                 right_wrist=inference.get("right_wrist"),
-                head_pitch=float(inference.get("head_pose", {}).get("pitch", 0.0)),
-                head_yaw=float(inference.get("head_pose", {}).get("yaw", 0.0)),
-                face_count=int(inference.get("face_count", 1)),
+                head_pitch=pitch_val,
+                head_yaw=yaw_val,
+                face_count=int(inference.get("face_count", 1) or 1),
             )
+            pupil_latency = inference.get("pupil_response_latency_ms")
+            bpm_val = inference.get("bpm")
+            signal_q = inference.get("signal_quality")
+            if pupil_latency is None or bpm_val is None or signal_q is None:
+                log.warning("[Hub] LivenessVerifier using stub defaults — no real PLR/rPPG data in inference dict")
             liveness = self.liveness_verifier.evaluate(
-                pupil_response_latency_ms=float(inference.get("pupil_response_latency_ms", 180.0)),
-                bpm=float(inference.get("bpm", 78.0)),
-                signal_quality=float(inference.get("signal_quality", 0.9)),
+                pupil_response_latency_ms=float(pupil_latency) if pupil_latency is not None else float(inference.get("pupil_diameter_mm", 180.0) or 180.0),
+                bpm=float(bpm_val) if bpm_val is not None else 78.0,
+                signal_quality=float(signal_q) if signal_q is not None else 0.9,
             )
 
             if not self._baseline_fitted:
-                self._gaze_baseline_buffer.append(gaze_estimate["screen_x"])
-                if len(self._gaze_baseline_buffer) >= 30:
-                    self.ks_detector.fit_baseline(self._gaze_baseline_buffer)
+                self._gaze_baseline_buffer_x.append(gaze_estimate["screen_x"])
+                self._gaze_baseline_buffer_y.append(gaze_estimate["screen_y"])
+                if len(self._gaze_baseline_buffer_x) >= 30:
+                    # Fit separate baselines for x and y axes
+                    self.ks_detector_x = KSAnomalyDetector()
+                    self.ks_detector_x.fit_baseline(list(self._gaze_baseline_buffer_x))
+                    self.ks_detector_y = KSAnomalyDetector()
+                    self.ks_detector_y.fit_baseline(list(self._gaze_baseline_buffer_y))
                     self._baseline_fitted = True
-                    log.info("[Hub] KS baseline fitted with %d real gaze samples", len(self._gaze_baseline_buffer))
-            ks_anomalous = self.ks_detector.is_anomalous([gaze_estimate["screen_x"], gaze_estimate["screen_y"]]) if self._baseline_fitted else False
+                    log.info("[Hub] KS baseline fitted with %d real gaze samples (x+y)", len(self._gaze_baseline_buffer_x) + len(self._gaze_baseline_buffer_y))
+            ks_anomalous = False
+            baseline_div = None
+            if self._baseline_fitted:
+                # Test each axis independently
+                ks_x = self.ks_detector_x.is_anomalous([gaze_estimate["screen_x"]])
+                ks_y = self.ks_detector_y.is_anomalous([gaze_estimate["screen_y"]])
+                ks_anomalous = ks_x or ks_y
+                baseline_div = self.baseline_evaluator.evaluate_metric_divergence(
+                    "screen_x", list(self._gaze_baseline_buffer_x), [gaze_estimate["screen_x"]]
+                )
 
-            # P1-12: Wire deepfake + kinematic + liveness evaluators
+            # P1-12: Wire deepfake + kinematic evaluators
+            if inference.get("mouth_velocities") is None or inference.get("audio_energies") is None:
+                log.warning("[Hub] DeepfakeEvaluator using empty lists — no mouth/audio data in inference dict")
             deepfake_risk = self.deepfake_evaluator.evaluate_stream(
-                mouth_velocities=inference.get("mouth_velocities", []),
-                audio_energies=inference.get("audio_energies", []),
-                spectral_artifact_scores=inference.get("spectral_artifact_scores", []),
+                mouth_velocities=inference.get("mouth_velocities") or [],
+                audio_energies=inference.get("audio_energies") or [],
+                spectral_artifact_scores=inference.get("spectral_artifact_scores") or [],
             )
+            if inference.get("skeletons") is None:
+                log.warning("[Hub] KinematicEvaluator using empty skeletons — no skeleton data in inference dict")
             kinematic_result = self.kinematic_evaluator.evaluate_frame(
-                skeletons=inference.get("skeletons", [])
+                skeletons=inference.get("skeletons") or []
             )
 
-            self.fusion_engine.add_channel_result("gaze", bool(inference.get("gaze_anomaly", False) or ks_anomalous), gaze_estimate["confidence"])
+            # ContinuousVerifier: periodic liveness schedule + face telemetry
+            face_detected = bool(inference.get("face_detected", False))
+            liveness_event = self.continuous_verifier.check_liveness_schedule()
+            if liveness_event:
+                log.info("[Hub] %s — %s", liveness_event.event_type, liveness_event.description)
+            face_event = self.continuous_verifier.process_face_telemetry(
+                face_detected=face_detected,
+                pose=pose_dict,
+            )
+            if face_event:
+                log.warning("[Hub] %s — %s", face_event.event_type, face_event.description)
+
+            # Gaze Fixation & Whitespace check
+            in_active_ui = self.gaze_evaluator.is_in_active_region(gaze_estimate["screen_x"], gaze_estimate["screen_y"])
+
+            self.fusion_engine.add_channel_result("gaze", bool(inference.get("gaze_anomaly", False) or ks_anomalous or not in_active_ui), gaze_estimate["confidence"])
             self.fusion_engine.add_channel_result("gesture", gesture_event is not None, 0.86 if gesture_event else 0.12)
             self.fusion_engine.add_channel_result("audio", bool(inference.get("audio_anomaly", False)), 0.75)
             self.fusion_engine.add_channel_result("keystroke", bool(inference.get("typing_anomaly", False)), 0.7)
             self.fusion_engine.add_channel_result("content", bool(inference.get("content_anomaly", False)), 0.68)
             fusion = self.fusion_engine.evaluate()
+
+            channel_scores = BehavioralChannelScores(
+                gaze_risk=0.8 if not in_active_ui else 0.1,
+                baseline_risk=0.8 if (baseline_div and baseline_div.get("divergence_detected")) else 0.1,
+                kinematic_risk=kinematic_result.get("risk_score", 0.0),
+                liveness_risk=0.8 if not liveness.get("is_live", True) else 0.1,
+                deepfake_risk=deepfake_risk.get("risk_score", 0.0),
+            )
+            posterior_fusion = self.fusion_agent_evaluator.evaluate_session(channel_scores)
+
             return {
                 "gaze_estimate": gaze_estimate,
-                "gesture_event": gesture_event.to_dict() if gesture_event else None,
+                "gesture_event": asdict(gesture_event) if gesture_event else None,
                 "liveness": liveness,
                 "ks_anomalous": ks_anomalous,
                 "fusion": fusion,
                 "deepfake": deepfake_risk,
                 "kinematic": kinematic_result,
+                "baseline_divergence": baseline_div,
+                "posterior_fusion": posterior_fusion,
+                "in_active_ui": in_active_ui,
             }
         except Exception as exc:
             log.error("[Hub] security engine failed: %s", exc, exc_info=True)
@@ -268,7 +326,7 @@ class AegisHub:
     async def ingest_digital_event(self, event_data: dict) -> Optional[RiskEvent]:
         """Ingest a digital security event from the frontend."""
         self._update_status("fraud_agent", "processing")
-        
+
         # Check if response latency anomaly, record it
         if event_data.get("type") == "RESPONSE_LATENCY_ANOMALY":
             desc = event_data.get("desc", "")
@@ -286,7 +344,7 @@ class AegisHub:
             gaze_quadrant="CENTER"
         )
         self._risk_events.append(event)
-        
+
         # Write to DB TelemetryEvent (batched)
         if self._event_batcher:
             from database import TelemetryEvent
@@ -307,9 +365,9 @@ class AegisHub:
             "fraud_signal": True
         })
 
-        score = compute_score(self._risk_events)
+        score = compute_integrity_score(self._risk_events)
         await self._maybe_hitl(score)
-        
+
         # Notify recruiter WS in real-time
         if self._broadcast:
             await self._broadcast({
@@ -330,7 +388,7 @@ class AegisHub:
         """Ingest real-time audio features and process via AudioAgent spoke."""
         self._update_status("audio_agent", "processing")
         audio_event = self.audio_agent.process_segment(features)
-        
+
         if audio_event:
             # Map AudioEvent to RiskEvent
             event = RiskEvent(
@@ -344,7 +402,7 @@ class AegisHub:
                 fraud_signal=audio_event.fraud_signal
             )
             self._risk_events.append(event)
-            
+
             # Write to DB TelemetryEvent (batched)
             if self._event_batcher:
                 from database import TelemetryEvent
@@ -365,7 +423,7 @@ class AegisHub:
                 "fraud_signal": event.fraud_signal
             })
 
-            score = compute_score(self._risk_events)
+            score = compute_integrity_score(self._risk_events)
             await self._maybe_hitl(score)
 
             # Notify recruiter WS in real-time
@@ -380,7 +438,7 @@ class AegisHub:
                     },
                     "score": score
                 })
-            
+
             self._update_status("audio_agent", "monitoring")
             return event
 
@@ -393,101 +451,112 @@ class AegisHub:
 
     async def think_and_respond(self, candidate_message: str) -> dict:
         """
-        Hub's main ReAct loop per turn:
+        Hub's main ReAct loop per turn — parallel spoke agent dispatch.
 
-        Thought: what does the candidate need? what context is relevant?
-        Action1: run BiasAuditAgent on proposed next question
-        Action2: call Aria (GPT-4o) with enriched context
-        Obs:     parse response, check for code submissions
-        Reply:   return structured response payload
+        Runs bias audit, AI generation, and code review concurrently
+        since all three are independent.
         """
-        # ── THOUGHT ──────────────────────────────────────────────────────────
+        import asyncio
+
         self._update_status("aria", "thinking")
         self._history.append({"role": "user", "content": candidate_message})
 
-        # Detect code submission
         has_code = "```" in candidate_message or candidate_message.strip().startswith("def ")
-
-        # Build memory-enriched system prompt
         memory_block = self._memory_ctx.to_prompt_block()
-        system_prompt = ARIA_SYSTEM.format(
-            memory_block = memory_block,
-            language     = self.language,
-        )
-
+        system_prompt = ARIA_SYSTEM.format(memory_block=memory_block, language=self.language)
         messages = [{"role": "system", "content": system_prompt}] + list(self._history)
 
-        # ── ACTION 1: Bias pre-check on the PREVIOUS AI message (audit loop) ─
-        # We audit what Aria said LAST to ensure retrospective fairness
+        current_score = self.integrity_score()
+        if current_score < 70:
+            critical_events = [e for e in self._risk_events if e.severity in ("HIGH", "CRITICAL")]
+            if critical_events:
+                reasons = ", ".join(list(set(e.event_type for e in critical_events))[:3])
+                messages.append({
+                    "role": "system",
+                    "content": f"[BIOMETRIC RISK ESCALATION] The candidate's integrity score has dropped to {current_score}/100 due to: {reasons}. Do NOT ignore this! Ask a probing, direct question to verify if they are looking away, reading from notes, or receiving external assistance. Maintain professional composure while strictly verifying their authenticity."
+                })
+
         last_ai = next(
             (m["content"] for m in reversed(self._history) if m["role"] == "assistant"),
             ""
         )
-        if last_ai:
-            self._update_status("bias_agent", "auditing")
-            audit = await self.bias_agent.audit(last_ai)
-            self._update_status("bias_agent", "ready")
-            if not audit.safe:
-                # Aria asked a biased question — log it and inject correction
-                log.warning("[Hub] BiasAgent blocked previous AI message: %s", audit.flags)
-                self._history.append({
-                    "role": "system",
-                    "content": (
-                        f"[INTERNAL COMPLIANCE CORRECTION] Your previous question was flagged for bias: "
-                        f"{', '.join(audit.flags)}. "
-                        f"Suggested replacement: {audit.suggestion}. "
-                        f"Please ask a rephrased, compliant question instead."
-                    )
-                })
+        question_context = next(
+            (m["content"] for m in self._history if m["role"] == "system"),
+            "General coding challenge"
+        )
 
-        # ── ACTION 2: Aria generates response ────────────────────────────────
+        # ── Parallel dispatch: bias audit, AI gen, code review ───────────
+        self._update_status("bias_agent", "auditing")
         self._update_status("aria", "generating")
-        reply_text = ""
+        if has_code:
+            self._update_status("code_review", "reviewing")
 
-        if self.ai_client:
-            try:
-                resp = await self.ai_client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    max_tokens=220,
-                    temperature=0.72,
-                )
-                reply_text = resp.choices[0].message.content
-            except Exception as e:
-                log.warning("[Hub] Aria AI call failed: %s", e)
-                reply_text = "That's a thoughtful response! Can you walk me through the specific trade-offs you weighed?"
-        else:
-            # Offline mock
+        async def _gen_reply():
+            if self.ai_client:
+                try:
+                    resp = await self.ai_client.chat.completions.create(
+                        model="gpt-4o", messages=messages, max_tokens=220, temperature=0.72,
+                    )
+                    return resp.choices[0].message.content
+                except Exception as e:
+                    log.warning("[Hub] Aria AI call failed: %s", e)
+                    return "That's a thoughtful response! Can you walk me through the specific trade-offs you weighed?"
             import random
-            reply_text = random.choice([
+            return random.choice([
                 "That's an excellent point! What was the most complex technical decision in that work?",
                 "Interesting approach. How did you validate the correctness of that solution?",
                 "Walk me through how you'd scale that system to handle 100× the load.",
                 "What would you do differently if you were starting that project today?",
             ])
 
-        self._history.append({"role": "assistant", "content": reply_text})
-        self._update_status("aria", "idle")
+        tasks = []
+        if last_ai:
+            tasks.append(self.circuit_breaker.call("bias_agent", lambda: self.bias_agent.audit(last_ai)))
+        else:
+            tasks.append(asyncio.sleep(0))
 
-        # ── OBSERVATION: Code review if submission detected ───────────────────
-        code_review = None
+        tasks.append(_gen_reply())
+
         if has_code:
-            self._update_status("code_review", "reviewing")
-            question_context = next(
-                (m["content"] for m in self._history if m["role"] == "system"),
-                "General coding challenge"
-            )
-            code_review = await self.code_review_agent.review(
-                code     = candidate_message,
-                language = "python",
-                question = question_context,
-            )
-            self._update_status("code_review", "idle")
-            log.info("[Hub] Code review done — score=%d, correctness=%s",
-                     code_review.score, code_review.correctness)
+            tasks.append(self.circuit_breaker.call("code_review", lambda: self.code_review_agent.review(
+                code=candidate_message, language="python", question=question_context,
+            )))
+        else:
+            tasks.append(asyncio.sleep(0))
 
-            # If plagiarism detected — HITL escalation regardless of integrity score
-            if code_review.cheating_flag and self._broadcast:
+        results = await asyncio.gather(*tasks)
+
+        audit = results[0] if last_ai else None
+        reply_text = results[1]
+        code_review = results[2] if has_code else None
+
+        self._update_status("aria", "idle")
+        self._update_status("bias_agent", "ready")
+        self._history.append({"role": "assistant", "content": reply_text})
+
+        # ── Post-dispatch: bias correction ─────────────────────────────────
+        if audit and not audit.safe:
+            log.warning("[Hub] BiasAgent blocked previous AI message: %s", audit.flags)
+            self._history.append({
+                "role": "system",
+                "content": (
+                    f"[INTERNAL COMPLIANCE CORRECTION] Your previous question was flagged for bias: "
+                    f"{', '.join(audit.flags)}. "
+                    f"Suggested replacement: {audit.suggestion}. "
+                    f"Please ask a rephrased, compliant question instead."
+                )
+            })
+
+        # ── Post-dispatch: code review ─────────────────────────────────────
+        if has_code:
+            self._update_status("code_review", "idle")
+            if code_review:
+                log.info("[Hub] Code review done — score=%d, correctness=%s",
+                         code_review.score, code_review.correctness)
+            else:
+                log.warning("[Hub] Code review skipped (circuit breaker open or agent failed)")
+
+            if code_review and code_review.cheating_flag and self._broadcast:
                 await self._broadcast({
                     "type":    "HITL_CODE_PLAGIARISM",
                     "session": self.session_id,
@@ -496,22 +565,28 @@ class AegisHub:
                     "expires": 30,
                 })
 
-        # ── Return structured payload ─────────────────────────────────────────
         return {
-            "role":           "ai",
-            "message":        reply_text,
-            "agent_statuses": dict(self._agent_statuses),
-            "integrity_score": compute_score(self._risk_events),
-            "code_review":    code_review.to_dict() if code_review else None,
-            "timestamp":      datetime.now(timezone.utc).isoformat(),
+            "role":            "ai",
+            "message":         reply_text,
+            "agent_statuses":  dict(self._agent_statuses),
+            "integrity_score": compute_integrity_score(self._risk_events),
+            "code_review":     code_review.to_dict() if code_review else None,
+            "timestamp":       datetime.now(timezone.utc).isoformat(),
         }
 
     async def end_session(self):
         """Called when the WebSocket closes — writes episodic memory, finalizes artifacts."""
         log.info("[Hub] Ending session %s", self.session_id)
-        
-        fraud_assessment = self.fraud_agent.compute_assessment()
-        
+
+        session_duration = 0
+        if self.db_session:
+            from database import InterviewSession
+            db_sess = self.db_session.query(InterviewSession).filter_by(id=self.session_id).first()
+            if db_sess and db_sess.created_at:
+                delta = datetime.now(timezone.utc) - db_sess.created_at.replace(tzinfo=timezone.utc)
+                session_duration = int(delta.total_seconds())
+        fraud_assessment = self.fraud_agent.compute_assessment(session_duration_seconds=max(session_duration, 1))
+
         avg_latency = 0.0
         if self.response_latencies:
             avg_latency = sum(self.response_latencies) / len(self.response_latencies)
@@ -521,7 +596,6 @@ class AegisHub:
             from database import InterviewSession
             db_sess = self.db_session.query(InterviewSession).filter_by(id=self.session_id).first()
             if db_sess:
-                import json
                 db_sess.gaze_heatmap = json.dumps(self.cv_agent.gaze_heatmap)
                 db_sess.response_latency = avg_latency
                 if self.keystroke_profile_data:
@@ -530,7 +604,7 @@ class AegisHub:
 
         risk_summary = {
             "total_events": len(self._risk_events),
-            "integrity_score": compute_score(self._risk_events),
+            "integrity_score": compute_integrity_score(self._risk_events),
             "fraud_score": fraud_assessment.fraud_score,
             "verdict": fraud_assessment.verdict,
             "cv_summary": self.cv_agent.summary(),
@@ -550,4 +624,4 @@ class AegisHub:
 
     @property
     def integrity_score(self) -> int:
-        return compute_score(self._risk_events)
+        return compute_integrity_score(self._risk_events)

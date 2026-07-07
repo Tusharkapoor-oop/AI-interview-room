@@ -12,7 +12,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 import IntegrityGauge from './IntegrityGauge';
 import CyberAvatar from './CyberAvatar';
 import HITLPanel from './HITLPanel';
@@ -30,7 +30,7 @@ function VideoWithGhost({ ghostEnabled, telemetry }) {
   const [hasScreenShare, setHasScreenShare] = useState(false);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+    getGlobalCameraStream()
       .then(s => { if (videoRef.current) videoRef.current.srcObject = s; })
       .catch(() => {});
       
@@ -47,7 +47,9 @@ function VideoWithGhost({ ghostEnabled, telemetry }) {
     }
 
     return () => {
-      videoRef.current?.srcObject?.getTracks().forEach(t => t.stop());
+      if (window.aegisScreenStream) {
+        window.aegisScreenStream.getTracks().forEach(t => t.stop());
+      }
     };
   }, []);
 

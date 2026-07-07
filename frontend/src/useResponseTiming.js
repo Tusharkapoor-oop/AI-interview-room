@@ -229,7 +229,7 @@ export function useResponseTiming() {
 
     return () => {
       clearInterval(timerRef.current);
-      window.removeEventListener('aegis:question_delivered', handler);
+      window.removeEventListener('aegis:candidate_answer', handler);
       latenciesRef.current = [];
       flaggedRef.current = false;
       audioCtxRef.current?.close();

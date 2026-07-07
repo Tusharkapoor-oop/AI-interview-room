@@ -134,7 +134,9 @@ class CVAgent:
         # Event log
         self._events_emitted: list[RiskEvent] = []
 
-        log.info("[CVAgent v5.0] Initialized for session %s", session_id)
+    @property
+    def events_emitted(self) -> list[RiskEvent]:
+        return self._events_emitted
 
     # ── Baseline normalization ───────────────────────────────────
     def _adjust_for_baseline(self, pose: dict) -> dict:
@@ -255,6 +257,15 @@ class CVAgent:
         Consume one frame's inference result.
         Returns the highest-priority RiskEvent if any threshold was crossed.
         """
+        if inference.get("status") == "no_face":
+            return RiskEvent(
+                session_id  = self.session_id,
+                event_type  = "FACE_NOT_DETECTED",
+                severity    = "HIGH",
+                description = "Candidate biometric tracking lost. Face not detected in video feed.",
+                confidence  = 0.95,
+                fraud_signal = True,
+            )
         if inference.get("status") != "ok":
             return None
 
@@ -284,7 +295,7 @@ class CVAgent:
             # Compute gaze velocity (frame-to-frame change)
             vels = [self._gaze_h_history[i] - self._gaze_h_history[i-1] for i in range(1, len(self._gaze_h_history))]
             last_vel = vels[-1]
-            
+
             # Detect reading snap-back: a single frame high-velocity jump in the opposite direction
             if abs(last_vel) > 0.08:
                 prev_vels = vels[-15:-1]
@@ -295,7 +306,7 @@ class CVAgent:
                          now_ts = datetime.now(timezone.utc).timestamp()
                          self._saccade_timestamps.append(now_ts)
                          self._saccade_timestamps = [t for t in self._saccade_timestamps if now_ts - t < 15]
-                         
+
                          if len(self._saccade_timestamps) >= 3:
                              self._saccade_timestamps = []  # reset after detection
                              ev_saccade = RiskEvent(

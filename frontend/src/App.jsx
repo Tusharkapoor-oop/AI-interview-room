@@ -180,8 +180,8 @@ function TopBar() {
           <div
             className="integrity-pill"
             style={{
-              color: useAegisStore.getState().integrityScore < 50
-                ? 'var(--aegis-red)' : useAegisStore.getState().integrityScore < 80
+              color: integrityScore < 50
+                ? 'var(--aegis-red)' : integrityScore < 80
                 ? 'var(--aegis-amber)' : 'var(--aegis-green)'
             }}
           >

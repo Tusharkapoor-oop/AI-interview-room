@@ -8,8 +8,9 @@ export const useAegisStore = create((set, get) => ({
   // ── STRICTEST PROTOCOL IN THE WORLD (Mandatory Lockdown) ──
   strictMandatoryLockdown: false,
   mandatoryLockdownReason: '',
-  triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason }),
-  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', integrityScore: 100 }),
+  _lockdownFired: false,
+  triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason, _lockdownFired: true }),
+  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', integrityScore: 100, _lockdownFired: false }),
 
   // ── Phase Management ─────────────────────────────────
   phase: 'landing',
@@ -117,9 +118,10 @@ export const useAegisStore = create((set, get) => ({
         mediumEvents.length >= 2 ||
         newEvents.some(e => ZERO_TOLERANCE_SIGNALS.has(e.type));
       
-      if (isDisqualified && !s.strictMandatoryLockdown) {
+      if (isDisqualified && !s.strictMandatoryLockdown && !s._lockdownFired) {
         return {
           riskEvents: newEvents,
+          _lockdownFired: true,
           strictMandatoryLockdown: true,
           mandatoryLockdownReason: `DEFCON 1 BIOMETRIC BREACH: [${event.type || 'Infraction threshold exceeded'}]. Zero-tolerance protocol enforcement active. Mandatory termination.`,
           phase: 'report',
@@ -138,27 +140,25 @@ export const useAegisStore = create((set, get) => ({
     detectedExtensions: [...s.detectedExtensions, ext]
   })),
 
-  // ── Integrity Score (Strict Threshold < 75%) ──────────
+  // ── Integrity Score (Server Authoritative) ──────────
   integrityScore: 100,
-  updateIntegrityScore: () => {
-    const { riskEvents, strictMandatoryLockdown } = get();
-    const penalties = riskEvents.reduce((acc, ev) => {
-      if (ev.severity === 'CRITICAL') return acc + 25;
-      if (ev.severity === 'HIGH')     return acc + 12;
-      if (ev.severity === 'MEDIUM')   return acc + 6;
-      return acc + 2;
-    }, 0);
-    const newScore = Math.max(100 - penalties, 0);
-    
-    if (newScore < 40 && !strictMandatoryLockdown) {
+  setServerIntegrityScore: (score) => {
+    const { strictMandatoryLockdown, _lockdownFired } = get();
+    if (_lockdownFired) return;
+    if (score < 40 && !strictMandatoryLockdown) {
       set({
-        integrityScore: newScore,
+        integrityScore: score,
+        _lockdownFired: true,
         strictMandatoryLockdown: true,
-        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Score ${newScore}% < 40% strict threshold).`
+        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Server Authoritative Score ${score}% < 40% strict threshold).`
       });
     } else {
-      set({ integrityScore: newScore });
+      set({ integrityScore: score });
     }
+  },
+  updateIntegrityScore: () => {
+    // Client-side score deduction authority stripped per top 0.1% security spec.
+    // Integrity score is strictly authoritative from backend telemetry (setServerIntegrityScore).
   },
 
   // ── Session ───────────────────────────────────────────
@@ -297,7 +297,17 @@ export async function getGlobalCameraStream() {
   if (existing && existing.active) {
     return existing;
   }
-  if (_cameraStreamPromise) return _cameraStreamPromise;
+  if (_cameraStreamPromise) {
+    try {
+      const resolved = await _cameraStreamPromise;
+      if (resolved && resolved.active) {
+        return resolved;
+      }
+    } catch (e) {
+      // Ignore error and re-acquire
+    }
+    _cameraStreamPromise = null;
+  }
   _cameraStreamPromise = (async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({

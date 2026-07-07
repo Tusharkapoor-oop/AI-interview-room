@@ -1,14 +1,16 @@
 """
-backend-cv/agents/forensic_engine.py — AEGIS v4.0 Production Statistical & Forensic Defense Engine
+backend-cv/agents/forensic_engine.py — AEGIS v5.0 Production Statistical & Forensic Defense Engine
 Classification: INTERNSHIP PRODUCTION · Zero Compromises · Runnable Module
 
-Implements paper §4, §6 & specification Modules 6, 7 & 8:
+Implements paper §4, §6 & specification Modules 6, 6B, 7 & 8:
   - Module 8: KS-Test Statistical Gaze Baseline Engine (scipy.stats.ks_2samp, p < 0.05, audio suppression)
   - Module 7: Whitespace Fixation Detector (DOM layout KDE vs overlay reading, Cluely mitigation)
-  - Module 6: PLR + rPPG Combined Liveness Engine (0.5-2Hz brightness sync + luminance FFT 60-100 BPM)
+  - Module 6: PLR + rPPG Combined Liveness Engine (LEGACY — requires screen flash)
+  - Module 6B: Kinematic Gaze + rPPG Liveness Engine (ACTIVE — no screen flash, uses head micro-tremor)
 """
 
 import math
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
@@ -30,17 +32,17 @@ def _compute_ks_2samp(data1: List[float], data2: List[float]) -> Tuple[float, fl
     d1_sorted = np.sort(data1)
     d2_sorted = np.sort(data2)
     all_vals = np.concatenate([d1_sorted, d2_sorted])
-    
+
     # Compute ECDFs at all concatenated points
     cdf1 = np.searchsorted(d1_sorted, all_vals, side='right') / n1
     cdf2 = np.searchsorted(d2_sorted, all_vals, side='right') / n2
-    
+
     ks_stat = float(np.max(np.abs(cdf1 - cdf2)))
-    
+
     # Compute asymptotic p-value using Kolmogorov survival function
     ne = (n1 * n2) / (n1 + n2)
     lam = (math.sqrt(ne) + 0.12 + 0.11 / math.sqrt(ne)) * ks_stat
-    
+
     if lam < 0.2:
         p_val = 1.0
     else:
@@ -52,7 +54,7 @@ def _compute_ks_2samp(data1: List[float], data2: List[float]) -> Tuple[float, fl
             if abs(term) < 1e-8:
                 break
         p_val = max(0.0, min(1.0, p_val))
-        
+
     return ks_stat, p_val
 
 
@@ -81,6 +83,12 @@ class ForensicAlert:
     description: str
     timestamp: float
     metrics: Dict[str, float] = field(default_factory=dict)
+    event_hash: str = ""
+
+    def __post_init__(self):
+        if not self.event_hash:
+            payload = f"{self.module_name}:{self.alert_type}:{self.severity}:{self.timestamp}:{round(self.confidence, 4)}"
+            self.event_hash = hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
 # ─── MODULE 8: KS-TEST STATISTICAL GAZE BASELINE ENGINE ────────────────────────
@@ -99,13 +107,13 @@ class KSTestBaselineEngine:
     def __init__(self, calibration_duration_sec: float = 90.0, window_duration_sec: float = 10.0):
         self.calib_duration = calibration_duration_sec
         self.window_duration = window_duration_sec
-        
+
         self.is_calibrated: bool = False
         self.start_time: Optional[float] = None
-        
+
         # Baseline point cloud (stored during calibration)
         self.baseline_deviations: List[float] = []
-        
+
         # Rolling active buffer: list of (timestamp, deviation)
         self.active_buffer: List[Tuple[float, float]] = []
 
@@ -146,7 +154,7 @@ class KSTestBaselineEngine:
             # Calculate shift direction
             active_mean = float(np.mean(active_deviations))
             base_mean = float(np.mean(self.baseline_deviations))
-            
+
             if active_mean > base_mean * 1.3:
                 severity = "HIGH" if p_value < 0.01 else "MEDIUM"
                 return ForensicAlert(
@@ -177,7 +185,7 @@ class WhitespaceFixationDetector:
     def __init__(self, window_size_frames: int = 150):
         self.window_size = window_size_frames
         self.history: List[Tuple[float, float, bool]] = []  # (x, y, is_typing)
-        
+
         # Default layout representation: content is center box [0.2 to 0.8 across X and Y]
         # Whitespace zones are side margins (where transparent reading windows are placed)
         self.content_bounds = {"x_min": 0.20, "x_max": 0.80, "y_min": 0.15, "y_max": 0.85}
@@ -211,7 +219,7 @@ class WhitespaceFixationDetector:
             confidence = min(0.65 + (whitespace_ratio - 0.40) * 1.5, 0.99)
             severity = "MEDIUM"
             desc = f"Gaze concentrating on UI whitespace ({whitespace_ratio*100:.1f}% of fixations)."
-            
+
             if typing_ratio > 0.50:
                 confidence = 0.98
                 severity = "HIGH"
@@ -247,11 +255,12 @@ class PLRrPPGLivenessEngine:
     def __init__(self, challenge_duration_sec: float = 10.0):
         self.duration = challenge_duration_sec
         self.buffer: List[Tuple[float, float, float, Tuple[float, float, float]]] = []
+        self._last_fft_time: float = 0.0
         # (timestamp, brightness, pupil_mm, rgb)
 
     def process(self, obs: ForensicObservation) -> Optional[ForensicAlert]:
         self.buffer.append((obs.timestamp, obs.screen_brightness_level, obs.pupil_diameter_mm, obs.facial_rgb_mean))
-        
+
         # Keep rolling 10-second window
         self.buffer = [item for item in self.buffer if obs.timestamp - item[0] <= self.duration]
 
@@ -263,11 +272,11 @@ class PLRrPPGLivenessEngine:
         # Find dark -> bright transitions
         plr_passed = False
         plr_latencies = []
-        
+
         for i in range(10, len(self.buffer) - 15):
             t_prev, b_prev, p_prev, _ = self.buffer[i-1]
             t_curr, b_curr, p_curr, _ = self.buffer[i]
-            
+
             # Step transition: brightness jumps by >= 0.5
             if b_curr - b_prev >= 0.5:
                 # Look ahead up to 400ms for pupil constriction
@@ -278,40 +287,51 @@ class PLRrPPGLivenessEngine:
                     if pj < min_pupil:
                         min_pupil = pj
                         min_time = tj
-                        
+
                 constriction_delta = p_curr - min_pupil
                 latency_ms = (min_time - t_curr) * 1000.0
-                
+
                 # Live human: constriction > 0.2mm within 300ms
                 if constriction_delta >= 0.15 and 20.0 <= latency_ms <= 320.0:
                     plr_passed = True
                     plr_latencies.append(latency_ms)
 
         # ── 2. Evaluate rPPG (Heartbeat Extraction via FFT) ──
-        # Extract luminance: L = 0.3R + 0.59G + 0.11B
-        luminance = np.array([0.3*item[3][0] + 0.59*item[3][1] + 0.11*item[3][2] for item in self.buffer])
-        timestamps = np.array([item[0] for item in self.buffer])
-        
-        # Detrend and window
-        luminance_clean = luminance - np.mean(luminance)
-        window = np.hanning(len(luminance_clean))
-        fft_out = np.abs(np.fft.rfft(luminance_clean * window))
-        freqs = np.fft.rfftfreq(len(luminance_clean), d=np.mean(np.diff(timestamps)))
-        
-        # Human heart rate band: 1.0 Hz (60 BPM) to 1.66 Hz (100 BPM)
-        valid_idx = np.where((freqs >= 0.9) & (freqs <= 2.2))[0]
-        rppg_passed = False
-        bpm_est = 0.0
-        
-        if len(valid_idx) > 0:
-            peak_idx = valid_idx[np.argmax(fft_out[valid_idx])]
-            peak_freq = freqs[peak_idx]
-            bpm_est = float(peak_freq * 60.0)
-            
-            # Signal-to-noise ratio check
-            snr = fft_out[peak_idx] / (np.mean(fft_out) + 1e-9)
-            if 55.0 <= bpm_est <= 130.0 and snr >= 3.0:
-                rppg_passed = True
+        # Throttle FFT to run at most every 2 seconds (B-5)
+        import time as _time
+        now_t = _time.time()
+        if now_t - self._last_fft_time < 2.0:
+            rppg_passed = self._last_rppg_passed if hasattr(self, '_last_rppg_passed') else False
+            bpm_est = self._last_bpm_est if hasattr(self, '_last_bpm_est') else 0.0
+        else:
+            self._last_fft_time = now_t
+            # Extract luminance: L = 0.3R + 0.59G + 0.11B
+            luminance = np.array([0.3*item[3][0] + 0.59*item[3][1] + 0.11*item[3][2] for item in self.buffer])
+            timestamps = np.array([item[0] for item in self.buffer])
+
+            # Detrend and window
+            luminance_clean = luminance - np.mean(luminance)
+            window = np.hanning(len(luminance_clean))
+            fft_out = np.abs(np.fft.rfft(luminance_clean * window))
+            freqs = np.fft.rfftfreq(len(luminance_clean), d=np.mean(np.diff(timestamps)))
+
+            # Human heart rate band: 1.0 Hz (60 BPM) to 1.66 Hz (100 BPM)
+            valid_idx = np.where((freqs >= 0.9) & (freqs <= 2.2))[0]
+            rppg_passed = False
+            bpm_est = 0.0
+
+            if len(valid_idx) > 0:
+                peak_idx = valid_idx[np.argmax(fft_out[valid_idx])]
+                peak_freq = freqs[peak_idx]
+                bpm_est = float(peak_freq * 60.0)
+
+                # Signal-to-noise ratio check
+                snr = fft_out[peak_idx] / (np.mean(fft_out) + 1e-9)
+                if 55.0 <= bpm_est <= 130.0 and snr >= 3.0:
+                    rppg_passed = True
+
+            self._last_rppg_passed = rppg_passed
+            self._last_bpm_est = bpm_est
 
         # ── 3. Combined Decision Matrix ──
         if not plr_passed and not rppg_passed:
@@ -345,4 +365,204 @@ class PLRrPPGLivenessEngine:
                 metrics={"plr_passed": 1.0, "rppg_passed": 0.0, "estimated_bpm": bpm_est}
             )
 
+        return None
+
+
+# ─── MODULE 6B: KINEMATIC GAZE LIVENESS ENGINE (NO SCREEN FLASH) ───────────────
+
+class SimpleKalman1D:
+    """Lightweight 1D Kalman filter for jitter smoothing without external dependencies."""
+    def __init__(self, q: float = 1e-4, r: float = 1e-2):
+        self.q = q
+        self.r = r
+        self.x: Optional[float] = None
+        self.p: float = 1.0
+
+    def update(self, z: float) -> float:
+        if self.x is None:
+            self.x = z
+            self.p = self.r
+            return z
+        p_pred = self.p + self.q
+        k = p_pred / (p_pred + self.r)
+        self.x = self.x + k * (z - self.x)
+        self.p = (1.0 - k) * p_pred
+        return self.x
+
+
+class KinematicGazeLivenessEngine:
+    """
+    Module 6B: Kinematic Gaze + rPPG Liveness Engine (White-Screen-Free).
+
+    Replaces PLRrPPGLivenessEngine which required a ≥50% screen brightness
+    spike (a white flash) to evaluate pupillary constriction. This engine
+    verifies biological presence purely from:
+
+    1. 3D Euler Angle Micro-Tremor Variance:
+       Live human heads exhibit involuntary physiological micro-movements
+       (0.02°–0.5° SD in yaw/pitch over a 10-second window). Static photos,
+       frozen video replays, or 3D masks exhibit ~0.0° variance.
+       Formula: σ² = (1/N) Σ (θᵢ - θ̄)²
+       Pass criterion: 0.005° ≤ σ_yaw ≤ 3.0° AND 0.005° ≤ σ_pitch ≤ 3.0°
+
+    2. Green-Channel rPPG Heartbeat Extraction (unchanged from Module 6):
+       FFT on facial luminance → peak in 0.9–2.2 Hz (54–132 BPM) with SNR ≥ 3.0.
+
+    Both signals required for LIVE verification.
+    """
+
+    def __init__(self, challenge_duration_sec: float = 10.0):
+        self.duration = challenge_duration_sec
+        # Buffer: (timestamp, yaw_deg, pitch_deg, roll_deg, rgb_tuple)
+        self.buffer: List[Tuple[float, float, float, float, Tuple[float, float, float]]] = []
+        self._last_fft_time: float = 0.0
+        self.kf_yaw = SimpleKalman1D(q=1e-4, r=1e-2)
+        self.kf_pitch = SimpleKalman1D(q=1e-4, r=1e-2)
+
+    def process(self, obs: ForensicObservation) -> Optional[ForensicAlert]:
+        # Extract yaw/pitch from gaze_screen_coords (mapped from pose in main.py)
+        # obs.gaze_screen_coords = (0.5 + yaw/100, 0.5 + pitch/100) per main.py L653
+        raw_yaw = (obs.gaze_screen_coords[0] - 0.5) * 100.0
+        raw_pitch = (obs.gaze_screen_coords[1] - 0.5) * 100.0
+        yaw_deg = self.kf_yaw.update(raw_yaw)
+        pitch_deg = self.kf_pitch.update(raw_pitch)
+
+        self.buffer.append((
+            obs.timestamp,
+            yaw_deg,
+            pitch_deg,
+            obs.gaze_angular_deviation,  # used as roll proxy
+            obs.facial_rgb_mean,
+        ))
+
+        # Keep rolling window
+        self.buffer = [item for item in self.buffer if obs.timestamp - item[0] <= self.duration]
+
+        # Need at least ~200 frames (≈7s at 30 FPS) for reliable statistics
+        if len(self.buffer) < 200:
+            return None
+
+        # ── 1. Evaluate 3D Euler Angle Micro-Tremor ──
+        yaws = np.array([item[1] for item in self.buffer])
+        pitches = np.array([item[2] for item in self.buffer])
+
+        yaw_std = float(np.std(yaws))
+        pitch_std = float(np.std(pitches))
+
+        # Live human: 0.005° ≤ σ ≤ 3.0° for both axes
+        # Static photo/replay: σ ≈ 0.0° (no motion at all)
+        # Wildly shaking head (attack): σ > 3.0°
+        tremor_passed = (
+            0.005 <= yaw_std <= 3.0 and
+            0.005 <= pitch_std <= 3.0
+        )
+
+        # ── 2. Evaluate rPPG (Heartbeat via Green-Channel FFT) ──
+        # Throttle FFT to run at most every 2 seconds (B-5)
+        import time as _time
+        now_t = _time.time()
+        if now_t - self._last_fft_time < 2.0:
+            rppg_passed = self._last_rppg_passed if hasattr(self, '_last_rppg_passed') else False
+            bpm_est = self._last_bpm_est if hasattr(self, '_last_bpm_est') else 0.0
+        else:
+            self._last_fft_time = now_t
+            # Extract luminance: L = 0.3R + 0.59G + 0.11B
+            luminance = np.array([
+                0.3 * item[4][0] + 0.59 * item[4][1] + 0.11 * item[4][2]
+                for item in self.buffer
+            ])
+            timestamps = np.array([item[0] for item in self.buffer])
+
+            # Detrend and window
+            luminance_clean = luminance - np.mean(luminance)
+            window = np.hanning(len(luminance_clean))
+            fft_out = np.abs(np.fft.rfft(luminance_clean * window))
+            dt = np.mean(np.diff(timestamps))
+            freqs = np.fft.rfftfreq(len(luminance_clean), d=dt if dt > 0 else 1.0 / 30.0)
+
+            # Human heart rate band: 0.9 Hz (54 BPM) to 2.2 Hz (132 BPM)
+            valid_idx = np.where((freqs >= 0.9) & (freqs <= 2.2))[0]
+            rppg_passed = False
+            bpm_est = 0.0
+
+            if len(valid_idx) > 0:
+                peak_idx = valid_idx[np.argmax(fft_out[valid_idx])]
+                peak_freq = freqs[peak_idx]
+                bpm_est = float(peak_freq * 60.0)
+
+                # Signal-to-noise ratio check
+                mean_power = float(np.mean(fft_out))
+                snr = float(fft_out[peak_idx]) / (mean_power + 1e-9)
+                if 54.0 <= bpm_est <= 132.0 and snr >= 3.0:
+                    rppg_passed = True
+
+            self._last_rppg_passed = rppg_passed
+            self._last_bpm_est = bpm_est
+
+        # ── 3. Combined Decision Matrix ──
+        if not tremor_passed and not rppg_passed:
+            return ForensicAlert(
+                module_name="M6B_Kinematic_rPPG",
+                alert_type="SPOOFING_ATTEMPT",
+                severity="CRITICAL",
+                confidence=0.99,
+                description=(
+                    f"Complete absence of biological liveness. No head micro-tremor "
+                    f"(yaw_σ={yaw_std:.4f}°, pitch_σ={pitch_std:.4f}°) and no cardiac "
+                    f"pulse detected. High probability of static image or frozen video replay."
+                ),
+                timestamp=obs.timestamp,
+                metrics={
+                    "tremor_passed": 0.0,
+                    "rppg_passed": 0.0,
+                    "yaw_std_deg": yaw_std,
+                    "pitch_std_deg": pitch_std,
+                    "estimated_bpm": bpm_est,
+                },
+            )
+        elif not tremor_passed:
+            return ForensicAlert(
+                module_name="M6B_Kinematic_rPPG",
+                alert_type="TREMOR_FAIL",
+                severity="HIGH",
+                confidence=0.88,
+                description=(
+                    f"Head micro-tremor outside physiological envelope "
+                    f"(yaw_σ={yaw_std:.4f}°, pitch_σ={pitch_std:.4f}°). "
+                    f"Possible static overlay or stabilized deepfake injection."
+                ),
+                timestamp=obs.timestamp,
+                metrics={
+                    "tremor_passed": 0.0,
+                    "rppg_passed": 1.0,
+                    "yaw_std_deg": yaw_std,
+                    "pitch_std_deg": pitch_std,
+                    "estimated_bpm": bpm_est,
+                },
+            )
+        elif not rppg_passed:
+            return ForensicAlert(
+                module_name="M6B_Kinematic_rPPG",
+                alert_type="RPPG_FAIL",
+                severity="HIGH",
+                confidence=0.85,
+                description=(
+                    f"Failed to extract biological rPPG pulse waveform from facial region "
+                    f"(estimated {bpm_est:.0f} BPM). Head motion present but cardiac signal absent."
+                ),
+                timestamp=obs.timestamp,
+                metrics={
+                    "tremor_passed": 1.0,
+                    "rppg_passed": 0.0,
+                    "yaw_std_deg": yaw_std,
+                    "pitch_std_deg": pitch_std,
+                    "estimated_bpm": bpm_est,
+                },
+            )
+
+        # Both passed — live human verified
+        log.debug(
+            "[Module 6B] Liveness PASSED: yaw_σ=%.4f°, pitch_σ=%.4f°, BPM=%.0f",
+            yaw_std, pitch_std, bpm_est,
+        )
         return None

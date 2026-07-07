@@ -117,13 +117,15 @@ class FraudAgent:
         top_signals = []
 
         severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+        duration_hours = max(session_duration_seconds, 1) / 3600.0
 
         for ev_type, events in grouped.items():
             weight = SIGNAL_WEIGHTS.get(ev_type, 0.05)
             worst_sev = max(events, key=lambda e: severity_order.get(e["severity"], 0))["severity"]
             multiplier = SEVERITY_MULTIPLIERS.get(worst_sev, 1.0)
-            # Frequency penalty: more occurrences = worse score
-            freq_factor = min(1.0 + (len(events) - 1) * 0.15, 2.5)
+            # Frequency penalty based on event rate per hour, not raw count
+            event_rate = len(events) / duration_hours
+            freq_factor = min(1.0 + max(event_rate - 1, 0) * 0.15, 2.5)
             contribution = min(weight * multiplier * freq_factor * 100, weight * 3.5 * 100)
 
             breakdown[ev_type] = {

@@ -17,6 +17,7 @@ Architecture:
   This server runs as an on-demand subprocess in production (true MCP stdio),
   here implemented as an in-process adapter for simplicity.
 """
+import asyncio
 import logging
 from .client import MCPServer, MCPTool
 
@@ -29,16 +30,19 @@ MAX_CALLS_PER_SESSION = 10
 def _build_github_server(ai_client=None) -> MCPServer:
     server = MCPServer(name="github")
     call_count = {"n": 0}
+    # H-8: Instance-specific lock to prevent cross-request race conditions
+    _rate_lock = asyncio.Lock()
 
-    def _rate_limit_check():
-        call_count["n"] += 1
-        if call_count["n"] > MAX_CALLS_PER_SESSION:
-            raise RuntimeError(f"GitHub MCP rate limit exceeded ({MAX_CALLS_PER_SESSION} calls/session)")
+    async def _rate_limit_check():
+        async with _rate_lock:
+            call_count["n"] += 1
+            if call_count["n"] > MAX_CALLS_PER_SESSION:
+                raise RuntimeError(f"GitHub MCP rate limit exceeded ({MAX_CALLS_PER_SESSION} calls/session)")
 
     # ── Tool: get_candidate_repos ────────────────────────────────────────────
     async def get_candidate_repos(github_username: str) -> list[dict]:
         """Fetch public repos and infer technology stack."""
-        _rate_limit_check()
+        await _rate_limit_check()
         try:
             import httpx
             async with httpx.AsyncClient(timeout=8.0) as client:
@@ -75,7 +79,7 @@ def _build_github_server(ai_client=None) -> MCPServer:
     # ── Tool: generate_personalized_questions ────────────────────────────────
     async def generate_personalized_questions(github_username: str, job_description: str = "") -> list[str]:
         """Use candidate's GitHub data to generate hyper-personalized questions."""
-        _rate_limit_check()
+        await _rate_limit_check()
 
         # First, get their repos
         repos = await get_candidate_repos(github_username)

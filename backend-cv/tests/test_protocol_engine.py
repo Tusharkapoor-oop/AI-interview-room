@@ -4,18 +4,22 @@ Verifies candidate entry verification, whole screen share requirements, 3-strike
 5-second look-away timeout, and auto-brightness lux overrides.
 """
 
+import os
+
 from agents.protocol_engine import InvitationCodeValidator, Protocol12LayerEngine
 
 
 def test_invitation_code_default_ai_passkey():
+    os.environ["VALID_INVITATION_CODES"] = "AEGIS-TEST-CODE"
     valid, msg, payload = InvitationCodeValidator.validate_entry(
         candidate_name="Roy Lee",
         role="software_engineer",
         use_default_ai_code=True
     )
-    assert valid is True
-    assert payload["invitation_code"] == "AEGIS-VIP-2026"
+    assert valid is True, msg
+    assert payload["invitation_code"] == "AEGIS-TEST-CODE"
     assert payload["session_token"].startswith("AEGIS-SESSION-")
+    del os.environ["VALID_INVITATION_CODES"]
 
 
 def test_invitation_code_invalid_role_or_missing_code():

@@ -288,7 +288,6 @@ export function useNuclearLockdown(enabled = true) {
       try {
         // Also check shadow roots (open shadow DOM)
         const el = document.querySelector(sel)
-          || document.querySelector(`* >>> ${sel}`)
           || (() => {
             const hosts = document.querySelectorAll('*');
             for (const host of hosts) {

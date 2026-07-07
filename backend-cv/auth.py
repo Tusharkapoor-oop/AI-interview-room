@@ -9,8 +9,6 @@ load_dotenv()
 
 log = logging.getLogger("aegis.auth")
 
-SKIP_AUTH = os.getenv("SKIP_AUTH", "").lower() in ("1", "true", "yes")
-
 from fastapi import HTTPException, WebSocket, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -19,8 +17,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
-    if not SKIP_AUTH:
-        log.warning("JWT_SECRET not set in environment (or < 32 chars). Generated ephemeral 256-bit secret for this session.")
+    log.warning("JWT_SECRET not set in environment (or < 32 chars). Generated ephemeral 256-bit secret for this session.")
     JWT_SECRET = secrets.token_hex(32)
     os.environ["JWT_SECRET"] = JWT_SECRET
 
@@ -41,6 +38,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "15"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_EXPIRE_DAYS", "7"))
 
 
+# ─── Refresh Token Rotation ─────────────────────────────────────────────────────
+_used_refresh_tokens: set[str] = set()
+
+
+def mark_refresh_token_used(jti: str) -> bool:
+    """Mark a refresh token as used. Returns False if already used."""
+    if jti in _used_refresh_tokens:
+        return False
+    _used_refresh_tokens.add(jti)
+    return True
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -52,14 +61,24 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({
+        "exp": expire,
+        "type": "access",
+        "iat": datetime.now(timezone.utc),
+        "jti": secrets.token_hex(16),
+    })
     return jwt.encode(to_encode, SIGNING_KEY, algorithm=ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+        "iat": datetime.now(timezone.utc),
+        "jti": secrets.token_hex(16),
+    })
     return jwt.encode(to_encode, SIGNING_KEY, algorithm=ALGORITHM)
 
 
@@ -75,11 +94,20 @@ def decode_token(token: str) -> dict:
 
 
 async def get_current_user_from_ws(websocket: WebSocket) -> dict:
-    if SKIP_AUTH:
-        return {"sub": "dev-user", "role": "ADMIN", "email": "dev@aegis.local"}
-    token = websocket.query_params.get("token")
+    # Try Authorization header first (for non-browser clients)
+    auth_header = websocket.headers.get("authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+
+    # Fallback: Check Sec-WebSocket-Protocol for browser clients
+    # Format: "Bearer <token>" or just "<token>"
     if not token:
-        token = websocket.headers.get("authorization", "").replace("Bearer ", "")
+        proto = websocket.headers.get("sec-websocket-protocol", "")
+        if proto.startswith("Bearer "):
+            token = proto[7:].strip()
+        elif proto and not proto.startswith("http") and not proto.startswith("ws"):
+            # Assume it's a bare token if not a standard protocol
+            token = proto.strip()
+
     if not token:
         await websocket.close(code=4001, reason="Missing authentication token")
         raise HTTPException(status_code=401, detail="Missing authentication token")
@@ -95,6 +123,9 @@ async def get_current_user_from_ws(websocket: WebSocket) -> dict:
 
 
 def validate_origin(websocket: WebSocket, allowed_origins: list[str]) -> None:
-    origin = websocket.headers.get("origin", "")
-    if allowed_origins and origin not in allowed_origins:
+    origin = (websocket.headers.get("origin", "") or "").lower().rstrip("/")
+    if not allowed_origins:
+        return
+    normalized_allowed = [o.lower().rstrip("/") for o in allowed_origins]
+    if origin not in normalized_allowed:
         raise HTTPException(status_code=403, detail="Origin not allowed")

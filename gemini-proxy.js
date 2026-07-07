@@ -8,7 +8,10 @@ const http = require('http');
 const https = require('https');
 
 const PROXY_PORT = 8080;
-const GEMINI_API_KEY = 'AQ.Ab8RN6IxJfVa0CZ_y1Ajp1aXfLOrCTThkuo6IS0DeZBRxV5neQ';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+if (!GEMINI_API_KEY) {
+  console.warn('⚠️ WARNING: GEMINI_API_KEY environment variable is not set!');
+}
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 const GEMINI_PATH = '/v1beta/openai/chat/completions';

@@ -219,25 +219,31 @@ export function useGazeEntropy() {
     return true;
   }, []);
 
+  // Cached content rects — queries DOM only when elements change
+  const cachedRectsRef = useRef(null);
+  const refreshContentRects = useCallback(() => {
+    const contentSelectors = ['.ide-editor', '.chat-messages', '.aria-panel', '.video-container-premium', '.dashboard-grid'];
+    const rects = [];
+    for (const sel of contentSelectors) {
+      const el = document.querySelector(sel);
+      if (el) rects.push(el.getBoundingClientRect());
+    }
+    cachedRectsRef.current = rects;
+  }, []);
+
   // Check if pixel coordinate is in whitespace margin
   const getUIVoidFraction = useCallback((fx, fy) => {
     const px = ((fx + 1) / 2) * window.innerWidth;
     const py = ((fy + 1) / 2) * window.innerHeight;
 
-    // Active content selectors
-    const contentSelectors = ['.ide-editor', '.chat-messages', '.aria-panel', '.video-container-premium', '.dashboard-grid'];
-    let inContent = false;
-    for (const sel of contentSelectors) {
-      const el = document.querySelector(sel);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        if (px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom) {
-          inContent = true;
-          break;
-        }
+    const rects = cachedRectsRef.current;
+    if (!rects) return 1.0;
+    for (const rect of rects) {
+      if (px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom) {
+        return 0.0;
       }
     }
-    return inContent ? 0.0 : 1.0;
+    return 1.0;
   }, []);
 
   const analyze = useCallback(() => {
@@ -381,10 +387,9 @@ export function useGazeEntropy() {
       }
     }
 
-    prevSampleRef.current = { fx, fy, ts: now };
-
     // ── 6. Rolling 8×8 entropy window ────────────────────────────
     samplesRef.current.push({ x: fx, y: fy, ts: now });
+    prevSampleRef.current = { fx, fy, ts: now };
     if (samplesRef.current.length > WINDOW_SIZE) samplesRef.current.shift();
     if (samplesRef.current.length < WINDOW_SIZE) return;
 
@@ -448,9 +453,14 @@ export function useGazeEntropy() {
 
   useEffect(() => {
     if (phase !== 'calibration' && phase !== 'interview') return;
+    refreshContentRects();
+    const onResize = () => refreshContentRects();
+    window.addEventListener('resize', onResize);
     timerRef.current = setInterval(analyze, SAMPLE_RATE_MS);
     return () => {
+      window.removeEventListener('resize', onResize);
       clearInterval(timerRef.current);
+      cachedRectsRef.current = null;
       samplesRef.current     = [];
       lowEntropyStreak.current = 0;
       deviationStreak.current  = 0;
@@ -465,7 +475,7 @@ export function useGazeEntropy() {
       kalmanY.current = new KalmanFilter1D(0.015, 0.0008);
       try { delete window.__aegisGazeEntropy; } catch {}
     };
-  }, [phase, analyze]);
+  }, [phase, analyze, refreshContentRects]);
 
   return { gazeMetrics: typeof window !== 'undefined' ? window.__aegisGazeEntropy : null };
 }

@@ -23,6 +23,7 @@ Features implemented:
 import hashlib
 import json
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -52,9 +53,14 @@ class ProtocolEvaluationVerdict:
 
 
 class InvitationCodeValidator:
-    """Validates candidate credentials and invitation passkeys prior to arena entry."""
+    """Validates candidate credentials via env-configured invitation codes."""
 
-    DEFAULT_AI_INVITATION_CODE = "AEGIS-VIP-2026"
+    @staticmethod
+    def _valid_codes() -> set:
+        """Read valid invitation codes from env (comma-separated)."""
+        raw = os.getenv("VALID_INVITATION_CODES", "")
+        return {c.strip() for c in raw.split(",") if c.strip()}
+
     VALID_ROLES = {
         "software_engineer", "data_scientist", "ml_engineer",
         "product_manager", "devops_engineer", "frontend_engineer"
@@ -76,15 +82,16 @@ class InvitationCodeValidator:
             return False, f"Invalid target role: {role}.", {}
 
         effective_code = invitation_code.strip() if invitation_code else ""
-        if use_default_ai_code:
-            effective_code = cls.DEFAULT_AI_INVITATION_CODE
 
-        if not effective_code:
-            return False, "Invitation code required. Provide code or select Default AI Passkey.", {}
+        codes = cls._valid_codes()
+        if use_default_ai_code or not effective_code:
+            if codes:
+                effective_code = next(iter(codes))
+            else:
+                return False, "No valid invitation codes configured.", {}
 
-        # Validate: only the known default code is accepted
-        if effective_code != cls.DEFAULT_AI_INVITATION_CODE:
-            return False, f"Invalid invitation code signature: {effective_code}", {}
+        if codes and effective_code not in codes:
+            return False, "Invalid invitation code.", {}
 
         session_hash = hashlib.sha256(f"{candidate_name}:{normalized_role}:{effective_code}".encode()).hexdigest()[:16]
         return True, "Invitation validated successfully.", {

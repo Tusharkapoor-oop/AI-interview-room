@@ -61,7 +61,7 @@ class KinematicAgentEvaluator:
     def euclidean_dist(kp1: Keypoint3D, kp2: Keypoint3D) -> float:
         return math.hypot(kp1.x - kp2.x, kp1.y - kp2.y)
 
-    def evaluate_frame(self, skeletons: List[SkeletalFrame]) -> Dict[str, Any]:
+    def evaluate_frame(self, skeletons: List[Any]) -> Dict[str, Any]:
         """
         Evaluates a single video frame containing one or more detected skeletons.
         """
@@ -74,6 +74,23 @@ class KinematicAgentEvaluator:
                 "risk_score": 0.0,
                 "explanation": "No skeletons detected in frame.",
             }
+
+        parsed_skeletons = []
+        for skel in skeletons:
+            if isinstance(skel, dict):
+                kps_list = []
+                raw_kps = skel.get("keypoints", [])
+                if isinstance(raw_kps, dict):
+                    raw_kps = list(raw_kps.values())
+                for kp in raw_kps:
+                    if isinstance(kp, dict):
+                        kps_list.append(Keypoint3D(index=int(kp.get("index", 0)), x=float(kp.get("x", 0.0)), y=float(kp.get("y", 0.0)), z=float(kp.get("z", 0.0)), visibility=float(kp.get("visibility", 1.0))))
+                    elif isinstance(kp, Keypoint3D):
+                        kps_list.append(kp)
+                parsed_skeletons.append(SkeletalFrame(timestamp_s=float(skel.get("timestamp_s", 0.0)), keypoints=kps_list, person_id=int(skel.get("person_id", 0))))
+            else:
+                parsed_skeletons.append(skel)
+        skeletons = parsed_skeletons
 
         multi_person_flag = len(skeletons) > 1
         hand_to_ear_flag = False

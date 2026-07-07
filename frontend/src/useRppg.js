@@ -131,7 +131,8 @@ function extractGreenMean(videoEl, canvasEl) {
 
 // ── Main Hook ─────────────────────────────────────────────────────────────────
 export function useRppg(videoRef, enabled = true) {
-  const { addRiskEvent, updateIntegrityScore, showToast, phase, relaxedProctoringEnabled } = useAegisStore();
+  const { addRiskEvent, updateIntegrityScore, showToast, phase } = useAegisStore();
+  const relaxedProctoringEnabled = useAegisStore(s => s.relaxedProctoringEnabled);
   const setRppgData = useAegisStore(s => s.setRppgData);
 
   const [localRppg, setLocalRppg] = useState({
@@ -143,13 +144,20 @@ export function useRppg(videoRef, enabled = true) {
   const canvasRef     = useRef(null);  // off-screen canvas for pixel extraction
   const intervalRef   = useRef(null);
   const analyzeRef    = useRef(null);
+  const captureRef    = useRef(null);
   const noSignalCount = useRef(0);
   const flaggedRef    = useRef(false);
+  const relaxedRef    = useRef(relaxedProctoringEnabled);
 
   // Create persistent off-screen canvas
   useEffect(() => {
     canvasRef.current = document.createElement('canvas');
   }, []);
+
+  // Keep ref in sync with reactive value for use in interval callbacks
+  useEffect(() => {
+    relaxedRef.current = relaxedProctoringEnabled;
+  }, [relaxedProctoringEnabled]);
 
   const analyzePulse = useCallback(() => {
     const buf = bufferRef.current;
@@ -179,7 +187,7 @@ export function useRppg(videoRef, enabled = true) {
     // Anti-spoofing: sustained absence of pulse signal → flag
     if (!isLive) {
       noSignalCount.current++;
-      if (noSignalCount.current >= 3 && !flaggedRef.current && !relaxedProctoringEnabled) {
+      if (noSignalCount.current >= 3 && !flaggedRef.current && !relaxedRef.current) {
         flaggedRef.current = true;
         addRiskEvent({
           type:     'RPPG_NO_HEARTBEAT',
@@ -193,13 +201,13 @@ export function useRppg(videoRef, enabled = true) {
       noSignalCount.current = 0;
       flaggedRef.current    = false;
     }
-  }, [addRiskEvent, updateIntegrityScore, showToast, relaxedProctoringEnabled, setRppgData]);
+  }, [addRiskEvent, updateIntegrityScore, showToast, setRppgData]);
 
   // ── Sample loop ───────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled || phase !== 'interview') return;
 
-    const capture = () => {
+    captureRef.current = () => {
       const green = extractGreenMean(videoRef?.current, canvasRef.current);
       if (green !== null) {
         bufferRef.current.push(green);
@@ -209,13 +217,14 @@ export function useRppg(videoRef, enabled = true) {
       }
     };
 
-    intervalRef.current = setInterval(capture, CAPTURE_INTERVAL);
+    intervalRef.current = setInterval(() => captureRef.current?.(), CAPTURE_INTERVAL);
     // Analyze every 4 seconds once we have enough data
     analyzeRef.current  = setInterval(analyzePulse, 4000);
 
     return () => {
       clearInterval(intervalRef.current);
       clearInterval(analyzeRef.current);
+      captureRef.current = null;
       bufferRef.current = [];
     };
   }, [enabled, phase, videoRef, analyzePulse]);

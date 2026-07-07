@@ -19,9 +19,11 @@ export function useWebSocket(url, onMessage) {
   const drainQueue = useCallback(() => {
     const q = eventQueueRef.current;
     if (q.length === 0) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     while (q.length > 0) {
       const data = q.shift();
-      onMessageRef.current?.(data);
+      ws.send(typeof data === 'string' ? data : JSON.stringify(data));
     }
   }, []);
 
@@ -29,7 +31,10 @@ export function useWebSocket(url, onMessage) {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     setStatus('connecting');
-    const ws = new WebSocket(url);
+    // Pass JWT token via Sec-WebSocket-Protocol header (Bearer <token>)
+    const token = localStorage.getItem('access_token');
+    const protocols = token ? [`Bearer ${token}`] : [];
+    const ws = new WebSocket(url, protocols);
     wsRef.current = ws;
 
     ws.onopen = () => {

@@ -115,9 +115,10 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
 
     // Analyze typing speed over last 10 keystrokes
     if (keystrokeBuffer.current.length >= 10) {
-      const slice = keystrokeBuffer.current.slice(-10);
+      const KEYSTROKE_SAMPLE_SIZE = 10;
+      const slice = keystrokeBuffer.current.slice(-KEYSTROKE_SAMPLE_SIZE);
       const elapsed = slice[slice.length - 1] - slice[0];
-      const charsPerSec = 9 / (elapsed / 1000);
+      const charsPerSec = (slice.length - 1) / (elapsed / 1000);  // 9 gaps for 10 keystrokes
 
       if (charsPerSec > TYPING_SPEED_THRESHOLD && elapsed > 500) {
         triggerRiskEvent({

@@ -284,7 +284,7 @@ export function useAudioForensics() {
     if (phase !== 'interview') return;
     initAudio().then(() => {
       timerRef.current = setInterval(analyze, ANALYSIS_RATE_MS);
-    });
+    }).catch(() => {});
     return () => {
       clearInterval(timerRef.current);
       framesRef.current   = 0;

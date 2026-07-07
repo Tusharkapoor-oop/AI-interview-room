@@ -9,6 +9,7 @@ Specialist agent that audits every question Aria intends to ask for:
 Called by the Hub BEFORE each question is sent to the candidate.
 Returns typed BiasAuditResult with a safe/unsafe verdict.
 """
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -96,7 +97,6 @@ disability, national origin, citizenship, criminal history, or makes unfair cult
         # AI-powered deep audit for subtle bias
         if self.ai_client:
             try:
-                import json
                 resp = await self.ai_client.chat.completions.create(
                     model="gpt-4o-mini",   # Use smaller model — fast, cheap, accurate enough
                     messages=[

@@ -15,8 +15,8 @@ describe('useAegisStore', () => {
     expect(useAegisStore.getState().integrityScore).toBe(100);
   });
 
-  it('should reduce score for HIGH severity events', () => {
-    useAegisStore.getState().addRiskEvent({ type: 'TEST', severity: 'HIGH', desc: 'test' });
+  it('should update score when setServerIntegrityScore is called by backend telemetry', () => {
+    useAegisStore.getState().setServerIntegrityScore(88);
     expect(useAegisStore.getState().integrityScore).toBe(88);
   });
 
@@ -25,9 +25,8 @@ describe('useAegisStore', () => {
     expect(useAegisStore.getState().strictMandatoryLockdown).toBe(false);
   });
 
-  it('should trigger lockdown for 2+ MEDIUM events', () => {
-    useAegisStore.getState().addRiskEvent({ type: 'TEST', severity: 'MEDIUM', desc: 'test1' });
-    useAegisStore.getState().addRiskEvent({ type: 'TEST', severity: 'MEDIUM', desc: 'test2' });
+  it('should trigger lockdown when server integrity score drops below 40', () => {
+    useAegisStore.getState().setServerIntegrityScore(35);
     expect(useAegisStore.getState().strictMandatoryLockdown).toBe(true);
   });
 });

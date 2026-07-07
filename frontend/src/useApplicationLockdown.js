@@ -231,9 +231,10 @@ export function useApplicationLockdown(enabled = true) {
 
   // ── 8. Screen Recording API Detection ───────────────────────
   // We override getDisplayMedia at mount to detect if any OTHER context calls it
+  const displayMediaOrigRef = useRef(null);
   const patchGetDisplayMedia = useCallback(() => {
     if (!navigator.mediaDevices?.getDisplayMedia) return;
-    const original = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    displayMediaOrigRef.current = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getDisplayMedia = async (...args) => {
       // Our own OnboardScreen sets window._aegisOwnDisplayMediaCall = true
       if (!window._aegisOwnDisplayMediaCall) {
@@ -244,7 +245,7 @@ export function useApplicationLockdown(enabled = true) {
           true
         );
       }
-      return original(...args);
+      return displayMediaOrigRef.current(...args);
     };
   }, [firePenalty]);
 
@@ -278,6 +279,10 @@ export function useApplicationLockdown(enabled = true) {
       observer.disconnect();
       clearInterval(extInterval);
       clearInterval(monitorInterval);
+      if (displayMediaOrigRef.current && navigator.mediaDevices?.getDisplayMedia) {
+        navigator.mediaDevices.getDisplayMedia = displayMediaOrigRef.current;
+        displayMediaOrigRef.current = null;
+      }
     };
   }, [enabled, handleWindowBlur, handleKeyDown, handleContextMenu, handleCopy,
       setupExtensionObserver, checkExtensions, detectVirtualCamera, detectSecondMonitor, patchGetDisplayMedia]);

@@ -1,22 +1,25 @@
 import json
+import logging
 import os
 import time
 from typing import Optional
 
 import redis.asyncio as aioredis
 
+log = logging.getLogger("aegis.cache")
+
 
 class RedisCache:
     def __init__(self, url: Optional[str] = None):
         self.url = url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        # H-4: Require Redis password
+        redis_password = os.getenv("REDIS_PASSWORD", "")
+        if not redis_password:
+            from urllib.parse import urlparse
+            parsed = urlparse(self.url)
+            if not parsed.password:
+                log.warning("REDIS_PASSWORD not set and no password in REDIS_URL — Redis will fail loudly in production")
         self._client: Optional[aioredis.Redis] = None
-
-    async def ensure_connected(self) -> aioredis.Redis:
-        if self._client is None:
-            self._client = await aioredis.from_url(
-                self.url, decode_responses=True, socket_connect_timeout=5
-            )
-        return self._client
 
     async def set_json(self, key: str, data: dict, ttl: int = 3600) -> None:
         client = await self.ensure_connected()
@@ -89,5 +92,7 @@ class SessionStore:
 
     async def get_active_sessions_count(self) -> int:
         client = await self.cache.ensure_connected()
-        keys = await client.keys("session:*")
-        return len(keys)
+        count = 0
+        async for _ in client.scan_iter(match="session:*", count=1000):
+            count += 1
+        return count

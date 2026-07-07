@@ -3,6 +3,7 @@ agents/__init__.py
 Aegis Multi-Agent Orchestration Package
 Hub-Spoke pattern: Aria (Hub) + specialist spoke agents
 """
+from .circuit_breaker import AgentCircuitBreaker
 from .hub import AegisHub
 from .cv_agent import CVAgent
 from .code_review_agent import CodeReviewAgent
@@ -19,7 +20,7 @@ from .security_engine import (
     LivenessVerifier,
 )
 
-from .forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, PLRrPPGLivenessEngine, ForensicObservation
+from .forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, PLRrPPGLivenessEngine, KinematicGazeLivenessEngine, ForensicObservation
 from .fusion_engine import KinematicGestureEngine, ChannelPacket
 from .gaze_agent import GazeAgentEvaluator
 from .baseline_agent import BaselineAgentEvaluator
@@ -31,6 +32,7 @@ from .ks_test import evaluate_baseline_divergence as ks_test, kolmogorov_smirnov
 from .fusion import FusionEngine, CANONICAL_FUSION_WEIGHTS
 
 __all__ = [
+    "AgentCircuitBreaker",
     "AegisHub",
     "CVAgent",
     "CodeReviewAgent",
@@ -47,6 +49,7 @@ __all__ = [
     "KSTestBaselineEngine",
     "WhitespaceFixationDetector",
     "PLRrPPGLivenessEngine",
+    "KinematicGazeLivenessEngine",
     "ForensicObservation",
     "KinematicGestureEngine",
     "ChannelPacket",

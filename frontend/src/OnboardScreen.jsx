@@ -84,6 +84,7 @@ export default function OnboardScreen() {
   const [checking, setChecking] = useState(false);
   const [allPassed, setAllPassed] = useState(false);
   const nameRef = useRef(null);
+  const screenStreamRef = useRef(null);
 
   // Aurora canvas
   const canvasRef = useRef(null);
@@ -119,7 +120,11 @@ export default function OnboardScreen() {
     };
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      screenStreamRef.current?.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+    };
   }, []);
 
   const runChecks = async () => {
@@ -137,7 +142,7 @@ export default function OnboardScreen() {
       } else if (check.id === 'screen') {
         try {
           const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-          window.aegisScreenStream = s;
+          screenStreamRef.current = s;
         } catch { pass = false; }
       } else if (check.id === 'browser') {
         try {

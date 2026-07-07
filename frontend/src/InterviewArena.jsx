@@ -38,6 +38,7 @@ import { useGazeEntropy } from './useGazeEntropy';          // Research Module 1
 import { useResponseTiming } from './useResponseTiming';    // Research Module 2 v3.0
 import { useLlmPhraseDetector } from './useLlmPhraseDetector'; // Research Module 3 v3.0
 import { useAudioForensics } from './useAudioForensics';    // Research Module NEW — audio forensics
+import { useApplicationLockdown } from './useApplicationLockdown'; // Layer 5+ Ultra-Strict Digital Lockdown
 
 
 const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
@@ -128,7 +129,8 @@ const InterviewArena = React.memo(function InterviewArena() {
     setPhase, integrityScore,
     sessionConfig,
     hitlEvent, clearHitlEvent,
-    relaxedProctoringEnabled
+    relaxedProctoringEnabled,
+    riskEvents
   } = useAegisStore();
 
   const videoRef   = useRef(null);
@@ -153,6 +155,9 @@ const InterviewArena = React.memo(function InterviewArena() {
   useDigitalSecurity(true, (ev) => {
     sendMsg({ type: 'telemetry_event', event: ev });
   });
+
+  // ── Layer 5+: Ultra-Strict Application Lockdown ────────────────────────
+  useApplicationLockdown(true);
 
   // ── Nuclear Extension Lockdown (Zero-Bypass, 11 vectors) ────────────────
   const { threatCount } = useNuclearLockdown(true);
@@ -309,6 +314,15 @@ const InterviewArena = React.memo(function InterviewArena() {
       updateIntegrityScore();
     }
 
+    if (data.v4_liveness && !data.v4_liveness.passed) {
+      addRiskEvent({
+        type: 'LIVENESS_FAIL',
+        severity: 'HIGH',
+        desc: `[Liveness] ${data.v4_liveness.alert || 'Biometric liveness check failed'}`,
+      });
+      updateIntegrityScore();
+    }
+
     if (data.gaze_anomaly) {
       if (!gazeAnomalyStart.current) {
         gazeAnomalyStart.current = Date.now();
@@ -358,11 +372,33 @@ const InterviewArena = React.memo(function InterviewArena() {
 
   const { send: sendMsg, status: intStatus } = useWebSocket(INT_WS, handleInterview);
 
+  // ── Wire all forensic hooks & risk events to Backend WebSocket ─────────
+  const lastSentRiskIdxRef = useRef(0);
+  useEffect(() => {
+    if (intStatus === 'connected' && riskEvents && riskEvents.length > lastSentRiskIdxRef.current) {
+      const newEvents = riskEvents.slice(lastSentRiskIdxRef.current);
+      newEvents.forEach(ev => {
+        sendMsg({
+          type: 'telemetry_event',
+          event: {
+            type: ev.type || 'FRONTEND_FORENSIC_ALERT',
+            severity: ev.severity || 'high',
+            desc: ev.desc || ev.description || 'Anomaly detected by frontend forensic engine',
+            confidence: ev.confidence || 0.85,
+            ts: ev.ts || new Date().toISOString()
+          }
+        });
+      });
+      lastSentRiskIdxRef.current = riskEvents.length;
+    }
+  }, [riskEvents, intStatus, sendMsg]);
+
   // ── Frame capture ───────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => {
       if (!videoRef.current || !canvasRef.current || cvStatus !== 'connected') return;
       const ctx = canvasRef.current.getContext('2d');
+      if (!ctx) return;
       ctx.drawImage(videoRef.current, 0, 0, 640, 480);
       sendFrame(canvasRef.current.toDataURL('image/jpeg', 0.80));
     }, 150);

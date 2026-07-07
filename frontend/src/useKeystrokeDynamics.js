@@ -90,11 +90,11 @@ export function useKeystrokeDynamics(enabled = true, onBaselineBuilt = null) {
     pressTimestamps.current[e.code] = now;
 
     // Response latency: first key after new question
-    if (firstKeyAfterQuestion.current && questionShownAt.current) {
+    if (firstKeyAfterQuestion.current && questionShownAt.current !== null) {
       const latency = now - questionShownAt.current;
       firstKeyAfterQuestion.current = false;
       // Very fast response < 500ms → suspected pre-typed / AI
-      if (latency < 500 && latency > 0) {
+      if (latency >= 0 && latency < 500) {
         addRiskEvent({
           type:     'RESPONSE_LATENCY_ANOMALY',
           severity: 'MEDIUM',

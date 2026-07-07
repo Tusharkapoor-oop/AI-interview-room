@@ -136,7 +136,7 @@ function computeRppgPulse(signal, sampleRate = 30) {
   return { bpm: peakBpm, snr };
 }
 
-export default function PlrChallenge({ videoRef, onComplete }) {
+export default function PlrChallenge({ videoRef, onComplete, onBrightnessChange }) {
   const { setPlrPassed } = useAegisStore();
   const [phase, setPhase]     = useState('intro'); // intro | running | done
   const [flashOn, setFlashOn] = useState(false);   // true=white, false=black
@@ -215,6 +215,7 @@ export default function PlrChallenge({ videoRef, onComplete }) {
     const baseline = sampleEyeBrightness(videoRef?.current, canvasRef.current);
     lastBrightRef.current = baseline;
     setFlashOn(isBright);
+    onBrightnessChange?.(isBright ? 1.0 : 0.1);
 
     // Randomize active challenge brightness phase interval (0.5 to 2.0 Hz) to prevent pre-recorded replays (Problem 3)
     const randomDuration = 550 + Math.random() * 550; 
@@ -242,12 +243,13 @@ export default function PlrChallenge({ videoRef, onComplete }) {
       cycleRef.current++;
       setCycle(cycleRef.current);
       setFlashOn(false);
+      onBrightnessChange?.(0.5);
 
       if (mountedRef.current) {
         timerRef.current = setTimeout(runCycle, randomDuration * 0.4);
       }
     }, sampleDelay);
-  }, [videoRef, finalize]);
+  }, [videoRef, finalize, onBrightnessChange]);
 
   const startTest = useCallback(() => {
     cycleRef.current = 0;

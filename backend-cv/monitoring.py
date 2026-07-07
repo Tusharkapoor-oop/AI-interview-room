@@ -27,6 +27,21 @@ def setup_observability(app: FastAPI) -> None:
     FastAPIInstrumentor.instrument_app(app)
 
 
+# H-6: Strip dynamic path segments to prevent label cardinality explosion
+_SANITIZED_PATHS: dict[str, str] = {}
+
+def _sanitize_path(path: str) -> str:
+    if path in _SANITIZED_PATHS:
+        return _SANITIZED_PATHS[path]
+    parts = path.strip("/").split("/")
+    sanitized = "/" + "/".join(
+        p if not (p and (len(p) == 36 and p.count("-") == 4)) else "{id}"
+        for p in parts
+    )
+    _SANITIZED_PATHS[path] = sanitized
+    return sanitized
+
+
 class MetricsMiddleware:
     def __init__(self, app: FastAPI):
         self.app = app
@@ -41,8 +56,9 @@ class MetricsMiddleware:
         duration = time.time() - start
 
         path = scope.get("path", "/unknown")
-        HTTP_REQUEST_DURATION.labels(path=path).observe(duration)
-        HTTP_REQUESTS_TOTAL.labels(path=path).inc()
+        safe_path = _sanitize_path(path)
+        HTTP_REQUEST_DURATION.labels(path=safe_path).observe(duration)
+        HTTP_REQUESTS_TOTAL.labels(path=safe_path).inc()
 
 
 HTTP_REQUESTS_TOTAL = Counter(
@@ -84,8 +100,7 @@ RISK_EVENTS_TOTAL = Counter(
 
 INTEGRITY_SCORE = Gauge(
     "aegis_integrity_score",
-    "Session integrity score",
-    ["session_id"],
+    "Session integrity score (H-6: cardinality-safe — no session_id label)",
 )
 
 

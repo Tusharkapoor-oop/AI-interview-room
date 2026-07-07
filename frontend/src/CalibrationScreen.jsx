@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useSpring, a } from '@react-spring/three';
-import { useAegisStore } from './useAegisStore';
+import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 import { useSpeakerVerification } from './useSpeakerVerification';
 
 const CALIBRATION_DURATION = 10000;
@@ -56,10 +56,17 @@ export default function CalibrationScreen() {
   const { startEnrollment, enrollmentState, enrollProgress, isEnrolled } = useSpeakerVerification(true);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
-      .then(s => { if (videoRef.current) videoRef.current.srcObject = s; })
-      .catch(() => showToast('Camera required.', 'error'));
-    return () => videoRef.current?.srcObject?.getTracks().forEach(t => t.stop());
+    let mountGuard = true;
+    getGlobalCameraStream()
+      .then(s => {
+        if (mountGuard && videoRef.current) {
+          videoRef.current.srcObject = s;
+        }
+      })
+      .catch(() => { if (mountGuard) showToast('Camera required.', 'error'); });
+    return () => {
+      mountGuard = false;
+    };
   }, []);
 
   useEffect(() => {

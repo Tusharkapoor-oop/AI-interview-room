@@ -29,8 +29,17 @@ export default function HITLPanel({ event, onDecision, onDismiss }) {
   const [timeLeft, setTimeLeft]   = useState(event?.expires || 30);
   const [resolved, setResolved]   = useState(false);
   const intervalRef = useRef(null);
+  const handleDecisionRef = useRef(null);
 
   const meta = SEVERITY_META[event?.type] || SEVERITY_META.default;
+
+  const handleDecision = (action, auto = false) => {
+    if (resolved) return;
+    setResolved(true);
+    clearInterval(intervalRef.current);
+    onDecision?.({ action, auto, session_id: event?.session_id });
+  };
+  handleDecisionRef.current = handleDecision;
 
   useEffect(() => {
     if (!event || resolved) return;
@@ -40,7 +49,7 @@ export default function HITLPanel({ event, onDecision, onDismiss }) {
         if (t <= 1) {
           clearInterval(intervalRef.current);
           // Auto-resolve to CONTINUE
-          handleDecision('CONTINUE', true);
+          handleDecisionRef.current?.('CONTINUE', true);
           return 0;
         }
         return t - 1;
@@ -49,13 +58,6 @@ export default function HITLPanel({ event, onDecision, onDismiss }) {
 
     return () => clearInterval(intervalRef.current);
   }, [event, resolved]);
-
-  const handleDecision = (action, auto = false) => {
-    if (resolved) return;
-    setResolved(true);
-    clearInterval(intervalRef.current);
-    onDecision?.({ action, auto, session_id: event?.session_id });
-  };
 
   if (!event) return null;
 

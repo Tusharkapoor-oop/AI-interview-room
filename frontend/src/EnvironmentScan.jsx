@@ -129,7 +129,7 @@ export default function EnvironmentScan() {
     if (result.anomalies.length > 0) updateIntegrityScore();
 
     setDone(true);
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    // Keep global camera stream live for calibration phase
   };
 
   const skipScan = () => {
@@ -262,11 +262,11 @@ export default function EnvironmentScan() {
           </div>
         )}
 
-        {!done && !scanning && (
+        {!done && (
           <div style={{ textAlign: 'center', marginTop: 12 }}>
             <button
               onClick={() => setPhase('calibration')}
-              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', padding: '8px 16px', borderRadius: 8, fontSize: '0.75rem', cursor: 'pointer' }}
+              style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.4)', color: 'var(--aegis-amber)', padding: '10px 20px', borderRadius: 8, fontSize: '0.78rem', cursor: 'pointer', fontWeight: 700 }}
             >
               ⚡ Skip Room Scan & Connect Directly →
             </button>

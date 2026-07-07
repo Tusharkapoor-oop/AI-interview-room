@@ -77,31 +77,31 @@ class ApproachAKalmanGaze:
     def __init__(self, focal_length_px: float = 650.0):
         self.focal_length_px = focal_length_px
         self.REAL_IRIS_WIDTH_MM = 11.7  # Constant across human populations per Google Research
-        
+
         # Initialize Kalman Filter matrices
         # 4D state vector: [x, y, vx, vy]
         self.state = np.zeros((4, 1), dtype=np.float64)
         self.P = np.eye(4, dtype=np.float64) * 0.1  # Error covariance
-        
+
         # State transition matrix F (will be updated dynamically with dt)
         self.F = np.eye(4, dtype=np.float64)
-        
+
         # Measurement matrix H (we observe position x, y)
         self.H = np.zeros((2, 4), dtype=np.float64)
         self.H[0, 0] = 1.0
         self.H[1, 1] = 1.0
-        
+
         # Process noise covariance Q: diag(0.01, 0.01, 0.001, 0.001)
         self.Q = np.diag([0.01, 0.01, 0.001, 0.001])
-        
+
         # Measurement noise covariance R: diag(0.05, 0.05)
         self.R = np.diag([0.05, 0.05])
-        
+
         self.last_timestamp: Optional[float] = None
 
     def process_observation(self, obs: GazeObservation) -> GazeEstimate:
         t0 = time.perf_counter()
-        
+
         # 1. Compute time delta dt
         dt = 0.0333  # Default 30 FPS fallback
         if self.last_timestamp is not None and obs.timestamp > self.last_timestamp:
@@ -121,7 +121,7 @@ class ApproachAKalmanGaze:
         y = z - (self.H @ state_pred)  # Innovation
         S = self.H @ P_pred @ self.H.T + self.R  # Innovation covariance
         K = P_pred @ self.H.T @ np.linalg.inv(S)  # Kalman gain
-        
+
         self.state = state_pred + (K @ y)
         self.P = (np.eye(4) - K @ self.H) @ P_pred
 
@@ -137,14 +137,14 @@ class ApproachAKalmanGaze:
         # Standard 60° horizontal / 45° vertical field of view sensor model
         yaw_deg = (smoothed_x - 0.5) * 60.0
         pitch_deg = (smoothed_y - 0.5) * 45.0
-        
+
         yaw_rad = math.radians(yaw_deg)
         pitch_rad = math.radians(pitch_deg)
-        
+
         gx = math.sin(yaw_rad) * math.cos(pitch_rad)
         gy = math.sin(pitch_rad)
         gz = math.cos(yaw_rad) * math.cos(pitch_rad)
-        
+
         # Normalize unit vector
         norm = math.sqrt(gx*gx + gy*gy + gz*gz) + 1e-9
         gaze_vector = (gx / norm, gy / norm, gz / norm)
@@ -186,7 +186,7 @@ class ApproachBL2CSNetScreenMLP:
     def __init__(self, focal_length_px: float = 650.0):
         self.focal_length_px = focal_length_px
         self.REAL_IRIS_WIDTH_MM = 11.7
-        
+
         # Initialize deterministic pre-trained weights for 11 -> 128 -> 64 -> 32 -> 2 MLP
         np.random.seed(42)
         self.W1 = np.random.randn(11, 128) * np.sqrt(2.0 / 11)
@@ -197,7 +197,7 @@ class ApproachBL2CSNetScreenMLP:
         self.b3 = np.zeros(32)
         self.W4 = np.random.randn(32, 2) * np.sqrt(2.0 / 32)
         self.b4 = np.array([0.5, 0.5])  # Center bias
-        
+
         self.hist_gx = 0.5
         self.hist_gy = 0.5
 
@@ -210,7 +210,7 @@ class ApproachBL2CSNetScreenMLP:
         # 1. Simulate fast L2CS-Net regression branch output from optical FOV model
         pitch_raw = (obs.iris_center_2d[1] - 0.5) * 45.0
         yaw_raw = (obs.iris_center_2d[0] - 0.5) * 60.0
-        
+
         # 2. Depth calculation
         iris_px = max(obs.iris_pixel_width, 1.0)
         depth_mm = (self.REAL_IRIS_WIDTH_MM * self.focal_length_px) / iris_px
@@ -219,7 +219,7 @@ class ApproachBL2CSNetScreenMLP:
         nose_x, nose_y = obs.iris_center_2d[0], obs.iris_center_2d[1] + 0.1
         right_ear_x = max(0.0, nose_x - 0.35)
         left_ear_x = min(1.0, nose_x + 0.35)
-        
+
         features = np.array([
             pitch_raw / 90.0,
             yaw_raw / 90.0,
@@ -239,10 +239,10 @@ class ApproachBL2CSNetScreenMLP:
         h2 = self._relu(h1 @ self.W2 + self.b2)
         h3 = self._relu(h2 @ self.W3 + self.b3)
         out = h3 @ self.W4 + self.b4
-        
+
         screen_x = float(max(0.0, min(1.0, out[0])))
         screen_y = float(max(0.0, min(1.0, out[1])))
-        
+
         self.hist_gx = screen_x
         self.hist_gy = screen_y
 
@@ -254,7 +254,7 @@ class ApproachBL2CSNetScreenMLP:
         gz = math.cos(yaw_rad) * math.cos(pitch_rad)
         norm = math.sqrt(gx*gx + gy*gy + gz*gz) + 1e-9
         gaze_vector = (gx/norm, gy/norm, gz/norm)
-        
+
         deviation_deg = math.degrees(math.acos(max(min(gaze_vector[2], 1.0), -1.0)))
         latency_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -287,20 +287,20 @@ class EmpiricalGazeBenchmark:
         samples = []
         t = 0.0
         np.random.seed(hash(condition_name) % (2**32))
-        
+
         for i in range(count):
             t += 0.0333
-            
+
             # Ground truth screen gaze target
             gt_x = 0.5 + 0.3 * math.sin(t * 1.5)
             gt_y = 0.5 + 0.2 * math.cos(t * 1.2)
-            
+
             # Off-screen glance injection (every 30 frames for 5 frames)
             is_offscreen = (i % 35) > 28
             if is_offscreen:
                 gt_x = 1.3  # Looking hard right off-screen
                 gt_y = 0.5
-                
+
             gt_yaw_deg = (gt_x - 0.5) * 60.0
             gt_pitch_deg = (gt_y - 0.5) * 45.0
             gt_gz = math.cos(math.radians(gt_yaw_deg)) * math.cos(math.radians(gt_pitch_deg))
@@ -336,7 +336,7 @@ class EmpiricalGazeBenchmark:
                 ground_truth_screen=(gt_x, gt_y),
                 ground_truth_angle=gt_angle
             ))
-            
+
         return samples
 
     def run_benchmark(self) -> Dict[str, List[BenchmarkResult]]:
@@ -347,14 +347,14 @@ class EmpiricalGazeBenchmark:
             "Extreme Head Angles (>45° yaw)",
             "Real-World Internship Room"
         ]
-        
+
         results: Dict[str, List[BenchmarkResult]] = {}
 
         for cond in conditions:
             observations = self._generate_synthetic_condition(cond, count=200)
             cond_results = []
 
-            for engine_name, engine in [("Approach_A_Iris_Kalman", self.engine_a), 
+            for engine_name, engine in [("Approach_A_Iris_Kalman", self.engine_a),
                                         ("Approach_B_L2CSNet_MLP", self.engine_b)]:
                 errors = []
                 latencies = []
@@ -389,7 +389,7 @@ class EmpiricalGazeBenchmark:
                 std_err = float(np.std(errors))
                 recall_off = (tp_offscreen / max(tp_offscreen + fn_offscreen, 1)) * 100.0
                 fpr = (fp_onscreen / max(fp_onscreen + tn_onscreen, 1)) * 100.0
-                
+
                 # CPU baseline simulation
                 cpu_est = 14.8 if engine_name == "Approach_A_Iris_Kalman" else 7.9
 
@@ -416,7 +416,7 @@ class EmpiricalGazeBenchmark:
         print("\n" + "="*96)
         print(" [REPORT] AEGIS v4.0 SIDE-BY-SIDE DUAL GAZE BENCHMARK REPORT (EMPIRICAL VERIFICATION)")
         print("="*96)
-        
+
         for cond, res_list in results.items():
             print(f"\n[CONDITION] {cond}")
             print(f"{'Engine Name':<26} | {'Acc (<=2°)':<11} | {'MAE (°)':<8} | {'Recall %':<9} | {'FPR %':<7} | {'Latency':<9} | {'CPU %':<6}")

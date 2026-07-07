@@ -1,21 +1,79 @@
-2026-07-01 19:22:48,987 [WARNING ] aegis — No OPENAI_API_KEY — running in offline mock mode
-2026-07-01 19:22:48,987 [INFO    ] aegis.mcp.client — [MCPClient] Initialized
-2026-07-01 19:22:48,989 [WARNING ] aegis.memory.vector_store — [VectorStore] FAISS/SentenceTransformers not installed — vector search disabled. (No module named 'faiss')
-2026-07-01 19:22:48,989 [INFO    ] aegis.memory.manager — [MemoryManager] Initialized (vector_store size=0)
-W0000 00:00:1782913969.217614   19260 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+KNOWN_SOLUTIONS_HASHES is empty — plagiarism detection is disabled. Run scripts/load_solution_hashes.py to populate.
+2026-07-06 18:15:56,420 [WARNING ] aegis — No OPENAI_API_KEY — running in offline mock mode
+2026-07-06 18:15:56,420 [INFO    ] aegis.mcp.client — [MCPClient] Initialized
+2026-07-06 18:15:56,421 [WARNING ] aegis.memory.vector_store — [VectorStore] FAISS/SentenceTransformers not installed — vector search disabled. (No module named 'faiss')
+2026-07-06 18:15:56,422 [INFO    ] aegis.memory.manager — [MemoryManager] Initialized (vector_store size=0)
+W0000 00:00:1783341956.628148   30668 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
 INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
-W0000 00:00:1782913969.261185   23536 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
-W0000 00:00:1782913969.292462   21616 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
-W0000 00:00:1782913969.385425   19924 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
-W0000 00:00:1782913969.418356   28932 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
-2026-07-01 19:22:49,420 [INFO    ] aegis — [main] MediaPipe Tasks detectors (Face & Hand) initialized successfully.
-INFO:     Started server process [5600]
+W0000 00:00:1783341956.673761     992 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.703610   16936 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.712452   24136 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.723960   12076 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.739941   34184 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.747942   39904 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.756803   40524 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.774701   28112 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.783438   39576 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.793720   21656 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.813856   21656 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.823848    6984 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.837840   42356 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.861685   42356 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.870740    9516 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.880860   24128 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.899593   27604 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.907916    1772 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.919640   20148 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.939370   23212 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.949018   41416 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.961329    2916 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.979499    2916 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341956.989261   35612 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341956.997582   38588 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.014992   38588 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.024066   19492 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341957.033834   19408 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.054046   23504 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.066332   28688 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341957.076843   16012 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.097789   25564 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.108552   34132 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+W0000 00:00:1783341957.120786   13372 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.143990    9896 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.196286   27124 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.214512   37068 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.255294   35708 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.271009   35708 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.328881   25276 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.343740   20848 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.376598   20540 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.389921   20540 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.422899   20924 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.438315   20924 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.480836   42092 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.517611   30192 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.610662   42060 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.627285   11188 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.673661   36812 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.695529   39560 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.739386    6784 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.757612   35892 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.798687   34256 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.817400    7280 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.862360   34728 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.881225   34728 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.918706   11128 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1783341957.937406   35912 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+2026-07-06 18:15:57,938 [INFO    ] aegis — [main] MediaPipe Tasks detectors initialized (12 instances in pool)
+2026-07-06 18:15:57,951 [INFO    ] aegis — [StaticFiles] Serving built frontend SPA from C:\Users\tusha\.gemini\antigravity-ide\scratch\ai-interview-platform\frontend\dist
+INFO:     Started server process [13396]
 INFO:     Waiting for application startup.
-2026-07-01 19:22:49,718 [INFO    ] aegis — Aegis v3.0 starting up...
-2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.sqlite — [MCPServer/sqlite] Registered 3 tools
-2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'sqlite' with 3 tools
-2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.github — [MCPServer/github] Registered 2 tools
-2026-07-01 19:22:49,718 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'github' with 2 tools
-2026-07-01 19:22:49,718 [INFO    ] aegis — MCP servers mounted: ['sqlite', 'sqlite', 'sqlite', 'github', 'github']
+2026-07-06 18:15:57,954 [INFO    ] aegis — Aegis v3.1 starting up...
+2026-07-06 18:15:57,954 [INFO    ] aegis.mcp.sqlite — [MCPServer/sqlite] Registered 3 tools
+2026-07-06 18:15:57,954 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'sqlite' with 3 tools
+2026-07-06 18:15:57,954 [INFO    ] aegis.mcp.github — [MCPServer/github] Registered 2 tools
+2026-07-06 18:15:57,954 [INFO    ] aegis.mcp.client — [MCPClient] Mounted server 'github' with 2 tools
+2026-07-06 18:15:57,954 [INFO    ] aegis — MCP servers mounted: ['sqlite', 'sqlite', 'sqlite', 'github', 'github']
+2026-07-06 18:15:57,957 [INFO    ] aegis.event_batcher — EventBatcher started (interval=1.0s, batch=20)
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

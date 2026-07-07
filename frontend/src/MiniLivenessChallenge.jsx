@@ -1,20 +1,5 @@
-/**
- * MiniLivenessChallenge.jsx — v2.0 (White-Screen-Free)
- *
- * CHANGES FROM v1.0:
- *   - REMOVED: All PLR flashing — the original plrPhase was a fake setTimeout
- *     loop that NEVER sampled the video stream. It just toggled a boolean
- *     and auto-called onComplete(true) after 3 cycles.
- *   - REMOVED: White screen background (rgba(255,255,255,0.90)) which washed
- *     out webcam auto-exposure and destroyed MediaPipe tracking.
- *   - ADDED: Prominent "⚡ Skip" button that immediately resolves the challenge.
- *   - KEPT: 3-point active gaze challenge (top-left, bottom-right, center).
- *   - KEPT: Step progress indicators and instruction card.
- *
- * Non-intrusive continuous re-verification challenge that fires periodically
- * during the live interview to confirm continued live presence.
- */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAegisStore } from './useAegisStore';
 
 const RE_DOTS = [
   { x: -3, y: 1.5,  label: 'Look Top-Left ↖' },
@@ -22,33 +7,59 @@ const RE_DOTS = [
   { x: 0,  y: 0,    label: 'Center Gaze ⊙' },
 ];
 
-export default function MiniLivenessChallenge({ onComplete }) {
-  const [step,   setStep]   = useState(0);
-  const [active, setActive] = useState(true);
-  const timerRef = useRef(null);
+const GAZE_MATCH_THRESHOLD = 0.15;
 
-  // Step auto-advance timer
+export default function MiniLivenessChallenge({ onComplete }) {
+  const telemetry = useAegisStore(s => s.telemetry);
+
+  const [step,      setStep]      = useState(0);
+  const [active,    setActive]    = useState(true);
+  const [validated, setValidated] = useState(Array(RE_DOTS.length).fill(false));
+  const timerRef = useRef(null);
+  const validatedRef = useRef(Array(RE_DOTS.length).fill(false));
+
+  // Step auto-advance timer (independent of gaze validation)
   useEffect(() => {
     if (step >= RE_DOTS.length) {
-      // All gaze points complete — pass immediately
+      const allValid = validatedRef.current.every(Boolean);
       timerRef.current = setTimeout(() => {
         setActive(false);
-        onComplete(true);
-      }, 400);
+        onComplete(allValid);
+      }, allValid ? 400 : 2000);
       return () => clearTimeout(timerRef.current);
     }
 
     timerRef.current = setTimeout(() => {
       setStep(s => s + 1);
-    }, 1800);
+    }, 2000);
 
     return () => clearTimeout(timerRef.current);
   }, [step, onComplete]);
 
+  // Gaze validation via backend telemetry (runs on every telemetry update)
+  useEffect(() => {
+    if (step >= RE_DOTS.length) return;
+    if (!telemetry?.eye_gaze) return;
+    if (validatedRef.current[step]) return;
+
+    const current = RE_DOTS[step];
+    const expectedHN = current.x / 60;
+    const expectedVN = -current.y / 40;
+    const dist = Math.hypot(
+      telemetry.eye_gaze.h - expectedHN,
+      telemetry.eye_gaze.v - expectedVN
+    );
+
+    if (dist < GAZE_MATCH_THRESHOLD) {
+      validatedRef.current[step] = true;
+      setValidated([...validatedRef.current]);
+    }
+  }, [telemetry, step]);
+
   const handleSkip = useCallback(() => {
     clearTimeout(timerRef.current);
     setActive(false);
-    onComplete(true);
+    onComplete(false);
   }, [onComplete]);
 
   if (!active) return null;
@@ -73,29 +84,29 @@ export default function MiniLivenessChallenge({ onComplete }) {
       animation: 'fadeIn 0.3s ease-out',
     }}>
 
-      {/* Moving active gaze target */}
       {showGaze && (
         <div style={{
           position: 'absolute',
           left, top,
           width: 18, height: 18,
           borderRadius: '50%',
-          background: 'var(--aegis-cyan)',
-          boxShadow: '0 0 15px var(--aegis-cyan), 0 0 30px var(--aegis-cyan)80',
+          background: validated[step] ? 'var(--aegis-green)' : 'var(--aegis-cyan)',
+          boxShadow: validated[step]
+            ? '0 0 15px var(--aegis-green), 0 0 30px var(--aegis-green)80'
+            : '0 0 15px var(--aegis-cyan), 0 0 30px var(--aegis-cyan)80',
           transform: 'translate(-50%, -50%)',
           transition: 'left 0.8s cubic-bezier(0.25, 1, 0.5, 1), top 0.8s cubic-bezier(0.25, 1, 0.5, 1)',
           pointerEvents: 'none',
         }}>
           <div style={{
             position: 'absolute', inset: -6,
-            border: '1px solid rgba(0, 245, 255, 0.4)',
+            border: `1px solid ${validated[step] ? 'rgba(16,185,129,0.4)' : 'rgba(0, 245, 255, 0.4)'}`,
             borderRadius: '50%',
             animation: 'pulse-dot 1.2s infinite',
           }} />
         </div>
       )}
 
-      {/* Instruction Card */}
       {showGaze && (
         <div style={{
           background: 'rgba(13, 20, 38, 0.9)',
@@ -119,13 +130,14 @@ export default function MiniLivenessChallenge({ onComplete }) {
             Follow the glowing target to confirm continued live presence.
           </p>
 
-          {/* Step progress */}
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 16 }}>
             {RE_DOTS.map((_, i) => (
               <div key={i} style={{
                 width: 24, height: 4, borderRadius: 2,
-                background: i < step
+                background: validated[i]
                   ? 'var(--aegis-green)'
+                  : i < step
+                  ? 'var(--aegis-amber)'
                   : i === step
                   ? 'var(--aegis-blue)'
                   : 'rgba(255,255,255,0.1)',
@@ -134,7 +146,6 @@ export default function MiniLivenessChallenge({ onComplete }) {
             ))}
           </div>
 
-          {/* Skip button */}
           <button
             onClick={handleSkip}
             style={{

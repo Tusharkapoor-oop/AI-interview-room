@@ -112,10 +112,9 @@ class AudioAgent:
         if len(self._speech_segments) > 0:
             prev_ts = self._speech_segments[-1].get("segment_start_ts", ts)
             gap = ts - prev_ts
-            if COACHING_GAP_S * 0.7 <= gap <= COACHING_GAP_S * 1.4:
-                self._coaching_gaps.append(gap)
-            elif len(self._coaching_gaps) > 0:
-                self._coaching_gaps.pop(0)
+            self._coaching_gaps.append(gap)
+            if not (COACHING_GAP_S * 0.7 <= gap <= COACHING_GAP_S * 1.4):
+                self._coaching_gaps.pop()
 
             if len(self._coaching_gaps) >= 5:
                 ev = AudioEvent(

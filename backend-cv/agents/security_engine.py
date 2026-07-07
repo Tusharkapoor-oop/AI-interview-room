@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from statistics import mean
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -34,8 +34,9 @@ class SecurityEvent:
 class KSAnomalyDetector:
     """Two-sample Kolmogorov-Smirnov detector for per-candidate gaze baselines."""
 
-    def __init__(self, p_threshold: float = 0.05) -> None:
+    def __init__(self, p_threshold: float = 0.05, ks_threshold: float = 0.35) -> None:
         self.p_threshold = p_threshold
+        self.ks_threshold = ks_threshold
         self.baseline: List[float] = []
 
     def fit_baseline(self, values: List[float]) -> None:
@@ -71,8 +72,9 @@ class KSAnomalyDetector:
         if not sample:
             return False
         statistic = self._ks_statistic(sample)
-        # Conservative approximation: large KS distance indicates shift.
-        return statistic > 0.35
+        # Configurable threshold approximating p-value rejection.
+        # KS distance > ks_threshold ≈ significant distribution shift.
+        return statistic > self.ks_threshold
 
 
 class HybridGazeTracker:
@@ -83,7 +85,7 @@ class HybridGazeTracker:
     """
 
     def __init__(self) -> None:
-        self._history: Deque[Tuple[float, float]] = deque(maxlen=12)
+        self._history: deque = deque(maxlen=12)
         self._smoothed: Tuple[float, float] = (0.0, 0.0)
 
     def update_gaze(
@@ -138,7 +140,7 @@ class GestureRecognitionEngine:
     """Gesture engine for hand-to-ear, off-camera reach, and multi-person events."""
 
     def __init__(self) -> None:
-        self._history: Deque[Dict[str, float]] = deque(maxlen=80)
+        self._history: deque = deque(maxlen=80)
         self._gesture_counts: Dict[str, int] = {}
 
     def update_frame(
@@ -168,7 +170,6 @@ class GestureRecognitionEngine:
 
         recent = list(self._history)[-60:]
         left_positions = [(entry["left_wrist_x"], entry["left_wrist_y"]) for entry in recent if entry["left_wrist_x"] != 0.0 or entry["left_wrist_y"] != 0.0]
-        right_positions = [(entry["right_wrist_x"], entry["right_wrist_y"]) for entry in recent if entry["right_wrist_x"] != 0.0 or entry["right_wrist_y"] != 0.0]
 
         if left_positions:
             left_mean_y = mean(y for _, y in left_positions)
@@ -238,41 +239,83 @@ class LivenessVerifier:
 
 
 class FiveChannelFusionEngine:
-    """Late fusion engine that requires N>=3 concurrent deviations."""
+    """
+    Five-channel fusion engine with per-channel windowing.
 
-    def __init__(self) -> None:
-        self._channel_results: List[Tuple[str, bool, float]] = []
+    Enforces N >= 3 concurrent channel deviations within a time window.
+    Channels: GAZE, GESTURE, AUDIO, KEYSTROKE, ENVIRONMENT
+    """
+
+    CHANNEL_NAMES = ["GAZE", "GESTURE", "AUDIO", "KEYSTROKE", "ENVIRONMENT"]
+    CHANNEL_WEIGHTS = {"GAZE": 0.25, "GESTURE": 0.20, "AUDIO": 0.20, "KEYSTROKE": 0.20, "ENVIRONMENT": 0.15}
+
+    def __init__(self, window_duration_sec: float = 10.0) -> None:
+        self.window_duration = window_duration_sec
+        self._channels = {
+            ch: deque(maxlen=100) for ch in self.CHANNEL_NAMES
+        }
+        self._last_cleanup: float = 0.0
+        self._last_evaluate_time: float = 0.0
 
     def add_channel_result(self, channel: str, anomalous: bool, confidence: float) -> None:
         if confidence < 0.0 or confidence > 1.0:
             raise ValueError("confidence must be within [0, 1]")
-        self._channel_results.append((channel, bool(anomalous), float(confidence)))
+        key = channel.upper()
+        if key not in self._channels:
+            key = "ENVIRONMENT"
+        import time
+        self._channels[key].append((time.time(), bool(anomalous), float(confidence)))
+
+    def _prune_old(self, now: float) -> None:
+        for ch in self._channels.values():
+            while ch and now - ch[0][0] > self.window_duration * 2:
+                ch.popleft()
 
     def evaluate(self) -> Dict[str, object]:
-        deviation_count = sum(1 for _, anomalous, _ in self._channel_results if anomalous)
-        anomaly_score = sum(confidence for _, anomalous, confidence in self._channel_results if anomalous)
-        if deviation_count == 0:
+        import time
+        now = time.time()
+
+        # Periodic cleanup
+        if now - self._last_cleanup > 5.0:
+            self._prune_old(now)
+            self._last_cleanup = now
+
+        # Count triggered channels within window
+        triggered_channels = []
+        for name in self.CHANNEL_NAMES:
+            recent = [r for r in self._channels[name] if now - r[0] <= self.window_duration]
+            triggered = any(anomalous for _, anomalous, _ in recent)
+            if triggered:
+                max_conf = max(c for _, _, c in recent) if recent else 0.0
+                triggered_channels.append({"channel": name, "confidence": max_conf})
+
+        n_active = len(triggered_channels)
+
+        # Integrity score: weighted by channel confidence
+        if n_active == 0:
             integrity_score = 0.95
-            severity = "NORMAL"
         else:
-            integrity_score = max(0.0, min(1.0, 0.82 - (0.07 * deviation_count) - (0.01 * anomaly_score)))
-            if deviation_count >= 5:
-                severity = "CRITICAL"
-            elif deviation_count >= 4:
-                severity = "HIGH"
-            elif deviation_count >= 3:
-                severity = "MEDIUM"
-            elif deviation_count >= 2:
-                severity = "LOW"
-            else:
-                severity = "NORMAL"
+            total_conf = sum(ch["confidence"] for ch in triggered_channels)
+            integrity_score = max(0.0, 1.0 - (n_active * 0.12) - (total_conf * 0.05))
+
+        # Decision matrix: N >= 3 triggers escalation
+        if n_active >= 5:
+            severity = "CRITICAL"
+        elif n_active >= 4:
+            severity = "HIGH"
+        elif n_active >= 3:
+            severity = "MEDIUM"
+        elif n_active >= 2:
+            severity = "LOW"
+        else:
+            severity = "NORMAL"
 
         return {
-            "channel_deviations": deviation_count,
+            "channel_deviations": n_active,
             "integrity_score": round(integrity_score, 4),
             "severity": severity,
             "channels": [
-                {"channel": channel, "anomalous": anomalous, "confidence": confidence}
-                for channel, anomalous, confidence in self._channel_results
+                {"channel": t["channel"], "anomalous": True, "confidence": round(t["confidence"], 4)}
+                for t in triggered_channels
             ],
         }

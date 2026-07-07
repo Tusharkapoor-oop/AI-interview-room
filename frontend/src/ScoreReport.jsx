@@ -192,17 +192,17 @@ export default function ScoreReport() {
   const [animated, setAnimated] = useState(false);
   const [reportTab, setReportTab] = useState('trust');
 
-  // Derive competency scores from session data
+  // Derive competency scores from session data (deterministic)
   const msgCount = messages.filter(m => m.role === 'candidate').length;
   const avgMsgLen = messages.filter(m => m.role === 'candidate').reduce((a, m) => a + (m.text?.length || 0), 0) / Math.max(msgCount, 1);
 
   const scores = {
-    technical:      Math.min(100, 60 + Math.random() * 30 + (msgCount > 5 ? 8 : 0)),
+    technical:      Math.min(100, 60 + (msgCount > 5 ? 8 : 0) + Math.min(avgMsgLen / 6, 15)),
     communication:  Math.min(100, 55 + Math.min(avgMsgLen / 4, 35)),
-    problemSolving: Math.min(100, 58 + Math.random() * 28),
-    culturalFit:    Math.min(100, 70 + Math.random() * 20),
-    confidence:     Math.min(100, Math.max(30, integrityScore * 0.7 + Math.random() * 20)),
-    clarity:        Math.min(100, 62 + Math.random() * 25),
+    problemSolving: Math.min(100, 58 + Math.min(msgCount * 2, 20)),
+    culturalFit:    Math.min(100, 70 + Math.min(integrityScore * 0.15, 15)),
+    confidence:     Math.min(100, Math.max(30, integrityScore * 0.7)),
+    clarity:        Math.min(100, 62 + Math.min(avgMsgLen / 5, 18)),
   };
 
   const overall = Math.round(Object.values(scores).reduce((a, b) => a + b, 0) / 6);

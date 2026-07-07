@@ -173,12 +173,12 @@ function StepSelfieMatch({ onComplete }) {
 function StepVoiceEnroll({ onComplete }) {
   const [rec,setRec]=useState(false);const [done,setDone]=useState(false);const [secs,setSecs]=useState(0);
   const [wav,setWav]=useState(Array(30).fill(2));const [micOk,setMicOk]=useState(null);
-  const refs={m:useRef(),t:useRef(),r:useRef(),a:useRef()};
-  useEffect(()=>()=>{clearInterval(refs.t.current);cancelAnimationFrame(refs.r.current);},[]);
+  const refs={m:useRef(),t:useRef(),r:useRef(),a:useRef(),audioCtx:useRef()};
+  useEffect(()=>()=>{clearInterval(refs.t.current);cancelAnimationFrame(refs.r.current);refs.audioCtx.current?.close();refs.audioCtx.current=null;},[]);
   const go=async()=>{
     try{
       const s=await navigator.mediaDevices.getUserMedia({audio:true});refs.m.current=s;
-      const ctx=new AudioContext();const an=ctx.createAnalyser();an.fftSize=64;
+      const ctx=new AudioContext();refs.audioCtx.current=ctx;const an=ctx.createAnalyser();an.fftSize=64;
       ctx.createMediaStreamSource(s).connect(an);refs.a.current=an;
       setRec(true);setMicOk(true);setSecs(0);
       refs.t.current=setInterval(()=>setSecs(v=>v+1),1000);
@@ -288,11 +288,44 @@ export default function IdentityVerification() {
         ))}
       </div>
       {!done?(
-        <div style={{width:'100%',maxWidth:520,background:'var(--card-bg)',border:'1px solid var(--border-1)',borderRadius:'var(--r-xl)',padding:'28px 24px',zIndex:1}}>
-          {idx===0&&<StepIDUpload    onComplete={next}/>}
-          {idx===1&&<StepSelfieMatch onComplete={next}/>}
-          {idx===2&&<StepVoiceEnroll onComplete={next}/>}
-          {idx===3&&<StepDeviceCheck  onComplete={next}/>}
+        <div style={{width:'100%',maxWidth:520,zIndex:1,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{width:'100%',background:'var(--card-bg)',border:'1px solid var(--border-1)',borderRadius:'var(--r-xl)',padding:'28px 24px'}}>
+            {idx===0&&<StepIDUpload    onComplete={next}/>}
+            {idx===1&&<StepSelfieMatch onComplete={next}/>}
+            {idx===2&&<StepVoiceEnroll onComplete={next}/>}
+            {idx===3&&<StepDeviceCheck  onComplete={next}/>}
+          </div>
+          <div style={{textAlign:'center'}}>
+            <button
+              onClick={()=>{
+                setRes({
+                  idVerified: false,
+                  idSkipped: true,
+                  selfieVerified: false,
+                  cameraSkipped: true,
+                  voiceEnrolled: false,
+                  deviceClean: true,
+                  virtualCameraDetected: false,
+                  faceMesh: null,
+                });
+                setPassed(false);
+                setDone(true);
+                updateIntegrityScore(-15, 'All identity checks bypassed via dev mode');
+              }}
+              style={{
+                background:'rgba(245,158,11,0.10)',
+                border:'1px solid rgba(245,158,11,0.4)',
+                color:'var(--aegis-amber)',
+                padding:'10px 20px',
+                borderRadius:8,
+                fontSize:'0.78rem',
+                cursor:'pointer',
+                fontWeight:700
+              }}
+            >
+              ⚡ Bypass All Identity Checks & Continue →
+            </button>
+          </div>
         </div>
       ):(
         <div style={{width:'100%',maxWidth:520,background:'var(--card-bg)',border:`1px solid ${passed?'rgba(16,185,129,0.3)':'rgba(245,158,11,0.3)'}`,borderRadius:'var(--r-xl)',padding:'32px 24px',textAlign:'center',zIndex:1}}>

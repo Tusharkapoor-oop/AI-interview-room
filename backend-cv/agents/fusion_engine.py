@@ -70,13 +70,13 @@ class KinematicGestureEngine:
     def __init__(self, frame_width_px: float = 640.0, frame_height_px: float = 480.0):
         self.width = frame_width_px
         self.height = frame_height_px
-        
+
         # State buffers
         self.hand_ear_counter_left: int = 0
         self.hand_ear_counter_right: int = 0
         self.offcam_counter: int = 0
         self.multiperson_counter: int = 0
-        
+
         # Trajectory history for curvature analysis: list of (x, y)
         self.wrist_trajectory: List[Tuple[float, float]] = []
 
@@ -84,14 +84,14 @@ class KinematicGestureEngine:
         """Computes residual curvature against linear fit to distinguish smooth natural movement from robotic/linear."""
         if len(points) < 5:
             return 1.0
-        
+
         xs = np.array([p[0] for p in points])
         ys = np.array([p[1] for p in points])
-        
+
         # Linear fit y = m*x + c
         A = np.vstack([xs, np.ones(len(xs))]).T
         m, c = np.linalg.lstsq(A, ys, rcond=None)[0]
-        
+
         residuals = np.abs(ys - (m * xs + c))
         return float(np.mean(residuals))
 
@@ -125,7 +125,7 @@ class KinematicGestureEngine:
             if wrist is not None and ear_idx in frame.pose_landmarks:
                 ear = frame.pose_landmarks[ear_idx]
                 dist_px = math.hypot((wrist[0] - ear[0]) * self.width, (wrist[1] - ear[1]) * self.height)
-                
+
                 if dist_px < 80.0:
                     current_count = getattr(self, counter_attr) + 1
                     setattr(self, counter_attr, current_count)
@@ -142,7 +142,7 @@ class KinematicGestureEngine:
                 self.wrist_trajectory.append((wrist[0], wrist[1]))
                 if len(self.wrist_trajectory) > 30:
                     self.wrist_trajectory.pop(0)
-                    
+
                 if wrist[0] < 0.08 or wrist[0] > 0.92 or wrist[1] > 0.92:
                     is_offcam = True
 
@@ -209,7 +209,7 @@ class FiveChannelFusionEngine:
             "KEYSTROKE": 0.20,
             "ENVIRONMENT": 0.15
         }
-        
+
         # History queue of packets received over the last 10 seconds
         self.packet_queue: List[ChannelPacket] = []
 
