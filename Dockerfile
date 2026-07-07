@@ -41,5 +41,9 @@ ENV ALLOWED_HOSTS=*
 
 WORKDIR /app/backend-cv
 
-# Start Uvicorn listening on $PORT (dynamically assigned by Render/Railway)
-CMD sh -c "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# L-8: Container health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/api/health')" || exit 1
+
+# Start Uvicorn (L-7: exec-form CMD)
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -9,3 +9,4 @@ __pycache__
 *.log
 frontend/dist
 backend-cv/aegis.db
+**/.env

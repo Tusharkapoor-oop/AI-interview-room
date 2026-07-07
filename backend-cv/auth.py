@@ -1,6 +1,7 @@
 import os
 import secrets
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from dotenv import load_dotenv
@@ -13,7 +14,7 @@ from fastapi import HTTPException, WebSocket, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
@@ -67,14 +68,16 @@ class _TTLCache(OrderedDict):
 
 
 _used_refresh_tokens = _TTLCache(maxlen=10000)
+_refresh_token_lock = threading.Lock()
 
 
 def mark_refresh_token_used(jti: str, exp: float = 0.0) -> bool:
     """Mark a refresh token as used. Returns False if already used."""
-    if jti in _used_refresh_tokens:
-        return False
-    _used_refresh_tokens.add(jti, exp)
-    return True
+    with _refresh_token_lock:
+        if jti in _used_refresh_tokens:
+            return False
+        _used_refresh_tokens.add(jti, exp)
+        return True
 
 
 def hash_password(password: str) -> str:

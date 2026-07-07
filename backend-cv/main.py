@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -87,16 +88,37 @@ if not ai_client:
 # ─── Global Rate Limiter ──────────────────────────────────────────────────────
 ws_rate_limiter = IPBasedRateLimiter(rate=10.0, capacity=20)
 
-# ─── Auth Rate Limiter (per-IP) ──────────────────────────────────────────────
+# ─── Auth Rate Limiter (per-IP with TTL cleanup, M-13) ──────────────────────
 auth_attempts: dict[str, list[float]] = defaultdict(list)
 AUTH_RATE_LIMIT = 10  # max attempts per window
 AUTH_WINDOW_SEC = 60
 
-# ─── Account Lockout ─────────────────────────────────────────────────────────
+
+def _prune_auth_attempts(now: float | None = None):
+    """Remove entries older than AUTH_WINDOW_SEC to prevent unbounded growth."""
+    if now is None:
+        now = time.time()
+    cutoff = now - AUTH_WINDOW_SEC
+    expired = [k for k, v in auth_attempts.items() if v and v[-1] < cutoff]
+    for k in expired:
+        del auth_attempts[k]
+
+
+# ─── Account Lockout with TTL cleanup (M-14) ────────────────────────────────
 failed_login_attempts: dict[str, int] = defaultdict(int)
 lockout_threshold: dict[str, float] = {}
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION_SEC = 300  # 5 minutes
+
+
+def _prune_lockouts(now: float | None = None):
+    """Remove expired lockouts to prevent unbounded dict growth."""
+    if now is None:
+        now = time.time()
+    expired = [k for k, v in lockout_threshold.items() if v < now]
+    for k in expired:
+        lockout_threshold.pop(k, None)
+        failed_login_attempts.pop(k, None)
 
 # ─── WebSocket Message Size Limits (C-11) ────────────────────────────────────
 WS_MAX_TEXT_SIZE = 512 * 1024  # 512KB per message
@@ -1049,67 +1071,67 @@ async def ws_interview(websocket: WebSocket):
                     continue
 
                 raw = await websocket.receive_text()
-            if len(raw) > WS_MAX_TEXT_SIZE:
-                await websocket.send_json({"role": "system", "message": "Message too large"})
-                continue
-            WS_MESSAGES_TOTAL.labels(endpoint="ws_interview").inc()
-            start_ts = time.time()
-
-            try:
-                payload = json.loads(raw)
-            except json.JSONDecodeError:
-                await websocket.send_json({"role": "system", "message": "Invalid JSON payload."})
-                continue
-
-            # ── Pydantic validation ──────────────────────────────────────
-            msg_type = payload.get("type", "user_message")
-            model_cls = WS_MESSAGE_MODELS.get(msg_type)
-            if model_cls:
-                try:
-                    validated = model_cls(**payload)
-                except Exception as ve:
-                    await websocket.send_json({"role": "system", "message": f"Validation error: {ve}"})
+                if len(raw) > WS_MAX_TEXT_SIZE:
+                    await websocket.send_json({"role": "system", "message": "Message too large"})
                     continue
-            else:
-                await websocket.send_json({"role": "system", "message": f"Unknown message type: {msg_type}"})
-                continue
+                WS_MESSAGES_TOTAL.labels(endpoint="ws_interview").inc()
+                start_ts = time.time()
 
-            # ── Route validated message by type ─────────────────────────
-            if msg_type == "telemetry_event":
-                await hub.ingest_digital_event(validated.event)
-                continue
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    await websocket.send_json({"role": "system", "message": "Invalid JSON payload."})
+                    continue
 
-            if msg_type == "audio_features":
-                await hub.ingest_audio_features(validated.features)
-                continue
+                # ── Pydantic validation ──────────────────────────────────────
+                msg_type = payload.get("type", "user_message")
+                model_cls = WS_MESSAGE_MODELS.get(msg_type)
+                if model_cls:
+                    try:
+                        validated = model_cls(**payload)
+                    except Exception as ve:
+                        await websocket.send_json({"role": "system", "message": f"Validation error: {ve}"})
+                        continue
+                else:
+                    await websocket.send_json({"role": "system", "message": f"Unknown message type: {msg_type}"})
+                    continue
 
-            if msg_type == "keystroke_baseline":
-                await hub.sync_keystroke_baseline(validated.profile)
-                continue
+                # ── Route validated message by type ─────────────────────────
+                if msg_type == "telemetry_event":
+                    await hub.ingest_digital_event(validated.event)
+                    continue
 
-            if msg_type == "ping":
-                await websocket.send_json({"type": "pong", "timestamp": time.time()})
-                continue
+                if msg_type == "audio_features":
+                    await hub.ingest_audio_features(validated.features)
+                    continue
 
-            # user_message (default)
-            text = validated.message.strip()
-            if not text:
-                continue
+                if msg_type == "keystroke_baseline":
+                    await hub.sync_keystroke_baseline(validated.profile)
+                    continue
 
-            # C-3: Prompt injection guard
-            injected_patterns = _detect_injection(text)
-            if injected_patterns:
-                log.warning("[ws/interview] Prompt injection blocked: %s", injected_patterns)
-                await websocket.send_json({
-                    "role": "ai",
-                    "message": "I'm here to conduct a fair technical interview. Let's stay focused on the question at hand.",
-                    "injection_blocked": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                })
-                continue
+                if msg_type == "ping":
+                    await websocket.send_json({"type": "pong", "timestamp": time.time()})
+                    continue
 
-            response = await hub.think_and_respond(text)
-            await websocket.send_json(response)
+                # user_message (default)
+                text = validated.message.strip()
+                if not text:
+                    continue
+
+                # C-3: Prompt injection guard
+                injected_patterns = _detect_injection(text)
+                if injected_patterns:
+                    log.warning("[ws/interview] Prompt injection blocked: %s", injected_patterns)
+                    await websocket.send_json({
+                        "role": "ai",
+                        "message": "I'm here to conduct a fair technical interview. Let's stay focused on the question at hand.",
+                        "injection_blocked": True,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    continue
+
+                response = await hub.think_and_respond(text)
+                await websocket.send_json(response)
 
             if response.get("code_review"):
                 cr = response["code_review"]
@@ -1513,7 +1535,7 @@ def get_artifacts(session_id: str, user: dict = Depends(require_session_access))
                 "type": a.artifact_type,
                 "created_at": a.created_at.isoformat(),
                 "has_content": bool(a.content_json),
-                "content": json.loads(a.content_json) if a.content_json else None,
+                "content": json.loads(a.content_json[:100000]) if a.content_json else None,
             } for a in artifacts]
         }
     finally:

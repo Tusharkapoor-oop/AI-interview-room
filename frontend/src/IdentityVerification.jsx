@@ -9,10 +9,12 @@ import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 async function generateDeviceFingerprint() {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+  if (!ctx) return 'DFP-UNAVAILABLE';
   ctx.fillStyle = '#f00'; ctx.fillRect(0,0,10,10);
   ctx.fillStyle = 'rgba(0,255,0,0.5)'; ctx.fillRect(2,2,6,6);
   const h = canvas.toDataURL().slice(-32);
-  const s = [navigator.userAgent,navigator.language,screen.width+'x'+screen.height,screen.colorDepth,new Date().getTimezoneOffset(),navigator.hardwareConcurrency,navigator.deviceMemory||'?',h].join('|');
+  const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const s = [nav.userAgent||'',nav.language||'',(screen?.width||'?')+'x'+(screen?.height||'?'),screen?.colorDepth||'?',new Date().getTimezoneOffset(),nav.hardwareConcurrency||'?',nav.deviceMemory||'?',h].join('|');
   let hash=0; for(let i=0;i<s.length;i++){hash=(hash<<5)-hash+s.charCodeAt(i);hash|=0;}
   return 'DFP-'+Math.abs(hash).toString(16).toUpperCase().padStart(8,'0');
 }
@@ -102,6 +104,7 @@ function StepSelfieMatch({ onComplete }) {
   const capture=()=>{
     if(!vRef.current||!cRef.current) return;
     const ctx=cRef.current.getContext('2d');
+    if(!ctx) return;
     ctx.save();ctx.scale(-1,1);ctx.drawImage(vRef.current,-640,0,640,480);ctx.restore();
     setCap(cRef.current.toDataURL('image/jpeg',0.9));
     setMesh(extractFaceMesh2D(ctx.getImageData(0,0,640,480),640,480));
@@ -226,7 +229,7 @@ function StepDeviceCheck({ onComplete }) {
   const run=async()=>{
     setScan(true);const fp=await generateDeviceFingerprint();
     let vc={detected:false};
-    try{const devs=await navigator.mediaDevices.enumerateDevices();const labs=devs.filter(d=>d.kind==='videoinput').map(d=>d.label.toLowerCase());const keys=['obs','virtual','manycam','snap camera','droidcam','ndi','streamlabs'];vc={detected:keys.some(k=>labs.some(l=>l.includes(k)))};}catch{}
+      try{const devs=await navigator.mediaDevices.enumerateDevices();const labs=devs.filter(d=>d.kind==='videoinput').map(d=>d.label.toLowerCase());const keys=['obs','virtual','manycam','snap camera','droidcam','ndi','streamlabs'];vc={detected:keys.some(k=>labs.some(l=>l.includes(k)))};}catch{vc={detected:false};}
     await new Promise(r=>setTimeout(r,1500));setRes({fp,vc:vc.detected});setScan(false);
   };
   return (

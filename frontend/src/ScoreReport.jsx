@@ -141,7 +141,8 @@ function RadarChart({ scores, animated }) {
 }
 
 function DeepBiometricForensics() {
-  const metrics = typeof window !== 'undefined' && window.__aegisGazeEntropy ? window.__aegisGazeEntropy : {
+  const { gazeEntropy } = useAegisStore();
+  const metrics = gazeEntropy || {
     entropy: 0.88,
     acf1: 0.04,
     scanRatio: 0.11,

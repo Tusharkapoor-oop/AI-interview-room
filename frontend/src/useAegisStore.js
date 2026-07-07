@@ -55,7 +55,17 @@ export const useAegisStore = create((set, get) => ({
     face_detected: false,
     status: 'ok',
   },
-  setTelemetry: (t) => set({ telemetry: t }),
+  setTelemetry: (t) => set({
+    telemetry: {
+      gaze_anomaly: false,
+      hands_visible: 0,
+      pose: { pitch: 0, yaw: 0, roll: 0 },
+      face_detected: false,
+      status: 'ok',
+      ...t,
+      pose: { pitch: 0, yaw: 0, roll: 0, ...(t?.pose || {}) },
+    }
+  }),
 
   // ── Risk Events (Forensic Log — Server-Authoritative Lockdown) ──
   riskEvents: [],
@@ -201,6 +211,10 @@ export const useAegisStore = create((set, get) => ({
   setGestureMetrics: (metrics) => set(s => ({
     gestureMetrics: { ...s.gestureMetrics, ...metrics }
   })),
+
+  // ── Gaze Entropy (L-13: store, not window global) ───
+  gazeEntropy: null,
+  setGazeEntropy: (v) => set({ gazeEntropy: v }),
 
   // ── Accommodations & Relaxed Proctoring (US-05) ────────────
   accommodationRequested: false,

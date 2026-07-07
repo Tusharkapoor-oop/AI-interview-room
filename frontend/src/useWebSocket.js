@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const MAX_QUEUE_SIZE = 100;
+const MAX_QUEUE_SIZE = 500;
 const BASE_DELAY = 1000;
 const MAX_DELAY = 30000;
 const PING_INTERVAL = 30000;
