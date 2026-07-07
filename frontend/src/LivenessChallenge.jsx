@@ -9,30 +9,36 @@ const DOT_SEQUENCE = 10;
 const GAZE_MATCH_THRESHOLD = 0.12;
 const GAZE_REQUIRED_HITS = 5;
 
+function secureRandom() {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return arr[0] / 4294967296;
+}
+
 function generateRandomizedTrajectory(count) {
   const traj = [];
   traj.push({ x: 0, y: 0, type: 'fixate', duration: 800, label: 'Look Center' });
 
   for (let i = 1; i < count; i++) {
-    const pattern = Math.random();
+    const pattern = secureRandom();
     const prevX = traj[i - 1].x;
     const prevY = traj[i - 1].y;
     let x, y, type, label;
 
     if (pattern < 0.3) {
-      x = (Math.random() - 0.5) * 7;
-      y = (Math.random() - 0.5) * 4;
+      x = (secureRandom() - 0.5) * 7;
+      y = (secureRandom() - 0.5) * 4;
       type = 'saccade';
       label = 'Follow quickly';
     } else if (pattern < 0.6) {
       const angle = (i / count) * Math.PI * 2;
-      x = Math.cos(angle) * 3 * (Math.random() * 0.5 + 0.7);
-      y = Math.sin(angle) * 2 * (Math.random() * 0.5 + 0.7);
+      x = Math.cos(angle) * 3 * (secureRandom() * 0.5 + 0.7);
+      y = Math.sin(angle) * 2 * (secureRandom() * 0.5 + 0.7);
       type = 'pursuit';
       label = 'Follow smoothly';
     } else {
-      x = prevX * 0.3 + (Math.random() - 0.5) * 5;
-      y = prevY * 0.3 + (Math.random() - 0.5) * 3;
+      x = prevX * 0.3 + (secureRandom() - 0.5) * 5;
+      y = prevY * 0.3 + (secureRandom() - 0.5) * 3;
       type = 'fixate';
       label = 'Lock on';
     }
@@ -42,7 +48,7 @@ function generateRandomizedTrajectory(count) {
       y: Math.max(-2.8, Math.min(2.8, y)),
       type,
       label,
-      duration: type === 'saccade' ? 700 + Math.random() * 400 : 1200 + Math.random() * 600,
+      duration: type === 'saccade' ? 700 + secureRandom() * 400 : 1200 + secureRandom() * 600,
     });
   }
   traj.push({ x: 0, y: 0, type: 'blink', duration: 2000, label: 'Blink twice' });

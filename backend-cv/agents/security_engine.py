@@ -18,6 +18,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from statistics import mean
 from typing import Dict, List, Optional, Tuple
+import time
 
 
 @dataclass
@@ -263,7 +264,6 @@ class FiveChannelFusionEngine:
         key = channel.upper()
         if key not in self._channels:
             key = "ENVIRONMENT"
-        import time
         self._channels[key].append((time.time(), bool(anomalous), float(confidence)))
 
     def _prune_old(self, now: float) -> None:
@@ -272,7 +272,6 @@ class FiveChannelFusionEngine:
                 ch.popleft()
 
     def evaluate(self) -> Dict[str, object]:
-        import time
         now = time.time()
 
         # Periodic cleanup

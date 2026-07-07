@@ -9,9 +9,10 @@ Implements paper §4, §6 & specification Modules 6, 6B, 7 & 8:
   - Module 6B: Kinematic Gaze + rPPG Liveness Engine (ACTIVE — no screen flash, uses head micro-tremor)
 """
 
-import math
 import hashlib
 import logging
+import math
+import time
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
 import numpy as np
@@ -298,8 +299,7 @@ class PLRrPPGLivenessEngine:
 
         # ── 2. Evaluate rPPG (Heartbeat Extraction via FFT) ──
         # Throttle FFT to run at most every 2 seconds (B-5)
-        import time as _time
-        now_t = _time.time()
+        now_t = time.time()
         if now_t - self._last_fft_time < 2.0:
             rppg_passed = self._last_rppg_passed if hasattr(self, '_last_rppg_passed') else False
             bpm_est = self._last_bpm_est if hasattr(self, '_last_bpm_est') else 0.0
@@ -459,8 +459,7 @@ class KinematicGazeLivenessEngine:
 
         # ── 2. Evaluate rPPG (Heartbeat via Green-Channel FFT) ──
         # Throttle FFT to run at most every 2 seconds (B-5)
-        import time as _time
-        now_t = _time.time()
+        now_t = time.time()
         if now_t - self._last_fft_time < 2.0:
             rppg_passed = self._last_rppg_passed if hasattr(self, '_last_rppg_passed') else False
             bpm_est = self._last_bpm_est if hasattr(self, '_last_bpm_est') else 0.0

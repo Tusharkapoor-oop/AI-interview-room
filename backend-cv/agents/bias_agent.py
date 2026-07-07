@@ -119,7 +119,15 @@ disability, national origin, citizenship, criminal history, or makes unfair cult
                     log.warning("[BiasAuditAgent] AI flagged bias: %s", result.flags)
                 return result
             except Exception as e:
-                log.warning("[BiasAuditAgent] AI audit failed (fail-safe: SAFE): %s", e)
+                log.error("[BiasAuditAgent] AI audit failed (fail-deadly: UNSAFE — escalation): %s", e)
+                result = BiasAuditResult(
+                    question=question,
+                    safe=False,
+                    flags=["audit_unavailable"],
+                    suggestion="AI audit unavailable; flagged for human review.",
+                )
+                self._audit_log.append(result)
+                return result
 
         # Fallback: if AI unavailable, fast keyword check passed → mark safe
         result = BiasAuditResult(question=question, safe=True, flags=[])

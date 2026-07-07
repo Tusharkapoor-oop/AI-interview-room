@@ -26,6 +26,7 @@ import CalibrationScreen       from './CalibrationScreen';
 import InterviewArena          from './InterviewArena';
 import HumanInterviewerPanel   from './HumanInterviewerPanel';
 import CommandCenter           from './CommandCenter';
+import RecruiterGodMode        from './RecruiterGodMode';
 import IDEView                 from './IDEView';
 import ScoreReport             from './ScoreReport';
 import SecurityDashboard       from './SecurityDashboard';
@@ -54,6 +55,7 @@ const PHASE_LABELS = {
   interview:          'Interview',
   report:             'Report',
   recruiter:          'Command Center',
+  god_mode:           'God Mode (Lvl 4)',
   ide:                'Live IDE',
   human_interviewer:  'Interviewer Panel',
   security_dashboard: 'Security Intel',
@@ -79,7 +81,7 @@ function TopBar() {
   if (phase === 'landing') return null;
 
   const isCandidateFlow = CANDIDATE_PHASES.includes(phase);
-  const isAdminView     = ['recruiter', 'ide', 'human_interviewer'].includes(phase);
+  const isAdminView     = ['recruiter', 'god_mode', 'ide', 'human_interviewer'].includes(phase);
   const isSecDash       = phase === 'security_dashboard';
   const modeColor       = MODE_COLORS[interviewMode] || 'var(--aegis-cyan)';
 
@@ -127,6 +129,10 @@ function TopBar() {
             onClick={() => setPhase('recruiter')}
           >🎯 Command Center</button>
           <button
+            className={`phase-step ${phase === 'god_mode' ? 'active' : 'done'}`}
+            onClick={() => setPhase('god_mode')}
+          >⚡ God Mode</button>
+          <button
             className={`phase-step ${phase === 'human_interviewer' ? 'active' : 'done'}`}
             onClick={() => setPhase('human_interviewer')}
           >👤 Interviewer</button>
@@ -152,76 +158,39 @@ function TopBar() {
       )}
 
       {/* Right controls */}
-      <div className="bar-right">
-        {/* Interview mode badge */}
-        {interviewMode && phase !== 'onboard' && phase !== 'mode_select' && (
-          <div style={{
-            fontSize: '0.62rem', fontWeight: 800, padding: '3px 10px', borderRadius: 99,
-            color: modeColor, background: `color-mix(in srgb, ${modeColor} 14%, transparent)`,
-            border: `1px solid color-mix(in srgb, ${modeColor} 30%, transparent)`, letterSpacing: '0.5px',
-          }}>
-            {interviewMode === 'ai' ? '🤖 AI' : interviewMode === 'human' ? '👤 Human' : '⚙ Admin'} Mode
-          </div>
-        )}
-
-        {/* Candidate name */}
-        {(phase === 'interview' || phase === 'report' || phase === 'human_interviewer') && candidateName && (
-          <div className="candidate-pill">
-            <span className="candidate-avatar">{candidateName[0]?.toUpperCase()}</span>
-            <span>{candidateName}</span>
-            {sessionConfig?.seniority && (
-              <span className="candidate-level">{sessionConfig.seniority}</span>
-            )}
-          </div>
-        )}
-
-        {/* Integrity score */}
-        {(['interview', 'human_interviewer', 'recruiter'].includes(phase)) && (
-          <div
-            className="integrity-pill"
-            style={{
-              color: integrityScore < 50
-                ? 'var(--aegis-red)' : integrityScore < 80
-                ? 'var(--aegis-amber)' : 'var(--aegis-green)'
-            }}
-          >
-            🔒 {integrityScore}%
-          </div>
-        )}
-
-        {/* Security Dashboard button — always visible */}
+      <div className="top-right-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
-          id="nav-security-dashboard"
           onClick={() => setPhase('security_dashboard')}
           style={{
-            padding: '5px 12px', borderRadius: 8,
-            background: phase === 'security_dashboard'
-              ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)',
-            border: `1px solid ${phase === 'security_dashboard' ? 'rgba(239,68,68,0.5)' : 'rgba(239,68,68,0.25)'}`,
-            color: 'var(--aegis-red)', fontSize: '0.68rem', fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit',
-            transition: 'all 0.2s',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid var(--aegis-red)',
+            color: 'var(--aegis-red)',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}
         >
-          ☠ Security
+          <span>☠</span> Security Intel
         </button>
 
-        <div className="live-badge">
-          <span className="live-dot" />
-          LIVE
-        </div>
+        <span className="score-badge" style={{ fontSize: '0.8rem', fontWeight: 700, color: integrityScore < 40 ? '#ef4444' : integrityScore < 75 ? '#f59e0b' : '#10b981' }}>
+          🛡️ Score: {integrityScore}%
+        </span>
 
         <select
-          className="lang-btn"
           value={language}
           onChange={e => setLanguage(e.target.value)}
-          aria-label="Interview language"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem' }}
         >
           {LANGUAGES.map(l => (
             <option key={l.code} value={l.code}>{l.label}</option>
           ))}
         </select>
-
         {phase === 'interview' && (
           <button
             className="btn-secondary"
@@ -240,7 +209,7 @@ function TopBar() {
 function SessionTimer() {
   const { phase, tickSession } = useAegisStore();
   useEffect(() => {
-    if (!['interview', 'human_interviewer', 'recruiter', 'ide'].includes(phase)) return;
+    if (!['interview', 'human_interviewer', 'recruiter', 'god_mode', 'ide'].includes(phase)) return;
     const t = setInterval(tickSession, 1000);
     return () => clearInterval(t);
   }, [phase]);
@@ -262,6 +231,7 @@ function PhaseView() {
     case 'human_interviewer':   return <HumanInterviewerPanel />;
     case 'report':              return <ScoreReport />;
     case 'recruiter':           return <CommandCenter />;
+    case 'god_mode':            return <RecruiterGodMode />;
     case 'ide':                 return <IDEView />;
     case 'security_dashboard':  return <SecurityDashboard />;
     default:                    return <LuxLanding onComplete={() => setPhase('onboard')} onDirectEnter={() => setPhase('onboard')} onSecurityDash={() => setPhase('security_dashboard')} />;

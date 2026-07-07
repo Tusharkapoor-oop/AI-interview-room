@@ -12,6 +12,7 @@ Security: All queries are parameterized — NO raw string interpolation.
 Uses locked SQL queries (hard edges) for compliance-sensitive data.
 """
 import logging
+import re
 from .client import MCPServer, MCPTool
 
 log = logging.getLogger("aegis.mcp.sqlite")
@@ -98,7 +99,6 @@ def _build_sqlite_server(db_session_factory) -> MCPServer:
     async def get_integrity_score(session_id: str, caller_role: str = "CANDIDATE") -> dict:
         """Get the aggregated integrity score for a session. Requires authorization."""
         # H-7: Validate session_id format
-        import re
         if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', session_id, re.I):
             return {"error": "Invalid session_id format"}
         # H-7: Only RECRUITER and ADMIN can access integrity scores

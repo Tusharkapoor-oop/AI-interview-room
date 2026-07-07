@@ -13,6 +13,11 @@ from fastapi import FastAPI, Response
 
 
 def setup_observability(app: FastAPI) -> None:
+    """Configure OpenTelemetry and Prometheus metrics.
+
+    FastAPIInstrumentor auto-instruments all HTTP endpoints.
+    Use get_tracer() + tag_span_with_session() for custom spans.
+    """
     service_name = os.getenv("OTEL_SERVICE_NAME", "aegis-backend")
 
     resource = Resource.create({"service.name": service_name})
@@ -27,7 +32,10 @@ def setup_observability(app: FastAPI) -> None:
     FastAPIInstrumentor.instrument_app(app)
 
 
-# H-6: Strip dynamic path segments to prevent label cardinality explosion
+tracer = trace.get_tracer("aegis.backend")
+
+
+# Strip dynamic path segments to prevent label cardinality explosion
 _SANITIZED_PATHS: dict[str, str] = {}
 
 def _sanitize_path(path: str) -> str:

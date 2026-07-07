@@ -18,7 +18,9 @@ Architecture:
   here implemented as an in-process adapter for simplicity.
 """
 import asyncio
+import json
 import logging
+import httpx
 from .client import MCPServer, MCPTool
 
 log = logging.getLogger("aegis.mcp.github")
@@ -44,7 +46,6 @@ def _build_github_server(ai_client=None) -> MCPServer:
         """Fetch public repos and infer technology stack."""
         await _rate_limit_check()
         try:
-            import httpx
             async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.get(
                     f"{GITHUB_API}/users/{github_username}/repos",
@@ -117,7 +118,6 @@ def _build_github_server(ai_client=None) -> MCPServer:
                     temperature=0.6,
                     response_format={"type": "json_object"},
                 )
-                import json
                 data = json.loads(resp.choices[0].message.content)
                 questions = data if isinstance(data, list) else data.get("questions", [])
                 return questions[:4]

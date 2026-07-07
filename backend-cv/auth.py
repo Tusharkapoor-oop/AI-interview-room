@@ -17,6 +17,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
+    if os.getenv("FAIL_SECURE", "0") == "1":
+        raise RuntimeError(
+            "JWT_SECRET environment variable is required (min 32 chars). "
+            "Set it before starting the server."
+        )
     log.warning("JWT_SECRET not set in environment (or < 32 chars). Generated ephemeral 256-bit secret for this session.")
     JWT_SECRET = secrets.token_hex(32)
     os.environ["JWT_SECRET"] = JWT_SECRET
@@ -38,15 +43,37 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "15"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_EXPIRE_DAYS", "7"))
 
 
-# ─── Refresh Token Rotation ─────────────────────────────────────────────────────
-_used_refresh_tokens: set[str] = set()
+# ─── Refresh Token Rotation (Bounded TTLCache) ─────────────────────────────────
+from collections import OrderedDict
 
 
-def mark_refresh_token_used(jti: str) -> bool:
+class _TTLCache(OrderedDict):
+    """Bounded TTL cache for refresh token rotation. Prevents OOM (C-10)."""
+
+    def __init__(self, maxlen: int = 10000):
+        super().__init__()
+        self.maxlen = maxlen
+
+    def add(self, token: str, exp: float) -> None:
+        self[token] = exp
+        if len(self) > self.maxlen:
+            self.popitem(last=False)
+
+    def cleanup(self, now: float) -> int:
+        expired = [k for k, v in self.items() if v < now]
+        for k in expired:
+            del self[k]
+        return len(expired)
+
+
+_used_refresh_tokens = _TTLCache(maxlen=10000)
+
+
+def mark_refresh_token_used(jti: str, exp: float = 0.0) -> bool:
     """Mark a refresh token as used. Returns False if already used."""
     if jti in _used_refresh_tokens:
         return False
-    _used_refresh_tokens.add(jti)
+    _used_refresh_tokens.add(jti, exp)
     return True
 
 
@@ -124,7 +151,7 @@ async def get_current_user_from_ws(websocket: WebSocket) -> dict:
 
 def validate_origin(websocket: WebSocket, allowed_origins: list[str]) -> None:
     origin = (websocket.headers.get("origin", "") or "").lower().rstrip("/")
-    if not allowed_origins:
+    if not allowed_origins or "*" in allowed_origins:
         return
     normalized_allowed = [o.lower().rstrip("/") for o in allowed_origins]
     if origin not in normalized_allowed:

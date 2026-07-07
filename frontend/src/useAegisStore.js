@@ -10,7 +10,7 @@ export const useAegisStore = create((set, get) => ({
   mandatoryLockdownReason: '',
   _lockdownFired: false,
   triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason, _lockdownFired: true }),
-  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', integrityScore: 100, _lockdownFired: false }),
+  resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', _lockdownFired: false }),
 
   // ── Phase Management ─────────────────────────────────
   phase: 'landing',
@@ -57,81 +57,22 @@ export const useAegisStore = create((set, get) => ({
   },
   setTelemetry: (t) => set({ telemetry: t }),
 
-  // ── Risk Events (Permanent Forensic Log & Zero-Tolerance Lockdown) ──
+  // ── Risk Events (Forensic Log — Server-Authoritative Lockdown) ──
   riskEvents: [],
   addRiskEvent: (event) => {
     set((s) => {
-      // Modality mappings for late fusion (Problem 5)
-      const CHANNELS = {
-        'GAZE_ANOMALY': 1, 'GAZE_DEVIATION_ANGLE': 1, 'FIXATION_UNIFORMITY': 1, 'SMOOTH_PURSUIT_DETECTED': 1, 'NO_FACE_DETECTED': 1,
-        'HAND_ANOMALY': 2, 'SECONDARY_PERSON': 2,
-        'SECONDARY_VOICE_DETECTED': 3, 'TYPING_ANOMALY': 3, 'WHISPER_COACHING_DETECTED': 3, 'TTS_VOICE_DETECTED': 3,
-        'SYNTHETIC_INPUT': 4, 'SYNTHETIC_PASTE': 4, 'BURST_TYPING_DETECTED': 4,
-        'AI_API_CALL': 5, 'LLM_PHRASEOLOGY_DETECTED': 5
-      };
-
-      const now = Date.now();
+      const MAX_RISK_EVENTS = 500;
       const newEvents = [...s.riskEvents, {
-        id: now,
+        id: Date.now(),
         ts: new Date().toLocaleTimeString('en-US', { hour12: false }),
         sessionSec: s.sessionSeconds,
         ...event,
       }];
-
-      // Calculate N active channels in last 10 seconds
-      const recentEvents = newEvents.filter(e => now - e.id <= 10000);
-      const activeChannels = new Set();
-      recentEvents.forEach(e => {
-        const ch = CHANNELS[e.type];
-        if (ch) activeChannels.add(ch);
-      });
-      const N = activeChannels.size;
-
-      // Adjust severity based on N-channel late fusion rule
-      if (N >= 3) {
-        const mergedSeverity = N === 3 ? 'MEDIUM' : N === 4 ? 'HIGH' : 'CRITICAL';
-        // Add compound risk event to log
-        if (!newEvents.some(e => e.type === 'COMPOUND_RISK' && now - e.id <= 10000)) {
-          newEvents.push({
-            id: now + 1,
-            ts: new Date().toLocaleTimeString('en-US', { hour12: false }),
-            sessionSec: s.sessionSeconds,
-            type: 'COMPOUND_RISK',
-            severity: mergedSeverity,
-            desc: `Multi-Modal Late Fusion: ${N}-channel deviation detected (Active channels: ${Array.from(activeChannels).map(ch => `Ch ${ch}`).join(', ')}).`
-          });
-        }
+      if (newEvents.length > MAX_RISK_EVENTS) {
+        newEvents.splice(0, newEvents.length - MAX_RISK_EVENTS);
       }
-
-      // THE STRICTEST PROTOCOL IN THE WORLD: Zero Tolerance
-      const ZERO_TOLERANCE_SIGNALS = new Set([
-        'VIRTUAL_MACHINE_DETECTED', 'COMPOUND_RISK', 'DEVTOOLS_OPEN',
-        'GAZE_READING_PATTERN', 'WHISPER_COACHING_DETECTED', 'TTS_VOICE_DETECTED',
-        'EXTENSION_RUNTIME', 'SYNTHETIC_INPUT', 'EXTENSION_DETECTED', 'EXTENSION_GLOBAL',
-        'EXTENSION_IFRAME', 'EXTENSION_WORKER', 'AI_API_CALL', 'SYNTHETIC_PASTE', 'NO_FACE_DETECTED'
-      ]);
-
-      const highSeverityEvents = newEvents.filter(e => e.severity === 'high' || e.severity === 'critical');
-      const mediumEvents = newEvents.filter(e => e.severity === 'medium');
-      const isDisqualified =
-        highSeverityEvents.length >= 1 ||
-        mediumEvents.length >= 2 ||
-        newEvents.some(e => ZERO_TOLERANCE_SIGNALS.has(e.type));
-      
-      if (isDisqualified && !s.strictMandatoryLockdown && !s._lockdownFired) {
-        return {
-          riskEvents: newEvents,
-          _lockdownFired: true,
-          strictMandatoryLockdown: true,
-          mandatoryLockdownReason: `DEFCON 1 BIOMETRIC BREACH: [${event.type || 'Infraction threshold exceeded'}]. Zero-tolerance protocol enforcement active. Mandatory termination.`,
-          phase: 'report',
-          toast: { msg: '⛔ MANDATORY TERMINATION: Security protocol infraction confirmed.', type: 'error', duration: 15000 }
-        };
-      }
-
       return { riskEvents: newEvents };
     });
-    get().updateIntegrityScore();
   },
 
   // ── Detected Extensions Log ───────────────────────────
@@ -145,20 +86,25 @@ export const useAegisStore = create((set, get) => ({
   setServerIntegrityScore: (score) => {
     const { strictMandatoryLockdown, _lockdownFired } = get();
     if (_lockdownFired) return;
-    if (score < 40 && !strictMandatoryLockdown) {
+    const clamped = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+    if (clamped < 40 && !strictMandatoryLockdown) {
       set({
-        integrityScore: score,
+        integrityScore: clamped,
         _lockdownFired: true,
         strictMandatoryLockdown: true,
-        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Server Authoritative Score ${score}% < 40% strict threshold).`
+        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Server Authoritative Score ${clamped}% < 40% strict threshold).`
       });
     } else {
-      set({ integrityScore: score });
+      set({ integrityScore: clamped });
     }
   },
   updateIntegrityScore: () => {
-    // Client-side score deduction authority stripped per top 0.1% security spec.
-    // Integrity score is strictly authoritative from backend telemetry (setServerIntegrityScore).
+    // DEPRECATED — client-side scoring is no-op (H-6).
+    // Integrity score is strictly authoritative from server (setServerIntegrityScore).
+    // Callers will be refactored in a future pass; this shim prevents breakage.
+    if (import.meta.env.DEV) {
+      console.warn('[deprecated] updateIntegrityScore() called — no-op in production. Use setServerIntegrityScore().');
+    }
   },
 
   // ── Session ───────────────────────────────────────────

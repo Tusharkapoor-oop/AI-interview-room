@@ -11,6 +11,8 @@ services:
         value: 8000
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: ALLOWED_HOSTS
+        value: "*"
       - key: OPENAI_API_KEY
         sync: false   # Set this in Render Dashboard → Environment
       - key: JWT_SECRET

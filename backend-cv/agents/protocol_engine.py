@@ -201,10 +201,14 @@ class Protocol12LayerEngine:
             return False
         return True
 
-    # ── Layer 6: 3-Violation Auto-Submit Rule ────────────────────────────────
-    def evaluate_layer_6_strike_rule(self) -> Tuple[int, bool]:
-        """Returns total distinct strikes and whether automatic submission is triggered."""
-        strike_count = len(self.violations)
+    # ── Layer 6: 3-Violation Auto-Submit Rule (M-3: 5min time window) ──────
+    def evaluate_layer_6_strike_rule(self, now: float | None = None) -> Tuple[int, bool]:
+        """Returns total distinct strikes within the time window and whether auto-submit is triggered."""
+        if now is None:
+            now = time.time()
+        window = 300.0  # 5-minute sliding window
+        recent = [v for v in self.violations if now - v.timestamp_sec < window]
+        strike_count = len(recent)
         if strike_count >= 3:
             self.auto_submit_triggered = True
         return strike_count, self.auto_submit_triggered

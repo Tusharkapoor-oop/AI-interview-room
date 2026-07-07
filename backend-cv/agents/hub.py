@@ -17,8 +17,10 @@ Architecture notes:
   - All inter-agent messages are typed dataclasses (Pydantic-level safety)
   - HITL gates are broadcast to recruiter WebSocket for approval
 """
+import asyncio
 import json
 import logging
+import random
 import re
 from collections import deque
 from dataclasses import asdict
@@ -48,6 +50,29 @@ from .fusion_agent import FusionAgentEvaluator, BehavioralChannelScores
 from .gaze_agent import GazeAgentEvaluator
 
 log = logging.getLogger("aegis.hub")
+
+# ── Prompt injection detection patterns (C-3) ────────────────────────────────
+INJECTION_PATTERNS = [
+    r"ignore\s+all\s+(previous|prior)\s+(instructions|directions|rules|prompts)",
+    r"system\s+prompt",
+    r"you\s+are\s+(not|now)\s+(an?\s+)?(ai|assistant|chatbot|gpt|llm)",
+    r"forget\s+(everything|all\s+previous|all\s+prior)",
+    r"new\s+(instructions|directive|command|prompt|rule)",
+    r"override\s+(all\s+)?(instructions|directives|rules)",
+    r"print\s+(your\s+)?(system\s+)?prompt",
+    r"reveal\s+(your\s+)?(system\s+)?prompt",
+    r"DAN\b|do\s+anything\s+now",
+    r"act\s+as\s+(if\s+you\s+are|an?\s+)?(human|real\s+person|unrestricted)",
+]
+
+
+def _detect_injection(text: str) -> list[str]:
+    """Scan text for prompt injection patterns. Returns list of matched patterns."""
+    matches = []
+    for pattern in INJECTION_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            matches.append(pattern)
+    return matches
 
 # ── Hub system prompt ─────────────────────────────────────────────────────────
 ARIA_SYSTEM = """You are Aria, the AI interviewer for Aegis Interview Room — the world's most advanced \
@@ -98,7 +123,7 @@ class AegisHub:
         self._event_batcher   = event_batcher
 
         # In-context memory (Tier 1)
-        self._history: deque = deque(maxlen=50)
+        self._history: deque = deque(maxlen=200)
         self._risk_events: list[RiskEvent] = []
 
         # Agent status tracking (broadcast to frontend)
@@ -456,7 +481,6 @@ class AegisHub:
         Runs bias audit, AI generation, and code review concurrently
         since all three are independent.
         """
-        import asyncio
 
         self._update_status("aria", "thinking")
         self._history.append({"role": "user", "content": candidate_message})
@@ -501,7 +525,6 @@ class AegisHub:
                 except Exception as e:
                     log.warning("[Hub] Aria AI call failed: %s", e)
                     return "That's a thoughtful response! Can you walk me through the specific trade-offs you weighed?"
-            import random
             return random.choice([
                 "That's an excellent point! What was the most complex technical decision in that work?",
                 "Interesting approach. How did you validate the correctness of that solution?",

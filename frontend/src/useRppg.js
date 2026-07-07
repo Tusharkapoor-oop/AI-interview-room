@@ -35,11 +35,12 @@ const ROI = { xFrac: 0.3, yFrac: 0.0, wFrac: 0.4, hFrac: 0.25 };
 
 /** Compute mean of an array */
 function mean(arr) {
-  return arr.reduce((s, v) => s + v, 0) / arr.length;
+  return arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
 }
 
 /** Linear detrend — remove linear slope from signal */
 function detrend(signal) {
+  if (signal.length === 0) return [];
   const n = signal.length;
   const xMean = (n - 1) / 2;
   const yMean = mean(signal);
@@ -51,6 +52,16 @@ function detrend(signal) {
   const slope = den !== 0 ? num / den : 0;
   const intercept = yMean - slope * xMean;
   return signal.map((v, i) => v - (slope * i + intercept));
+}
+
+/** Check if signal has zero variance (all values identical) */
+function hasZeroVariance(signal) {
+  if (signal.length < 2) return true;
+  const first = signal[0];
+  for (let i = 1; i < signal.length; i++) {
+    if (signal[i] !== first) return false;
+  }
+  return true;
 }
 
 /** Simple Hann window to reduce spectral leakage */
@@ -66,6 +77,8 @@ function applyHann(signal) {
  */
 function slidingDft(signal, sampleRate) {
   const n = signal.length;
+  if (n < 3 || hasZeroVariance(signal)) return { bpm: 0, power: 0, snr: 0, totalPower: 0 };
+
   const detrendedWindowed = applyHann(detrend(signal));
 
   // Test frequencies in 0.1 BPM increments across our band

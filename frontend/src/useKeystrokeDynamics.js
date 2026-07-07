@@ -15,9 +15,17 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAegisStore } from './useAegisStore';
 
-const PROFILE_WINDOW = 50;        // keystrokes to build baseline
-const CHECK_WINDOW   = 20;        // keystrokes for ongoing comparison
-const DEVIATION_THRESHOLD = 2.5;  // standard deviations before flagging
+const PROFILE_WINDOW = 50;
+const CHECK_WINDOW   = 20;
+const DEVIATION_THRESHOLD = 2.5;
+const MAX_BUFFER_SIZE = 200;
+
+function circularPush(buf, val, maxSize) {
+  buf.push(val);
+  if (buf.length > maxSize) {
+    buf.splice(0, buf.length - maxSize);
+  }
+}
 
 export function useKeystrokeDynamics(enabled = true, onBaselineBuilt = null) {
   const { phase, addRiskEvent, updateIntegrityScore, showToast } = useAegisStore();
@@ -106,9 +114,8 @@ export function useKeystrokeDynamics(enabled = true, onBaselineBuilt = null) {
     // Flight time (time since last keypress)
     if (lastKeyTime.current !== null) {
       const flight = now - lastKeyTime.current;
-      if (flight < 5000) { // ignore very long pauses (user thinking)
-        flightTimes.current.push(flight);
-        if (flightTimes.current.length > 200) flightTimes.current.shift();
+      if (flight < 5000) {
+        circularPush(flightTimes.current, flight, MAX_BUFFER_SIZE);
       }
     }
     lastKeyTime.current = now;
@@ -124,8 +131,7 @@ export function useKeystrokeDynamics(enabled = true, onBaselineBuilt = null) {
     delete pressTimestamps.current[e.code];
 
     if (dwell > 0 && dwell < 2000) {
-      dwellTimes.current.push(dwell);
-      if (dwellTimes.current.length > 200) dwellTimes.current.shift();
+      circularPush(dwellTimes.current, dwell, MAX_BUFFER_SIZE);
     }
 
     // Build baseline from first PROFILE_WINDOW keystrokes

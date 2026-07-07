@@ -1,26 +1,58 @@
 import asyncio
+import os
 import time
 from collections import defaultdict
 
 
+# H-5: Only trust X-Forwarded-For when connection originates from known proxy
+_TRUSTED_PROXY_CIDRS: list[str] | None = None
+
+
+def _load_trusted_proxies() -> list[str]:
+    global _TRUSTED_PROXY_CIDRS
+    if _TRUSTED_PROXY_CIDRS is not None:
+        return _TRUSTED_PROXY_CIDRS
+    raw = os.getenv("TRUSTED_PROXIES", "")
+    if raw:
+        _TRUSTED_PROXY_CIDRS = [c.strip() for c in raw.split(",") if c.strip()]
+    else:
+        _TRUSTED_PROXY_CIDRS = []
+    return _TRUSTED_PROXY_CIDRS
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    proxies = _load_trusted_proxies()
+    if not proxies:
+        return False
+    return host in proxies
+
+
 def _get_client_ip(request=None, websocket=None) -> str:
-    """H-9: Extract real client IP, respecting X-Forwarded-For behind proxies."""
-    forwarded = None
+    """Extract real client IP.
+
+    Only trusts X-Forwarded-For when the direct connection comes from a
+    trusted proxy (configured via TRUSTED_PROXIES env var, comma-separated).
+    Falls back to direct connection IP when untrusted or unavailable.
+    """
+    direct_host = None
     if websocket:
-        forwarded = websocket.headers.get("x-forwarded-for", "")
+        direct_host = websocket.client.host if websocket.client else None
     elif request:
-        forwarded = request.headers.get("x-forwarded-for", "")
+        direct_host = request.client.host if request.client else None
 
-    if forwarded:
-        # X-Forwarded-For can be "client, proxy1, proxy2" — take the first
-        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
-        if ips:
-            return ips[0]
+    if direct_host and _is_trusted_proxy(direct_host):
+        forwarded = None
+        if websocket:
+            forwarded = websocket.headers.get("x-forwarded-for", "")
+        elif request:
+            forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+            if ips:
+                return ips[0]
 
-    if websocket:
-        return websocket.client.host
-    if request:
-        return request.client.host
+    if direct_host:
+        return direct_host
     return "unknown"
 
 
