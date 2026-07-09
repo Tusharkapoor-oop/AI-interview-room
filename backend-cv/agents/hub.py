@@ -26,6 +26,7 @@ from collections import deque
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Optional
+import time as _time
 
 from .bias_agent import BiasAuditAgent
 from .circuit_breaker import AgentCircuitBreaker
@@ -37,17 +38,17 @@ from .audio_agent import AudioAgent
 from .fraud_agent import FraudAgent
 from .continuous_verifier import ContinuousVerifier
 from .security_engine import (
-    FiveChannelFusionEngine,
     GestureRecognitionEngine,
     HybridGazeTracker,
-    KSAnomalyDetector,
     LivenessVerifier,
 )
 from .deepfake_agent import DeepfakeAgentEvaluator
 from .kinematic_agent import KinematicAgentEvaluator
 from .baseline_agent import BaselineAgentEvaluator
-from .fusion_agent import FusionAgentEvaluator, BehavioralChannelScores
+from .gend_service import GenDService
+from .emotion_agent import EmotionSecurityClassifier
 from .gaze_agent import GazeAgentEvaluator
+from .fusion import FusionEngine
 
 log = logging.getLogger("aegis.hub")
 
@@ -152,16 +153,18 @@ class AegisHub:
         self.continuous_verifier = ContinuousVerifier(session_id=session_id)
         self.gaze_tracker = HybridGazeTracker()
         self.gesture_engine = GestureRecognitionEngine()
-        self.ks_detector = KSAnomalyDetector()
         self.liveness_verifier = LivenessVerifier()
-        self.fusion_engine = FiveChannelFusionEngine()
+        self.fusion_engine = FusionEngine()
         self.circuit_breaker = AgentCircuitBreaker()
+        self._accommodation_mode = False
         # Wired dead-code agents (P1-12)
-        self.deepfake_evaluator = DeepfakeAgentEvaluator()
+        self.gend_service = GenDService(force_heuristic=True)
+        self.deepfake_evaluator = DeepfakeAgentEvaluator(gend_service=self.gend_service)
         self.kinematic_evaluator = KinematicAgentEvaluator()
         self.baseline_evaluator = BaselineAgentEvaluator()
-        self.fusion_agent_evaluator = FusionAgentEvaluator()
+
         self.gaze_evaluator = GazeAgentEvaluator()
+        self.emotion_classifier = EmotionSecurityClassifier()
 
         # Trajectory/keystroke metadata
         self.response_latencies = []
@@ -170,9 +173,17 @@ class AegisHub:
         # KS baseline buffer — collects real gaze data for baseline calibration
         self._gaze_baseline_buffer_x: list[float] = []
         self._gaze_baseline_buffer_y: list[float] = []
+        self._gaze_live_buffer_x: list[float] = []
+        self._gaze_live_buffer_y: list[float] = []
         self._baseline_fitted = False
-        self.ks_detector_x = None
-        self.ks_detector_y = None
+
+        # Emotion & audio/video dynamics buffers
+        self._pupil_buffer: list[float] = []
+        self._heart_rate_buffer: list[float] = []
+        self._eye_openness_buffer: list[float] = []
+        self._mouth_velocity_buffer: list[float] = []
+        self._audio_energy_buffer: list[float] = []
+        self._last_mouth_open: float = 0.0
 
         # Load memory at start (Tiers 2+3+4)
         self._memory_ctx = self.memory_agent.retrieve(job_role=job_role)
@@ -231,14 +242,40 @@ class AegisHub:
         self._update_status("cv_agent", "monitoring")
         return event
 
-    def ingest_security_features(self, inference: dict) -> Optional[dict]:
-        """Run the new security engine over the frame-level telemetry."""
+    def _flag_security_event(self, risk_event: RiskEvent):
+        """Sync helper: append a RiskEvent to the risk event list and feed fraud agent."""
+        self._risk_events.append(risk_event)
+        self.fraud_agent.ingest_event({
+            "event_type": risk_event.event_type,
+            "severity": risk_event.severity,
+            "timestamp": risk_event.timestamp.isoformat() if hasattr(risk_event.timestamp, 'isoformat') else str(risk_event.timestamp),
+            "fraud_signal": risk_event.fraud_signal,
+        })
+
+    async def ingest_security_features(self, inference: dict) -> Optional[dict]:
+        """Run the new security engine over the frame-level telemetry.
+        When accommodation mode is active, gaze/micro-expression tracking is bypassed."""
         try:
             pose_dict = inference.get("pose") or inference.get("head_pose") or {}
             if not isinstance(pose_dict, dict):
                 pose_dict = {}
             pitch_val = float(pose_dict.get("pitch", 0.0) or 0.0)
             yaw_val = float(pose_dict.get("yaw", 0.0) or 0.0)
+
+            if self._accommodation_mode:
+                return {
+                    "gaze_estimate": {"screen_x": 0.5, "screen_y": 0.5},
+                    "gesture_event": None,
+                    "liveness": {"is_live": True},
+                    "fusion": {"composite_risk_score": 0.0, "session_terminated": False},
+                    "windowed": {"session_terminated": False},
+                    "accumulated": {"temporal_accumulated_risk": 0.0},
+                    "deepfake": {"risk_score": 0.0},
+                    "kinematic": {"risk_score": 0.0},
+                    "baseline_divergence": None,
+                    "in_active_ui": True,
+                    "accommodation_mode": True,
+                }
 
             gaze_estimate = self.gaze_tracker.update_gaze(
                 pitch=pitch_val,
@@ -269,30 +306,37 @@ class AegisHub:
                 self._gaze_baseline_buffer_x.append(gaze_estimate["screen_x"])
                 self._gaze_baseline_buffer_y.append(gaze_estimate["screen_y"])
                 if len(self._gaze_baseline_buffer_x) >= 30:
-                    # Fit separate baselines for x and y axes
-                    self.ks_detector_x = KSAnomalyDetector()
-                    self.ks_detector_x.fit_baseline(list(self._gaze_baseline_buffer_x))
-                    self.ks_detector_y = KSAnomalyDetector()
-                    self.ks_detector_y.fit_baseline(list(self._gaze_baseline_buffer_y))
                     self._baseline_fitted = True
-                    log.info("[Hub] KS baseline fitted with %d real gaze samples (x+y)", len(self._gaze_baseline_buffer_x) + len(self._gaze_baseline_buffer_y))
-            ks_anomalous = False
+                    log.info("[Hub] KS baseline collected — %d samples (x+y)", len(self._gaze_baseline_buffer_x) + len(self._gaze_baseline_buffer_y))
             baseline_div = None
             if self._baseline_fitted:
-                # Test each axis independently
-                ks_x = self.ks_detector_x.is_anomalous([gaze_estimate["screen_x"]])
-                ks_y = self.ks_detector_y.is_anomalous([gaze_estimate["screen_y"]])
-                ks_anomalous = ks_x or ks_y
-                baseline_div = self.baseline_evaluator.evaluate_metric_divergence(
-                    "screen_x", list(self._gaze_baseline_buffer_x), [gaze_estimate["screen_x"]]
+                self._gaze_live_buffer_x.append(gaze_estimate["screen_x"])
+                self._gaze_live_buffer_y.append(gaze_estimate["screen_y"])
+                if len(self._gaze_live_buffer_x) > 60:
+                    self._gaze_live_buffer_x.pop(0)
+                    self._gaze_live_buffer_y.pop(0)
+                baseline_div = self.baseline_evaluator.evaluate_session_profile(
+                    {"screen_x": list(self._gaze_baseline_buffer_x), "screen_y": list(self._gaze_baseline_buffer_y)},
+                    {"screen_x": list(self._gaze_live_buffer_x), "screen_y": list(self._gaze_live_buffer_y)}
                 )
 
-            # P1-12: Wire deepfake + kinematic evaluators
-            if inference.get("mouth_velocities") is None or inference.get("audio_energies") is None:
-                log.warning("[Hub] DeepfakeEvaluator using empty lists — no mouth/audio data in inference dict")
+            # P1-12 & R-11: Wire deepfake + kinematic evaluators with temporal alignment
+            curr_mouth_open = float(inference.get("mouth_open", 0.0) or 0.0)
+            mouth_vel = abs(curr_mouth_open - self._last_mouth_open) * 30.0
+            self._last_mouth_open = curr_mouth_open
+            self._mouth_velocity_buffer.append(mouth_vel)
+            audio_e = float(inference.get("audio_energy", inference.get("audio_rms", 0.0)) or 0.0)
+            self._audio_energy_buffer.append(audio_e)
+            if len(self._mouth_velocity_buffer) > 60:
+                self._mouth_velocity_buffer.pop(0)
+                self._audio_energy_buffer.pop(0)
+
+            mouth_vels = inference.get("mouth_velocities") or self._mouth_velocity_buffer
+            audio_ens = inference.get("audio_energies") or self._audio_energy_buffer
+
             deepfake_risk = self.deepfake_evaluator.evaluate_stream(
-                mouth_velocities=inference.get("mouth_velocities") or [],
-                audio_energies=inference.get("audio_energies") or [],
+                mouth_velocities=mouth_vels,
+                audio_energies=audio_ens,
                 spectral_artifact_scores=inference.get("spectral_artifact_scores") or [],
             )
             if inference.get("skeletons") is None:
@@ -313,36 +357,124 @@ class AegisHub:
             if face_event:
                 log.warning("[Hub] %s — %s", face_event.event_type, face_event.description)
 
-            # Gaze Fixation & Whitespace check
-            in_active_ui = self.gaze_evaluator.is_in_active_region(gaze_estimate["screen_x"], gaze_estimate["screen_y"])
+            face_embedding = inference.get("face_embedding") or []
+            if face_embedding:
+                embed_event = self.continuous_verifier.verify_face_embedding_consistency(face_embedding)
+                if embed_event:
+                    log.warning("[Hub] %s — %s", embed_event.event_type, embed_event.description)
 
-            self.fusion_engine.add_channel_result("gaze", bool(inference.get("gaze_anomaly", False) or ks_anomalous or not in_active_ui), gaze_estimate["confidence"])
-            self.fusion_engine.add_channel_result("gesture", gesture_event is not None, 0.86 if gesture_event else 0.12)
-            self.fusion_engine.add_channel_result("audio", bool(inference.get("audio_anomaly", False)), 0.75)
-            self.fusion_engine.add_channel_result("keystroke", bool(inference.get("typing_anomaly", False)), 0.7)
-            self.fusion_engine.add_channel_result("content", bool(inference.get("content_anomaly", False)), 0.68)
-            fusion = self.fusion_engine.evaluate()
-
-            channel_scores = BehavioralChannelScores(
-                gaze_risk=0.8 if not in_active_ui else 0.1,
-                baseline_risk=0.8 if (baseline_div and baseline_div.get("divergence_detected")) else 0.1,
-                kinematic_risk=kinematic_result.get("risk_score", 0.0),
-                liveness_risk=0.8 if not liveness.get("is_live", True) else 0.1,
-                deepfake_risk=deepfake_risk.get("risk_score", 0.0),
+            audio_rms_val = float(inference.get("audio_energy", inference.get("audio_rms", 0.0)) or 0.0)
+            speaking_val = bool(inference.get("candidate_speaking", False) or inference.get("mouth_open", 0) > 0.3)
+            voice_event = self.continuous_verifier.verify_voice_consistency(
+                current_audio_rms=audio_rms_val,
+                is_speaking=speaking_val,
             )
-            posterior_fusion = self.fusion_agent_evaluator.evaluate_session(channel_scores)
+            if voice_event:
+                log.warning("[Hub] %s — %s", voice_event.event_type, voice_event.description)
+
+            # Gaze Fixation & Whitespace check (6th channel per AEGIS §11.1)
+            in_active_ui = self.gaze_evaluator.is_in_active_region(gaze_estimate["screen_x"], gaze_estimate["screen_y"])
+            whitespace_penalty = 0.8 if not in_active_ui else 0.1
+            ks_violated = bool(baseline_div and (baseline_div.get("overall_violation") or baseline_div.get("divergence_detected")))
+            ks_penalty = 0.7 if ks_violated else 0.1
+
+            channel_risks = {
+                "gaze": ks_penalty,
+                "whitespace": whitespace_penalty,
+                "baseline": 0.8 if ks_violated else 0.1,
+                "kinematic": kinematic_result.get("risk_score", 0.0),
+                "liveness": 0.8 if not liveness.get("is_live", True) else 0.1,
+                "deepfake": deepfake_risk.get("risk_score", 0.0),
+            }
+            fusion = self.fusion_engine.evaluate(channel_risks)
+            windowed = self.fusion_engine.evaluate_windowed(channel_risks)
+            self.fusion_engine.add_temporal_window(channel_risks, _time.time())
+            accumulated = self.fusion_engine.evaluate_accumulated()
+
+            # Update emotion dynamics buffers
+            self._pupil_buffer.append(float(inference.get("pupil_diameter_mm", 3.5) or 3.5))
+            self._heart_rate_buffer.append(float(inference.get("bpm", 78.0) or 78.0))
+            ear_val = inference.get("ear", 0.5)
+            if isinstance(ear_val, dict):
+                ear_val = ear_val.get("left", 0.5)
+            self._eye_openness_buffer.append(float(ear_val or 0.5))
+            if len(self._pupil_buffer) > 60:
+                self._pupil_buffer.pop(0)
+                self._heart_rate_buffer.pop(0)
+                self._eye_openness_buffer.pop(0)
+
+            # Emotion security classifier (EU AI Act Art. 5(1)(f) safety exception)
+            emotion_result = self.emotion_classifier.classify(
+                gaze_history_x=self._gaze_live_buffer_x or [gaze_estimate.get("screen_x", 0.5)],
+                gaze_history_y=self._gaze_live_buffer_y or [gaze_estimate.get("screen_y", 0.5)],
+                pupil_diameters=self._pupil_buffer,
+                heart_rate_history=self._heart_rate_buffer,
+                eye_openness_history=self._eye_openness_buffer,
+                head_pose_variance=abs(pitch_val) + abs(yaw_val),
+                face_detected=bool(inference.get("face_detected", False)),
+            )
+            if emotion_result["state"] in ("SPOOFING_ANOMALY", "STRESS") and emotion_result["confidence"] > 0.7:
+                self._flag_security_event(
+                    RiskEvent(
+                        session_id=self.session_id,
+                        event_type="EMOTION_SECURITY_FLAG",
+                        severity="HIGH",
+                        description=emotion_result["explanation"],
+                        metadata={"emotion_state": emotion_result["state"], "confidence": emotion_result["confidence"]},
+                    )
+                )
+
+            # === Check for security violations and feed into risk pipeline ===
+            should_flag = (
+                fusion.get("session_terminated", False)
+                or windowed.get("session_terminated", False)
+            )
+
+            if should_flag:
+                event_type_parts = []
+                cr = fusion.get("composite_risk_score", 0.0)
+                if cr >= 0.5:
+                    sev = "CRITICAL" if cr >= 0.9 else "HIGH" if cr >= 0.7 else "MEDIUM"
+                    event_type_parts.append(f"FUSION_{sev}")
+                if windowed.get("n_rule_violation", False):
+                    event_type_parts.append("N_PLUS_3_RULE")
+                if fusion.get("session_terminated", False):
+                    event_type_parts.append("SESSION_TERMINATED")
+
+                event_type = "_".join(event_type_parts) if event_type_parts else "SECURITY_VIOLATION"
+                sev_label = "CRITICAL" if cr >= 0.9 else "HIGH" if cr >= 0.7 else "MEDIUM"
+
+                risk_event = RiskEvent(
+                    session_id=self.session_id,
+                    event_type=event_type,
+                    severity=sev_label,
+                    description=fusion.get("explanation", "Security engine flagged anomaly"),
+                    confidence=1.0 - cr,
+                    pose={},
+                    gaze_quadrant="CENTER",
+                    fraud_signal=True,
+                )
+                self._flag_security_event(risk_event)
+                log.info("[Hub] Security violation flagged — %s %s", sev_label, event_type)
 
             return {
                 "gaze_estimate": gaze_estimate,
                 "gesture_event": asdict(gesture_event) if gesture_event else None,
                 "liveness": liveness,
-                "ks_anomalous": ks_anomalous,
                 "fusion": fusion,
+                "windowed": windowed,
+                "accumulated": accumulated,
                 "deepfake": deepfake_risk,
                 "kinematic": kinematic_result,
                 "baseline_divergence": baseline_div,
-                "posterior_fusion": posterior_fusion,
                 "in_active_ui": in_active_ui,
+                "emotion_analysis": {
+                    "state": emotion_result["state"],
+                    "confidence": emotion_result["confidence"],
+                    "confidence_95_ci": emotion_result["confidence_95_ci"],
+                    "all_probs": emotion_result["all_probs"],
+                    "explanation": emotion_result["explanation"],
+                },
             }
         except Exception as exc:
             log.error("[Hub] security engine failed: %s", exc, exc_info=True)
@@ -596,6 +728,12 @@ class AegisHub:
             "code_review":     code_review.to_dict() if code_review else None,
             "timestamp":       datetime.now(timezone.utc).isoformat(),
         }
+
+    def set_accommodation_mode(self, enabled: bool):
+        """Disable gaze/micro-expression tracking for medical conditions.
+        Falls back to identity + environment scan only."""
+        self._accommodation_mode = enabled
+        log.info("[Hub] Accommodation mode %s", "enabled" if enabled else "disabled")
 
     async def end_session(self):
         """Called when the WebSocket closes — writes episodic memory, finalizes artifacts."""

@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import os
 import secrets
 import logging
@@ -18,14 +19,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
-    if os.getenv("FAIL_SECURE", "0") == "1":
-        raise RuntimeError(
-            "JWT_SECRET environment variable is required (min 32 chars). "
-            "Set it before starting the server."
-        )
-    log.warning("JWT_SECRET not set in environment (or < 32 chars). Generated ephemeral 256-bit secret for this session.")
-    JWT_SECRET = secrets.token_hex(32)
-    os.environ["JWT_SECRET"] = JWT_SECRET
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required (min 32 chars). "
+        "Set it before starting the server."
+    )
 
 # Use RS256 asymmetric signing if RSA keys are configured, else fallback to HS256
 _RSA_PRIV_KEY = os.getenv("JWT_RSA_PRIVATE_KEY")

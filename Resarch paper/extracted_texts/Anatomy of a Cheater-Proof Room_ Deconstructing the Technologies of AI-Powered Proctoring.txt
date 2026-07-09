@@ -1,0 +1,1064 @@
+
+
+=== PAGE 1 ===
+
+Anatomy of a Cheater-Proof Room:
+Deconstructing the Technologies of AI-
+Powered Proctoring
+Core Architectural Frameworks for Proctoring Systems
+The architectural design of modern AI-powered interview proctoring systems represents a
+sophisticated response to the dual pressures of ensuring absolute security and
+maintaining a functional, privacy-respecting user experience. The predominant model
+that has emerged to address these competing demands is a Hybrid Edge-Cloud
+architecture  . This framework strategically partitions computational tasks between the
+candidate's local device (the "edge") and a centralized cloud backend, creating a
+symbiotic relationship that optimizes for low latency, robust security, and scalable
+analytics. The rationale for this model is rooted in the fundamental requirements of real-
+time monitoring, where every millisecond of delay can impact both the candidate's
+experience and the system's ability to respond to anomalies. By executing the most time-
+sensitive components locally, these systems achieve responsiveness unattainable with
+purely server-side processing. Simultaneously, they leverage the cloud for orchestration,
+heavy-duty computation, and long-term data aggregation, thereby balancing performance
+with centralized control and advanced analytical capabilities.
+The client-side, or edge, component is the cornerstone of the system's real-time defense.
+It is here that computationally intensive computer vision (CV) inference tasks are
+executed directly within the candidate's web browser . This approach is critical for
+achieving the stringent latency requirements necessary for live monitoring; target
+latencies for CV inference are often below 200 milliseconds to ensure that the proctoring
+system remains synchronized with the video stream and can react instantaneously to
+suspicious behavior . This local execution is made possible through the adoption of
+modern web standards like WebAssembly (Wasm) and WebGPU. These technologies
+allow complex machine learning models, originally developed in languages like C++ or
+Python, to be compiled and run efficiently on the client's CPU and GPU without requiring
+plugins or native code installation . For instance, TensorFlow.js provides a JavaScript
+library that enables developers to run and even retrain ML models in the browser, while
+ONNX Runtime Web facilitates the deployment of models from various frameworks,62
+12
+62
+
+=== PAGE 2 ===
+
+further expanding the choice of available algorithms . The use of Wasm and WebGPU
+offloads significant processing burdens from the server, reduces network traffic, and
+ensures a more responsive application, which is crucial for tasks like continuous gaze
+tracking and head pose estimation .
+A paramount benefit of this edge-centric approach is its profound impact on data privacy
+and regulatory compliance. By performing initial analysis locally, the system can process
+raw biometric data—such as facial images and eye movements—without ever
+transmitting it to a remote server . Instead of sending a continuous, high-bandwidth
+video feed, only lightweight, structured telemetry data is sent over a secure WebSocket
+connection . This payload might contain JSON objects with timestamped information
+about gaze vectors, head pose angles, or the confidence level of a detected gesture . This
+strategy of data minimization is not merely a best practice but a necessity for complying
+with increasingly strict global biometric privacy laws such as the General Data Protection
+Regulation (GDPR) in Europe, the Biometric Information Privacy Act (BIPA) in Illinois,
+USA, and the California Consumer Privacy Act (CCPA) . These regulations often impose
+stringent rules on the collection, storage, and use of biometric identifiers. By keeping raw
+video streams local and only transmitting anonymized or hashed biometric templates
+(like a cryptographic hash of a facial vector), proctoring platforms can significantly
+mitigate their legal and ethical liabilities . Furthermore, this architecture enhances
+user trust, as candidates are more likely to consent to a system that processes sensitive
+data on their own device rather than on a third-party server.
+The server-side, or cloud, component serves as the central nervous system for the entire
+platform. Its responsibilities are primarily focused on orchestration, data aggregation,
+and large-scale analytics. When a candidate initiates an interview session, the cloud
+backend handles authentication, session management, and the generation of secure,
+time-limited tokens required for establishing connections, such as those needed for
+WebRTC-based video streaming . Once the session begins, the cloud becomes the
+destination for the high-throughput telemetry stream sent from the client. To manage this
+influx of data—especially from multiple concurrent interviews—a scalable messaging
+queue like Apache Kafka is often employed . Kafka acts as a buffer, allowing the backend
+to ingest vast amounts of real-time data from various sources without being
+overwhelmed. This data is then processed by dedicated microservices, typically built with
+frameworks like FastAPI in Python, which are designed to handle specific analytical
+tasks . These services perform complex operations such as aggregating biometric data
+over time, applying sophisticated anomaly detection algorithms, and calculating the final
+"Integrity Score" for each session . While the edge device performs immediate, real-time
+checks, the cloud is responsible for the holistic analysis that informs the recruiter's final
+review.62
+7
+22
+
+=== PAGE 3 ===
+
+This division of labor also provides a crucial layer of resilience and scalability. If a
+candidate's device lacks the resources to run the CV models at the desired frame rate
+(e.g., dropping below 15 FPS), the client-side logic can detect this and signal the cloud
+for fallback processing . In such scenarios, more computationally expensive models could
+be invoked on powerful GPU-accelerated nodes within the cloud infrastructure to
+continue monitoring the session, albeit with slightly higher latency . This graceful
+degradation ensures that the proctoring function is maintained even on less capable
+hardware. The cloud infrastructure itself is typically deployed on a Kubernetes cluster
+with auto-scaling capabilities, ensuring that the platform can dynamically adjust its
+resource allocation to meet demand during peak usage times . Storage is similarly
+partitioned based on data type. Video recordings and artifacts are securely stored in
+object storage buckets like AWS S3, with access controlled via pre-signed URLs that
+expire quickly to prevent unauthorized access . Meanwhile, the high-frequency biometric
+telemetry is ingested into a specialized Time-Series database such as TimescaleDB or
+InfluxDB, which is optimized for handling massive volumes of timestamped data
+efficiently . This polyglot persistence strategy allows the system to leverage the right tool
+for each data type, ensuring optimal performance and cost-efficiency. The combination of
+these elements creates a robust, secure, and highly scalable architectural foundation
+upon which the advanced monitoring capabilities of modern proctoring systems are built.
+Component Technology/Standard Primary Function Key Benefit
+Client-Side
+(Edge)WebAssembly (Wasm) /
+WebGPUExecutes ML models for real-time CV
+inference .Low Latency (<200ms) , Reduced
+Bandwidth .
+Client-Side
+(Edge)TensorFlow.js / ONNX
+Runtime WebRuns quantized ML models (e.g., FaceMesh,
+Pose).Cross-framework compatibility, efficient JS
+execution .
+Client-Side
+(Edge)MediaPipe Provides high-fidelity facial landmark and
+pose estimation .High accuracy, optimized for browser
+performance .
+Server-Side
+(Cloud)Kubernetes Cluster Manages containerized backend services
+and auto-scaling.Scalability, Resilience .
+Server-Side
+(Cloud)Apache Kafka Ingests high-throughput, real-time
+telemetry streams from clients.Buffering, decoupling producers (clients)
+from consumers (workers) .
+Server-Side
+(Cloud)GraphQL / REST API Provides endpoints for session initiation,
+token generation, and reporting .Flexible data fetching (GraphQL),
+standardized communication (REST).
+Server-Side
+(Cloud)PostgreSQL Stores relational data: user profiles, session
+metadata, risk events .ACID compliance, structured data
+management.
+Server-Side
+(Cloud)TimescaleDB / InfluxDB Stores high-frequency biometric telemetry
+(gaze, pose, etc.) .Optimized for time-series data, high write
+throughput.
+Server-Side
+(Cloud)AWS S3 / Similar Securely stores video recordings and
+generated reports .Durability, security, lifecycle management.6212
+39 55
+
+=== PAGE 4 ===
+
+Advanced Gesture and Pose Recognition for Physical
+Integrity
+The physical integrity of an online interview hinges on the system's ability to verify that
+the candidate is alone, unaided, and engaged with the assessment in real-time. Advanced
+gesture and pose recognition systems serve as the primary sensor for this dimension of
+proctoring, employing a suite of computer vision techniques to monitor the candidate's
+body language and environment. These systems move far beyond simple face detection,
+analyzing skeletal structures to identify a wide range of actions and objects that could
+indicate academic dishonesty. The technology stack for this capability is dominated by
+several key frameworks and methodologies, each contributing to a multi-layered defense
+against common cheating vectors.
+At the forefront of this domain is Google's MediaPipe , a cross-platform framework
+frequently cited for its efficiency and high-performance implementations of various
+machine learning pipelines, particularly for human body and facial analysis . For
+pose estimation, MediaPipe Pose is a top-tier solution that detects 33 key points of the
+human body, including joints like the shoulders, elbows, wrists, hips, knees, and ankles 
+. This detailed skeletal map allows the system to track the candidate's posture, head
+orientation, and limb movements with remarkable precision. MediaPipe supports multi-
+person pose detection, a critical feature for identifying a second person in the room. By
+configuring the num_poses  parameter in the PoseLandmarkerOptions , the system
+can be instructed to detect up to four distinct individuals within a single frame . Each
+detected individual is represented as a separate list of keypoints, enabling the software to
+differentiate between the candidate and any unauthorized personnel who may have
+entered the camera's field of view . The system analyzes the number of tracked
+poses; if more than one full set of landmarks is consistently detected, it triggers a high-
+severity flag for a secondary person . MediaPipe is particularly well-suited for browser-
+based applications because its models are optimized to run efficiently on CPUs and GPUs
+via WebGL, making it a cornerstone of Edge AI proctoring solutions .
+Another prominent framework is OpenPose , an open-source system renowned for its
+bottom-up approach to multi-person pose estimation . Unlike some top-down methods
+that first detect people and then analyze each one, OpenPose first identifies all individual
+body parts (e.g., hands, feet, faces) across the entire image and then uses Part Affinity
+Fields (PAFs)—a representation of how body parts are connected—to group them into
+complete skeletons for each person . This makes OpenPose exceptionally effective at
+handling crowded scenes with multiple overlapping individuals, offering a different1965
+2162
+21
+2165
+65
+5565
+23
+23
+
+=== PAGE 5 ===
+
+trade-off compared to MediaPipe's focus on single-subject optimization . While
+OpenPose offers state-of-the-art accuracy, its integration into browser environments can
+be more complex than MediaPipe's streamlined solutions. However, its robustness makes
+it a valuable alternative or complementary tool in a comprehensive proctoring pipeline,
+especially when considering the possibility of a candidate being observed by others in a
+shared space.
+In addition to full-body pose estimation, many systems incorporate YOLO (You Only
+Look Once)  object detection models, with YOLOv8  being a popular choice, to scan for
+specific prohibited items . This is typically implemented in a two-stage pipeline.
+First, the YOLOv8 model, which is highly efficient and accurate for object detection, scans
+the video frame to draw bounding boxes around any objects it recognizes as "restricted,"
+such as mobile phones, books, or laptops . Second, once a restricted object is
+located, a more specialized module, such as a traditional face detector like Dlib or a
+cropped version of the main pose estimator, can be applied to determine if a human hand
+is interacting with the object . This modular approach combines the speed of YOLOv8
+with the precision of other models, creating a robust system for detecting the
+unauthorized use of aids. The integration of object detection is a critical layer of defense,
+as it directly addresses the threat of candidates having access to hidden notes or
+electronic devices.
+Beyond object detection, the system meticulously monitors specific gestures and
+movements that are indicative of cheating. One of the most commonly flagged gestures is
+the hand-to-ear motion , which could signify the use of a concealed Bluetooth earpiece
+to receive instructions or answers . MediaPipe includes a dedicated Hand tracking
+module that provides 21 landmarks for each hand, allowing the system to precisely track
+finger and wrist positions . By analyzing the trajectory of the hand's keypoints, the
+software can detect when a hand moves rapidly towards the ear and raise a
+corresponding alert . Another critical area of monitoring is the candidate's head pose.
+Continuous tracking of head yaw (left-right rotation), pitch (up-down tilt), and roll
+(tilting of the head sideways) is standard practice . If the candidate turns their head
+beyond a predefined threshold, such as 45 degrees, the system can automatically mute
+the microphone and display a non-punitive warning overlay, prompting the candidate to
+refocus on the screen . This prevents the candidate from looking away to consult external
+materials. The combination of these techniques—multi-person pose detection for
+secondary individuals, object detection for unauthorized aids, and gesture tracking for
+prohibited actions—creates a comprehensive physical surveillance layer that is essential
+for securing the interview environment.20
+819
+78
+8
+65
+61
+65
+
+=== PAGE 6 ===
+
+Technology/
+FrameworkPrimary Function Key Features & Metrics Typical Application in Proctoring
+MediaPipe Pose Human Body Pose
+EstimationDetects 33 body keypoints. Supports multi-person
+detection (configurable num_poses ) . Runs
+efficiently in-browser via WebGL/Wasm .Identifying secondary persons in the frame,
+monitoring head pose (yaw, pitch, roll) to
+prevent looking away .
+MediaPipe
+FaceMeshFacial Landmark
+DetectionDetects 468 precise 3D facial landmarks,
+including eyes, nose, mouth, and iris position 
+.Foundational input for eye tracking, lip
+reading (for speech analysis), and general
+head pose estimation .
+MediaPipe
+HandHand Pose
+EstimationDetects 21 landmarks per hand. Tracks finger and
+wrist positions in real-time .Detecting specific prohibited gestures, such
+as a hand-to-ear motion indicating a hidden
+earpiece .
+OpenPose Multi-Person 2D
+Pose DetectionBottom-up approach using Part Affinity Fields
+(PAFs) to associate body parts into skeletons .
+Excels in crowded scenes.Alternative/complementary method for
+secondary person detection, robust in
+scenarios with partial occlusions .
+YOLOv8 Real-Time Object
+DetectionHigh-speed, high-accuracy detection of objects
+within bounding boxes. Can be trained on custom
+datasets .Scanning the environment for prohibited
+items like mobile phones, books, or laptops 
+.
+Dlib Facial Recognition /
+Object DetectionOften used for face recognition tasks, such as
+verifying that a detected face matches the
+candidate's profile .Secondary verification step after an object
+(like a phone) is detected to see if the
+candidate is interacting with it.
+Multi-Dimensional Eye Tracking and Pupil-Level
+Analysis
+While gesture and pose recognition provide a robust measure of physical presence and
+action, advanced eye tracking delves deeper into the cognitive and physiological states of
+the candidate, offering a more nuanced form of behavioral biometrics. Modern proctoring
+systems leverage sophisticated algorithms to interpret subtle eye movements and
+pupillary changes, moving beyond simple gaze direction to infer intent, cognitive load,
+and biological liveness. This dimension of monitoring is powered by a combination of
+foundational computer vision models and specialized analytical techniques that transform
+raw video data into actionable insights. The ultimate goal is to create a multi-dimensional
+profile of the candidate's visual behavior, which can be correlated with established
+patterns of cheating.
+The technological bedrock for most browser-based eye tracking systems is Google's
+MediaPipe FaceMesh . This framework is a high-fidelity facial landmark detection
+model capable of running in real-time on-device, making it ideal for Edge AI
+implementations . FaceMesh identifies and tracks 468 three-dimensional21
+62 21
+37
+39 5565
+61
+65
+23
+20
+19 78
+8
+39
+1239
+
+=== PAGE 7 ===
+
+coordinates on the human face, providing an incredibly detailed mesh that includes
+numerous points around the eyes and eyelids . This dense set of landmarks is the
+indispensable input for any subsequent gaze estimation or pupil analysis algorithm. The
+system uses the relative positions of these eye-related landmarks—the center of the pupil,
+the corners of the eyes, and the position of the eyelids—to calculate the direction of the
+gaze vector (pitch and yaw) and estimate the size of the pupil . Some advanced
+implementations, such as \webeyetrack, build upon MediaPipe's output to create
+scalable, real-time gaze estimation frameworks that can function effectively in
+challenging, real-world conditions . The accuracy of these systems can be further
+enhanced with self-calibrating neural networks that adapt to individual differences in eye
+shape and distance from the camera .
+From the foundational gaze data provided by FaceMesh, the system derives several
+critical metrics related to eye movement. One of the most important is the analysis of 
+fixations and saccades . Fixations are brief periods (typically lasting 100-400
+milliseconds) where the eyes are relatively still, allowing for information processing .
+Saccades are the rapid, ballistic movements that shift the gaze from one point of fixation
+to another . Proctoring systems employ sophisticated algorithms to classify these
+events based on spatial and temporal thresholds, identifying patterns that deviate from
+normal, context-appropriate behavior . For example, prolonged off-screen gazes
+lasting longer than a predefined duration (e.g., 3 seconds) are often flagged as
+suspicious, as they may indicate the candidate is looking at external aids . Similarly,
+erratic or excessively frequent saccades, or abnormal blinking patterns, can be indicative
+of stress or an attempt to evade tracking . Certain gaze patterns are strongly associated
+with cheating; for instance, sustained glances towards the top-right corner of the screen
+are often interpreted as a sign of referencing hidden notes or a second screen, a behavior
+known as "looking up and to the right" .
+Perhaps the most powerful application of pupil-level analysis is the measurement of the 
+Pupillary Light Reflex (PLR) , a cornerstone of active liveness detection . The PLR is
+an involuntary physiological response where the pupil constricts in response to an
+increase in light intensity and dilates when light levels decrease . Proctoring systems
+exploit this reflex to definitively prove the presence of a living human being, effectively
+neutralizing photo and video replay attacks . During an active check, the system
+rapidly cycles the background color or brightness of the interview interface on the screen.
+It then uses the on-device camera and MediaPipe FaceMesh to continuously measure the
+change in the candidate's pupil diameter in response to these artificial light shifts .
+A valid biological response—where the pupil contracts sharply in a bright flash and
+dilates in a dark transition—is a strong indicator of a real, living person. The absence of3955
+3792
+12
+3892
+15
+15
+1618
+14
+32
+3132
+35
+3475
+
+=== PAGE 8 ===
+
+this reflex is a definitive sign of a spoofing attack . Beyond its anti-spoofing utility, the
+PLR is also a neurological marker that can reveal information about cognitive load,
+emotional arousal, and even certain medical conditions, adding another layer of insight
+for the system .
+An even more advanced technique employed for liveness verification is Remote
+Photoplethysmography (rPPG) . This cutting-edge, non-contact method extracts a user's
+heartbeat from a standard video stream by analyzing minute, cyclical variations in skin
+color caused by blood flow . As blood pulses through the capillaries near the skin's
+surface, it causes subtle changes in the amount of red light absorbed and reflected, which
+are imperceptible to the naked eye but can be captured by a camera . rPPG algorithms
+isolate these micro-variations in the RGB channels of the video feed over time and apply
+signal processing techniques, such as Fast Fourier Transform (FFT), to extract the heart
+rate signal . Because photos, masks, and even some deepfakes lack a realistic, pulsatile
+blood flow, the successful detection of a heartbeat via rPPG serves as a powerful proof of
+life . Research has demonstrated the feasibility of integrating rPPG into face anti-
+spoofing systems, with some approaches using Recurrent Neural Networks (RNNs) to
+improve the accuracy of the measured signals . The combination of gaze tracking,
+saccade analysis, PLR, and rPPG creates a comprehensive suite of tools for monitoring the
+candidate's visual and physiological state, providing a formidable defense against a wide
+array of impersonation and assisted cheating techniques.
+Analytical Technique Underlying
+TechnologyMetric(s) Measured Purpose in Proctoring
+Gaze Estimation MediaPipe FaceMesh Gaze Vector (Pitch, Yaw) Determines where the candidate is looking on the
+screen or in the room. Flags off-screen gazes or
+glances at the top-right corner.
+Fixation/Saccade Analysis Custom Algorithms on
+Gaze DataDuration and frequency of
+fixations and saccades ;
+Blinking patterns .Identifies unnatural or excessive eye movements
+that may indicate stress, evasion, or reference to
+external aids.
+Pupillary Light Reflex
+(PLR)Screen Brightness
+Control + MediaPipe
+FaceMeshPupil Diameter Change Rate
+and Magnitude .Active liveness detection to distinguish a live
+person from a photo, mask, or video replay.
+Confirms biological presence.
+Remote
+Photoplethysmography
+(rPPG)Color Variation
+Analysis in Video FeedHeart Rate (BPM) Anti-spoofing; verifies a biological pulse to defeat
+sophisticated deepfake and mask attacks. Also
+indicates physiological state.
+Pupil Size (Baseline) MediaPipe Iris Model Resting Pupil Diameter Monitors for cognitively-driven pupil dilation
+(independent of ambient light) which can indicate
+reading from hidden scripts or intense mental
+effort.35
+303656
+5488
+54
+10
+911
+1053
+39 37
+15
+14
+3132
+1054
+37
+
+=== PAGE 9 ===
+
+Environmental Isolation and Auditory Forensics
+Creating a truly secure and isolated digital environment is arguably the most formidable
+challenge for online proctoring systems, given the inherent openness of web browsers
+and operating systems. A candidate's device is a complex ecosystem, and preventing
+unauthorized interactions requires a multi-pronged strategy that leverages browser APIs,
+clever workarounds, and continuous auditory monitoring. The goal is to establish a
+"digital lockdown" that prevents candidates from accessing external resources,
+communicating with others, or using auxiliary displays to gain an unfair advantage. This
+dimension of security relies heavily on the interplay between the proctoring application
+and the underlying browser and operating system, pushing the boundaries of what is
+technically feasible within a web context.
+A primary method for controlling the candidate's immediate workspace is through the
+enforcement of full-screen mode . The proctoring application requests exclusive
+permission to display the interview in full screen, a standard browser capability designed
+to immerse users in a webpage without distractions . This action effectively hides
+browser UI elements like the address bar and tabs, reducing the temptation and
+opportunity for the candidate to switch contexts. However, simply entering full-screen
+mode is not enough, as users can often exit it by pressing the Esc key or using other OS-
+level shortcuts. Therefore, the system must continuously monitor the state of the
+application. This is achieved primarily through the Page Visibility API , a critical browser
+API for environmental control . This API provides events, specifically the 
+visibilitychange  event, which fires whenever the document's visibility state changes
+—for example, when the user switches to a different browser tab, minimizes the window,
+or navigates to another application . When the document's visibility status becomes
+"hidden," the proctoring software can immediately log the event, issue a warning to the
+candidate, and potentially escalate it to a formal risk flag . This real-time feedback
+loop is the cornerstone of detecting attempts to multitask or access external information.
+To further harden the environment, proctoring systems implement measures to block
+common avenues for cheating. Custom JavaScript can be used to intercept and disable
+right-click context menus, preventing candidates from easily opening browser developer
+tools, which could be used to inspect page elements or inject malicious scripts .
+Similarly, text selection and copy-paste functions can be programmatically disabled to
+stop candidates from copying questions or prompts to search engines . These client-
+side controls, combined with the Page Visibility API, create a baseline of environmental
+isolation. However, the rise of modern browser extension standards, particularly 
+Manifest V3 , has introduced new complexities. Manifest V3 imposes stricter permissions22
+77
+7691
+22
+22
+22
+
+=== PAGE 10 ===
+
+and sandboxing to enhance security and privacy, limiting the power of extensions
+compared to the older Manifest V2 standard . For example, Manifest V3 extensions
+no longer have persistent background pages, making it harder to run long-lived
+monitoring processes. Developers of proctoring extensions must now rely on more event-
+driven architectures and APIs like the Screen Capture API . The Screen Capture API
+allows an extension to capture a user's screen, but it is opt-in, requiring explicit user
+consent for each recording session . This limitation has led to creative workarounds,
+such as creating a "hidden" pinned tab within the browser and starting the screen
+recording there to maintain continuous operation even if the main interview tab is
+switched . The development of open-source, headless proctoring libraries highlights
+the ongoing community effort to build robust functionality within these constrained
+environments .
+While browser controls manage the digital interface, auditory forensics  extend the
+monitoring to the candidate's physical surroundings. Microphones are continuously
+monitored throughout the interview to detect sounds that are inconsistent with a solo
+examination. The primary concern is the detection of a secondary voice  speaking to or
+guiding the candidate . Audio analysis algorithms can be trained to distinguish
+between the candidate's voice and other sounds in the room, flagging instances of
+conversation or whispered assistance . More advanced systems employ speaker
+verification  techniques to confirm that any detected voice belongs to the registered
+candidate. Methods like Gaussian Mixture Models with Universal Background Models
+(GMM-UBM) or i-vector based systems can create a unique vocal signature of the
+candidate and compare it against any other voices detected in the audio stream .
+Another key area of audio analysis is the detection of keyboard typing . The sound of
+typing can be analyzed to see if its cadence and rhythm match the candidate's natural
+speech patterns. A mismatch, such as fast, rhythmic typing while the candidate is silent,
+could suggest they are reading from a script or receiving real-time answers from someone
+else . Some systems go so far as to use microphone arrays to perform active speaker
+detection, triangulating the horizontal position of a talker to determine if they are located
+at a desk (candidate) or elsewhere in the room (potential helper) . This
+combination of digital lockdown measures and sophisticated audio analysis forms a
+comprehensive barrier against environmental cheating.2758
+26
+40
+26
+22
+28
+43
+50
+28
+9394
+
+=== PAGE 11 ===
+
+Control Method Browser API / Technique Description Limitations / Mitigations
+Full-Screen
+EnforcementFullscreen API Requests exclusive full-screen access for
+the interview window to minimize
+distractions. Users can often exit full-screen mode with 
+Esc. Requires continuous monitoring to
+detect exits.
+Tab Switching
+DetectionPage Visibility API
+(visibilitychange
+event)Listens for changes in the document's
+visibility state to detect tab switches or
+window minimization. Relies on browser support and proper
+implementation. Can be circumvented by
+switching to another application.
+Context Menu
+BlockingJavaScript Event Interception Disables right-click context menus to
+prevent access to browser developer
+tools. Can be bypassed by using keyboard
+shortcuts (e.g., Ctrl+Shift+I ).
+Text Selection
+PreventionCSS ( user-select:
+none) / JavaScriptPrevents users from highlighting and
+copying text from the interview
+interface. Does not prevent copying from other
+applications or screenshots.
+Secondary
+Monitor
+DetectionScreen Capture API (opt-in) Allows the extension to capture the
+screen, but cannot programmatically
+scan for other displays. No direct programmatic detection.
+Heuristic analysis of the video feed may
+infer a second screen.
+Extension
+HardeningManifest V3 Workarounds Using a "hidden" pinned tab to maintain
+recording sessions despite API
+restrictions. Complex to implement. Relies on browser-
+specific behaviors and may break with
+updates.
+Secondary Voice
+DetectionAudio Forensics / Speaker
+VerificationContinuously analyzes audio for voices
+other than the candidate's using
+techniques like GMM-UBM. Performance degrades in noisy
+environments. Requires a pre-recorded
+sample for effective verification.
+Keyboard Typing
+AnalysisAudio Signal Processing Analyzes the sound of keyboard typing
+to correlate its rhythm with the
+candidate's speech patterns. Less effective on quiet keyboards. Prone to
+false positives from nervous tapping.
+System Implementation, Performance, and Security
+The successful implementation of a secure AI proctoring system depends not only on the
+sophistication of its constituent technologies but also on the meticulous engineering of its
+data pipeline, adherence to strict performance benchmarks, and a robust security posture.
+The entire architecture must be designed to operate reliably under real-world conditions,
+balancing demanding computational loads with the need for minimal latency and
+maximum data protection. This involves careful selection of communication protocols,
+data serialization formats, and encryption standards, all orchestrated to create a seamless
+yet vigilant monitoring environment.
+The communication between the client-side proctoring agent and the cloud backend is a
+critical performance bottleneck that must be carefully managed. To facilitate real-time
+interaction, the system utilizes WebRTC  for establishing the high-fidelity, low-latency22
+7791
+22
+22
+40
+2649
+2850
+28
+
+=== PAGE 12 ===
+
+audio and video stream between the candidate and the interviewer . For the continuous
+telemetry data generated by the CV models (e.g., gaze vectors, head pose, gesture
+confidences), a WebSocket  connection is the preferred protocol . WebSockets provide a
+persistent, bidirectional channel over which the client can push small, frequent updates
+to the server without the overhead of repeated HTTP requests. To optimize bandwidth
+consumption, which is vital for candidates with limited internet connectivity, this
+telemetry data is serialized using an efficient binary format like Protocol Buffers
+(Protobuf)  or MessagePack  instead of plain JSON . These formats offer significant
+compression over text-based representations, helping to keep the total data payload
+under a target of 50 KB/s . On the server side, this high-volume stream of telemetry is
+ingested by a message broker like Apache Kafka, which decouples the data producers
+(clients) from the data consumers (backend processing workers), ensuring that the
+system can handle bursts of activity and scale horizontally as needed .
+Performance is a non-negotiable requirement, with strict benchmarks defined for both
+the client and server sides. On the client, the primary metric is the frame rate  at which
+the CV models can process the video stream. The system must be able to process video at
+a minimum of 30 frames per second (FPS) locally . If the FPS drops below a critical
+threshold of 15 FPS due to insufficient client hardware, the system should alert the user
+to close background applications to free up resources, or gracefully degrade the
+monitoring strictness . Latency is equally critical; the round-trip time for a CV inference
+and the transmission of its results must remain below 200 milliseconds to ensure the
+proctoring is perceived as instantaneous and does not desynchronize with the video feed 
+. On the server side, the key benchmark is uptime , which must be maintained at
+99.99% to ensure business continuity and reliability for recruiters and candidates alike .
+This requires a resilient cloud infrastructure built on technologies like Kubernetes with
+auto-scaling groups and redundant components to handle failures gracefully.
+Data security and privacy are paramount concerns in a system that handles sensitive
+biometric and personal information. The implementation plan must embed security at
+every layer of the architecture. All data transmitted between the client and server must
+be encrypted in transit using a strong protocol like TLS 1.3  . At rest, sensitive data such
+as candidate videos and raw biometric logs must be stored in encrypted object storage
+(e.g., AWS S3 with SSE-KMS) and databases, respectively . A crucial principle is data
+minimization . Raw, unprocessed video streams containing biometric data should never
+leave the candidate's device unless absolutely necessary . Instead, the system should
+transmit only the final, aggregated telemetry data or anonymized risk flags. For
+personally identifiable information (PII) like names and emails, end-to-end encryption
+should be applied at the application layer before the data is even written to the relational
+database . Biometric templates, such as the numerical vector representing a candidate's12
+7
+
+=== PAGE 13 ===
+
+unique facial geometry, should not be stored in plaintext. Instead, a cryptographic hash
+of the vector should be stored in the relational database, while the raw vector itself is
+stored in a separate, highly secured vector database . This prevents an attacker from
+reverse-engineering the original biometric data even if they compromise the database.
+Furthermore, a strict data retention policy  must be enforced, with automated processes
+(e.g., using AWS Lambda or cron jobs) scheduled to permanently delete raw video and
+high-frequency telemetry data after a predetermined period, such as 90 days, retaining
+only the essential metadata and aggregated results for historical purposes .
+Aspect Implementation Detail Rationale & Impact
+Communication
+ProtocolWebRTC for media, WebSockets for
+telemetry .Enables low-latency video/audio streaming and efficient, real-time
+data transfer.
+Data Serialization Protobuf or MessagePack . Reduces bandwidth consumption by producing smaller payloads
+compared to JSON, crucial for candidates with poor internet.
+Telemetry Ingestion Apache Kafka . Handles high-throughput, real-time data streams from thousands of
+concurrent sessions, providing buffering and scalability.
+Client-Side Latency Target <200ms for CV inference . Ensures real-time monitoring is responsive and does not cause
+stream desynchronization or a poor user experience.
+Client-Side Frame
+RateMinimum 30 FPS, with alerts for drops
+below 15 FPS .Maintains high-quality tracking; lower FPS can lead to missed events
+or inaccurate data.
+In-Transit
+EncryptionTLS 1.3 . Standard for securing all data flowing between the client and the
+cloud backend.
+At-Rest Encryption AES-256 for databases, AWS S3 SSE-KMS
+for object storage .Protects sensitive data (videos, PII, biometric logs) from
+unauthorized access if storage is compromised.
+Biometric Data
+HandlingCryptographic hashing of facial
+embeddings stored in the DB .Prevents reverse-engineering of biometric templates, a key
+requirement for compliance with laws like BIPA.
+Data Minimization Process and analyze data on-device;
+transmit only telemetry/risk flags .Reduces data breach risk, lowers bandwidth costs, and simplifies
+compliance with privacy regulations.
+Data Retention Automated purging of raw data after 90
+days .Adheres to privacy principles by not storing unnecessary data
+indefinitely.
+Synthesis: Integrity Scoring and Navigating Systemic
+Risks
+The culmination of the diverse technologies discussed—from gesture recognition and eye
+tracking to environmental isolation and auditory forensics—is the creation of a unified,
+multi-modal integrity score. This score, typically presented on a scale of 0 to 100, is the
+primary output for recruiters, synthesizing a vast amount of disparate data into a single,12
+7
+
+=== PAGE 14 ===
+
+actionable metric that reflects the likelihood of academic dishonesty during an interview .
+The calculation of this score is not a simple average but a sophisticated aggregation
+performed by an integrity scoring engine, which weighs different types of risk events
+based on their severity and context . For example, a flag for a secondary person in the
+room would carry more weight than a brief moment of off-screen gaze. This fusion of
+passive, continuous monitoring with periodic active checks creates a much more resilient
+system than any single modality could achieve alone. The resulting score, coupled with a
+detailed timeline of timestamped risk events, empowers recruiters to make informed
+judgments without having to manually review hours of video, transforming a
+cumbersome forensic task into an efficient, evidence-based review process .
+However, the implementation of such a powerful surveillance system is fraught with
+systemic risks that must be proactively managed. The most significant challenge is
+avoiding a high rate of false positives . Overly aggressive algorithms, particularly in
+computer vision, can misinterpret nervous habits, medical conditions, or simple user
+errors as cheating. A candidate who blinks frequently, twitches, or needs to look away to
+think might be incorrectly flagged, leading to a negative assessment and potential
+reputational damage . To mitigate this, a multi-layered mitigation strategy is essential.
+First, the system should incorporate contextual awareness; for instance, instead of
+immediately flagging a candidate who looks away, it should first trigger a gentle, non-
+punitive UI prompt asking them to refocus . Second, a human-in-the-loop review process
+should be mandatory for any session that receives a low integrity score, ensuring that
+automated flags are validated by a person before any consequences are applied . Third,
+the system should offer an "Accommodation Mode," which can be activated based on
+documented medical needs (e.g., for conditions like Tourette's syndrome or severe
+anxiety), temporarily disabling sensitive modules like gaze and micro-expression tracking
+to ensure fairness and accessibility .
+Another major risk is algorithmic bias . Machine learning models used for facial
+recognition, pose estimation, and liveness detection are trained on large datasets, and if
+these datasets are not diverse and representative, the models can exhibit significant
+performance disparities across different demographics . For example, a facial recognition
+model might have a lower accuracy rate for individuals with darker skin tones or those
+who wear glasses, leading to higher false rejection rates for these groups. To combat this,
+the development process must include a rigorous bias and fairness audit  phase. This
+involves testing the CV models extensively across a wide range of candidates with varying
+skin tones, ages, genders, and ethnicities under different lighting conditions . The goal is
+to ensure that the false positive and false negative rates are consistent across all
+demographic groups. Transparency in this process is also crucial; publishing the results of
+these audits can help build trust with users and stakeholders.4
+
+=== PAGE 15 ===
+
+Finally, the project faces the risk of privacy backlash and legal challenges . The very
+nature of collecting and analyzing biometric data is controversial, and public perception
+can turn negative if not handled with extreme care . There is a delicate balance
+between the need for security and the candidate's right to privacy. The mitigation
+strategy here is to prioritize privacy by design. By leveraging an Edge-Cloud architecture
+that processes and analyzes data locally on the candidate's device wherever possible, the
+system minimizes the amount of raw biometric data that ever touches the cloud .
+Engaging legal counsel specializing in biometric privacy laws (like BIPA and GDPR) from
+the earliest stages of development is non-negotiable . Clear, transparent privacy policies
+that explain exactly what data is collected, why it is needed, and how it is protected are
+essential for obtaining and maintaining user consent. Ultimately, the success of a
+proctoring system will depend not only on its technical prowess but also on its ability to
+navigate these complex ethical, social, and legal landscapes responsibly.
+Reference
+Talview Interview Proctoring - Microsoft Marketplace https://
+marketplace.microsoft.com/en-us/product/talview.talview_interview_proctoring?
+tab=Overview
+(PDF) Ensuring academic integrity through automated online exam ... https://
+www.researchgate.net/publication/
+400765099_Ensuring_academic_integrity_through_automated_online_exam_proctorin
+g_a_decade_long_systematic_review
+Remote Online Exam Proctoring Market Outlook 2025-2032 https://
+www.intelmarketresearch.com/remote-online-exam-proctoring-2025-2032-323-4419
+College students' perceptions of remote online exams - Frontiers https://
+www.frontiersin.org/journals/education/articles/10.3389/feduc.2026.1721211/full
+Remote Invigilation | Springer Nature Link https://link.springer.com/rwe/
+10.1007/978-3-031-51447-0_231-1
+Key Factors in the Implementation of E-Proctoring in the Spanish ... https://
+www.mdpi.com/2071-1050/14/13/8112
+AI-Driven Remote Proctoring & Integrity Solutions | EduSynch https://edusynch.com/
+products/remote-proctoring-solutions4
+7
+1. 
+2. 
+3. 
+4. 
+5. 
+6. 
+7. 
+
+=== PAGE 16 ===
+
+An In-Browser Proctoring System Using YOLO-Based Object ... https://
+www.researchgate.net/publication/402110707_An_In-
+Browser_Proctoring_System_Using_YOLO-
+Based_Object_Detection_and_Gaze_Analysis
+Face Liveness Detection by rPPG Features and Contextual Patch ... https://
+www.researchgate.net/publication/
+335254927_Face_Liveness_Detection_by_rPPG_Features_and_Contextual_Patch-
+Based_CNN
+Robust Face Liveness Detection for Biometric Authentication using ... https://
+arxiv.org/html/2511.02645v1
+Face Biometric Spoof Detection Method Using a Remote ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC9024982/
+\webeyetrack: Scalable Eye-Tracking for the Browser via On-Device ... https://
+arxiv.org/html/2508.19544v1
+Advanced Eye Tracking with Python & JavaScript - LinkedIn https://
+www.linkedin.com/posts/yuribeno_advanced-eye-tracking-with-python-javascript-
+activity-7187732736063823872-pV-Q
+Strategies for enhancing automatic fixation detection in head ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11541274/
+Eye Movement and Pupil Measures: A Review - Frontiers https://www.frontiersin.org/
+journals/computer-science/articles/10.3389/fcomp.2021.733531/full
+(PDF) Identifying fixations and saccades in eye-tracking protocols https://
+www.researchgate.net/publication/
+220811146_Identifying_fixations_and_saccades_in_eye-tracking_protocols
+Automated Analysis Pipeline for Extracting Saccade, Pupil, and ... https://
+www.mdpi.com/2411-5150/8/1/14
+Identification of fixations and saccades in eye-tracking data using ... https://arxiv.org/
+html/2512.23926v2
+NFL- MultiPose Estimation using YOLOv8 & Mediapipe - Kaggle https://
+www.kaggle.com/code/dariussingh/nfl-multipose-estimation-using-yolov8-mediapipe
+Comparing YOLOv8 and MediaPipe for pose detection - LinkedIn https://
+www.linkedin.com/posts/umairwaheed128_computervision-poseestimation-
+fitnesstech-activity-7331680535762657282-G3Y8
+Issue with tracking multiple persons on mediapipe - Stack Overflow https://
+stackoverflow.com/questions/78270783/issue-with-tracking-multiple-persons-on-
+mediapipe
+A headless hook-based exam proctoring system with React https://dev.to/anshsaini/a-
+headless-hook-based-exam-proctoring-system-with-react-20do8. 
+9. 
+10. 
+11. 
+12. 
+13. 
+14. 
+15. 
+16. 
+17. 
+18. 
+19. 
+20. 
+21. 
+22. 
+
+=== PAGE 17 ===
+
+Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields https://arxiv.org/
+abs/1812.08008
+Manifest v3 and Extensions - Microsoft Community Hub https://
+techcommunity.microsoft.com/discussions/edgeinsiderenterprise/manifest-v3-and-
+extensions/3614186
+Developers Insight On Manifest v3 Privacy and Security ... - arXiv https://arxiv.org/
+html/2507.13926v1
+Chrome Extension Manifest V3 Screen Recording Ends When ... https://
+stackoverflow.com/questions/72432588/chrome-extension-manifest-v3-screen-
+recording-ends-when-changing-the-tab
+From Manifest V2 to V3: A Study on the Discoverability of Chrome ... https://
+www.researchgate.net/publication/
+376099819_From_Manifest_V2_to_V3_A_Study_on_the_Discoverability_of_Chrome_E
+xtensions
+In-Depth Analysis of Online Exam Proctoring Systems to Address ... https://
+www.researchgate.net/publication/396129884_In-
+Depth_Analysis_of_Online_Exam_Proctoring_Systems_to_Address_Key_Research_Que
+stions
+CVPR 2023 Papers https://cvpr.thecvf.com/virtual/2023/papers.html
+rPLR: an imaging system for measuring pupillary light reflex at a ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC4308726/
+Pupillary Light Reflex Correction for Robust Pupillometry in Virtual ... https://
+dl.acm.org/doi/abs/10.1145/3530798
+Pupillary Light Reflex (PLR) - Cleveland Clinic https://my.clevelandclinic.org/health/
+articles/pupillary-light-reflex-plr
+Pupillary Light Reflex as a Diagnostic Aid from Computational ... https://
+www.researchgate.net/publication/
+350623774_Pupillary_Light_Reflex_as_a_Diagnostic_Aid_from_Computational_Viewp
+oint_A_Systematic_Literature_Review
+Automated Pupillary Light Reflex Test on a Portable Platform - ar5iv https://
+ar5iv.labs.arxiv.org/html/1905.08886
+Pupil light reflex evoked by light-emitting diode and computer screen https://
+journals.plos.org/plosone/article?id=10.1371/journal.pone.0197739
+Associations between the pupil light reflex and the broader autism ... https://
+www.frontiersin.org/journals/human-neuroscience/articles/10.3389/
+fnhum.2022.1052604/full
+[PDF] MediaPipe Iris and Kalman Filter for Robust Eye Gaze Tracking https://
+www.atlantis-press.com/article/126011300.pdf23. 
+24. 
+25. 
+26. 
+27. 
+28. 
+29. 
+30. 
+31. 
+32. 
+33. 
+34. 
+35. 
+36. 
+37. 
+
+=== PAGE 18 ===
+
+Video-Based Gaze Detection for Oculomotor Abnormality ... - MDPI https://
+www.mdpi.com/2076-3417/14/4/1519
+Validation of webcam-based eye-tracking for clinically relevant ... https://
+www.sciencedirect.com/science/article/pii/S2666521226000426
+Screen Capture API - MDN Web Docs - Mozilla https://developer.mozilla.org/en-US/
+docs/Web/API/Screen_Capture_API
+CVPR 2024 Accepted Papers https://cvpr.thecvf.com/Conferences/2024/
+AcceptedPapers
+CVPR 2024 Call for Papers https://cvpr.thecvf.com/Conferences/2024/CallForPapers
+A Robust Voice Liveness Detection System for Smart Speakers - arXiv https://
+arxiv.org/html/2510.24393v1
+CVPR 2024 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2024/html/Kim_Retrieval-Augmented_Open-
+Vocabulary_Object_Detection_CVPR_2024_paper.html
+CVPR 2024 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2024/html/Zhang_HOI-
+M3_Capture_Multiple_Humans_and_Objects_Interaction_within_Contextual_Environ
+ment_CVPR_2024_paper.html
+Honorlock Alternative for Secure Online Proctoring - Integrity Advocate https://
+integrityadvocate.com/resource-center/blog/the-best-honorlock-alternative-is-
+integrity-advocate/
+Low-Cost Eye-Tracking Fixation Analysis for Driver Monitoring ... https://
+www.mdpi.com/1424-8220/25/22/7028
+Eye Gaze Tracking With a Web Camera in a Desktop Environment https://
+www.researchgate.net/publication/
+276664121_Eye_Gaze_Tracking_With_a_Web_Camera_in_a_Desktop_Environment
+chrome - A Practical Guide with Manifest V3 - DEV Community https://dev.to/
+ryu0705/building-chrome-extensions-in-2026-a-practical-guide-with-manifest-v3-12h2
+(PDF) Robust Voice Liveness Detection and Speaker Verification ... https://
+www.researchgate.net/publication/
+320260730_Robust_Voice_Liveness_Detection_and_Speaker_Verification_Using_Throa
+t_Microphones
+CVPR 2026 - The Computer Vision Foundation https://cvpr.thecvf.com/
+无主题 https://talent.shixizhi.huawei.com/iexam/1365189427395223554/examInfo?
+examId=1626520123798548481&sxz-lang=en_US
+Face Liveness Detection by rPPG Features and Contextual Patch ... https://
+www.semanticscholar.org/paper/Face-Liveness-Detection-by-rPPG-Features-and-CNN-
+Lin-Li/033b9eba42cbe2c3598f0062fab52216c7daa6bc38. 
+39. 
+40. 
+41. 
+42. 
+43. 
+44. 
+45. 
+46. 
+47. 
+48. 
+49. 
+50. 
+51. 
+52. 
+53. 
+
+=== PAGE 19 ===
+
+[PDF] Flow-Attention-based Spatio-Temporal Aggregation Network for 3D ... https://
+arxiv.org/pdf/2310.16569
+Real-Time Face Tracking in the Browser with MediaPipe https://dev.to/kenzic/real-
+time-face-tracking-in-the-browser-with-mediapipe-22c9
+Pupillary light reflex (PLR) assessment in open-eye and closed-eye... https://
+www.researchgate.net/figure/Pupillary-light-reflex-PLR-assessment-in-open-eye-and-
+closed-eye-conditions-a-Schematic_fig1_382915067
+Infrared Video Pupillography Coupled with Smart Phone LED for ... https://
+www.frontiersin.org/journals/integrative-neuroscience/articles/10.3389/
+fnint.2017.00006/full
+Manifest V3 Unveiled: Navigating the New Era of Browser Extensions https://
+arxiv.org/html/2404.08310v1
+CVPR 2025 Accepted Papers https://cvpr.thecvf.com/Conferences/2025/
+AcceptedPapers
+Md Sahidullah - CV Hal https://cv.hal.science/sahid
+(PDF) Eye-Controlled Human-Computer Interaction System Using ... https://
+www.researchgate.net/publication/392883530_Eye-Controlled_Human-
+Computer_Interaction_System_Using_MediaPipe_and_Computer_Vision
+Bigthinx AI Engineer Interview Prep | PDF | Machine Learning ... https://
+www.scribd.com/document/906706392/Bigthinx-Interview-Prep-Sheet
+(PDF) Automated Online Exam Proctoring - ResearchGate https://
+www.researchgate.net/publication/312676827_Automated_Online_Exam_Proctoring
+Automated Pupillary Light Reflex Test on a Portable Platform https://
+www.semanticscholar.org/paper/Automated-Pupillary-Light-Reflex-Test-on-a-
+Portable-Temel-Mathew/64c4f277ccc0237be17b40c5a0f20fe3489fb8fb
+Arnab Lahiri's Post - LinkedIn https://www.linkedin.com/posts/arnab-
+lahiri_integrating-face-detection-and-ai-proctoring-activity-7225752223509528576-
+TWY6
+A Robust Voice Liveness Detection System for Smart Speakers - arXiv https://
+arxiv.org/abs/2510.24393
+CVPR 2026 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2026W/MMFM5/html/khan_TRACE_Training-
+Free_Partial_Audio_Deepfake_Detection_via_Embedding_Trajectory_Analysis_CVPRW
+_2026_paper.html
+Properly using chrome.tabCapture in a manifest v3 extension https://
+stackoverflow.com/questions/66217882/properly-using-chrome-tabcapture-in-a-
+manifest-v3-extension54. 
+55. 
+56. 
+57. 
+58. 
+59. 
+60. 
+61. 
+62. 
+63. 
+64. 
+65. 
+66. 
+67. 
+68. 
+
+=== PAGE 20 ===
+
+Talview live proctoring integration: the candidate experience https://risr-
+assess.zendesk.com/hc/en-gb/articles/38225743778833-Talview-live-proctoring-
+integration-the-candidate-experience
+Talview Online Proctoring and Assessments Platform https://
+marketplace.microsoft.com/en-us/product/saas/talview.talviewonlineassessments?
+tab=overview
+Pupillary light reflex (PLR) recordings (N = 16) under 1-s light... https://
+www.researchgate.net/figure/Pupillary-light-reflex-PLR-recordings-N-16-under-1-s-
+light-stimulus-filtered-by-the_fig4_346722323
+Measuring the Pupillary Light Reflex Using Portable Instruments in ... https://
+www.mdpi.com/2411-5150/8/4/60
+Modeling Transient Pupillary Light Reflex Induced by a Short ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC4318650/
+(PDF) rPLR: An Imaging System for Measuring Pupillary Light https://
+research.amanote.com/publication/P5ZH2nMBKQvf0BhiI-W3/rplr-an-imaging-system-
+for-measuring-pupillary-light-reflex-at-a-distance
+Pupil light reflex evoked by light-emitting diode and computer screen https://
+pmc.ncbi.nlm.nih.gov/articles/PMC5999086/
+Chrome Extension: How to Disable Page Visibility API - Stack Overflow https://
+stackoverflow.com/questions/47660653/chrome-extension-how-to-disable-page-
+visibility-api
+Page Visibility API - MDN Web Docs - Mozilla https://developer.mozilla.org/en-US/
+docs/Web/API/Page_Visibility_API
+CVPR 2026 Papers https://cvpr.thecvf.com/virtual/2026/papers.html
+CVPR 2023 Call for Papers https://cvpr.thecvf.com/Conferences/2023/CallForPapers
+CVPR 2026 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2026/html/Chu_UniLS_End-to-End_Audio-
+Driven_Avatars_for_Unified_Listening_and_Speaking_CVPR_2026_paper.html
+CVPR 2026 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2026/html/
+Huang_CineSRD_Leveraging_Visual_Acoustic_and_Linguistic_Cues_for_Open-
+World_Visual_CVPR_2026_paper.html
+Biological validation of filtered lights (N = 16) Pupillary Light... https://
+www.researchgate.net/figure/Biological-validation-of-filtered-lights-N-16-Pupillary-
+Light-Reflex-PLR-parameters_fig5_346722323
+(PDF) Pupil and Pupillary Light Reflex - ResearchGate https://www.researchgate.net/
+publication/399154048_Pupil_and_Pupillary_Light_Reflex69. 
+70. 
+71. 
+72. 
+73. 
+74. 
+75. 
+76. 
+77. 
+78. 
+79. 
+80. 
+81. 
+82. 
+83. 
+
+=== PAGE 21 ===
+
+The pupillary light reflex (PLR) as a marker for the ability to work or ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC8422642/
+Towards Open-Vocabulary Audio-Visual Event Localization https://
+openaccess.thecvf.com/content/CVPR2025/html/Zhou_Towards_Open-
+Vocabulary_Audio-Visual_Event_Localization_CVPR_2025_paper.html
+Visually Supervised Speaker Detection and Localization via ... - arXiv https://
+arxiv.org/abs/2203.03291
+CVPR 2023 Audio-visual papers - 知乎专栏 https://zhuanlan.zhihu.com/p/631900793
+Towards Open-Vocabulary Audio-Visual Event Localization https://
+www.researchgate.net/publication/394593361_Towards_Open-Vocabulary_Audio-
+Visual_Event_Localization
+Chrome等现代浏览器原生分屏功能的JavaScript API？ - 火山引擎 https://
+www.volcengine.com/article/123826
+页面可见性API - Web API - MDN 文档 https://mdn.org.cn/en-US/docs/Web/API/
+Page_Visibility_API
+Managing Page Visibility During Tests | PDF | Mobile App - Scribd https://
+www.scribd.com/document/861194575/JavaScript-Page-Visibility-API
+Real-Time Eye Gaze Estimation for Dynamic Head Movement https://
+www.linkedin.com/posts/amirmahdi-abootalebi_real-time-eye-gaze-estimation-for-
+dynamic-activity-7307381175130456064-enWc
+[2307.14739] Audio Inputs for Active Speaker Detection and ... - arXiv https://
+arxiv.org/abs/2307.14739
+Audio Inputs for Active Speaker Detection and Localization via ... https://
+www.researchgate.net/publication/
+372684229_Audio_Inputs_for_Active_Speaker_Detection_and_Localization_via_Micro
+phone_Array
+VOICES (Voices Obscured In Complex Environmental Settings) https://
+opendatalab.com/OpenDataLab/VOICES84. 
+85. 
+86. 
+87. 
+88. 
+89. 
+90. 
+91. 
+92. 
+93. 
+94. 
+95. 

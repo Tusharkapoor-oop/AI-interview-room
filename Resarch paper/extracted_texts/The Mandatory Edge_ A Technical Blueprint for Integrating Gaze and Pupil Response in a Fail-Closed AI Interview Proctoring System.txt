@@ -1,0 +1,2633 @@
+
+
+=== PAGE 1 ===
+
+The Mandatory Edge: A Technical
+Blueprint for Integrating Gaze and Pupil
+Response in a Fail-Closed AI Interview
+Proctoring System
+Architectural Foundation for Mandatory Compliance
+The implementation of a mandatory dual-modal biometric system hinges on an
+architectural design that makes proctoring an inseparable and non-disruptable
+component of the interview experience itself. This is not achieved through simple
+software flags but through a deeply integrated, fail-closed framework where the
+proctoring logic runs on the client-side, directly within the browser environment . The
+core of this enforcement strategy lies in leveraging modern web technologies, specifically
+WebAssembly (Wasm) and WebGPU, to execute complex computer vision (CV) models
+locally . This approach ensures that any attempt to circumvent the system—by
+closing the browser tab, switching applications, or disabling the camera—results in an
+immediate and definitive halt to the interview session. The system's mandatoriness is thus
+enforced by design, making the proctoring engine a fundamental part of the application's
+runtime state. The initial Product Requirements Document (PRD) correctly identifies the
+need for such a system, outlining functional requirements like continuous passive eye
+tracking and active liveness challenges, while the Technical Requirements Document
+(TRD) specifies the underlying technology stack necessary to achieve them .
+The primary technical enabler for this mandatory architecture is the use of WebAssembly
+and WebGPU for client-side inference . These technologies allow developers to
+compile high-performance machine learning models, originally written in languages like
+C++ or Python, into a format that can run at near-native speed inside a web browser 
+. The TRD mandates that real-time CV inference must operate with less than 200ms
+latency on the client side, a performance target that was once unattainable in the browser
+but is now feasible due to the computational power offered by WebGPU . Benchmarks
+show that WebGPU can accelerate ML workloads by over 30 times compared to CPU-
+based Wasm execution, enabling the processing of high-resolution video streams from a
+standard webcam at 30 frames per second (FPS) or more . This local processing499
+59104
+61411
+230
+411
+102103410
+
+=== PAGE 2 ===
+
+capability is the cornerstone of the system's integrity. The entire proctoring engine,
+including models for face landmark detection, gaze estimation, and pupil diameter
+measurement, is bundled with the web application package and executed within the
+client's sandboxed environment . Because this engine is integral to the application's
+function, its failure directly impacts the user experience. If the engine crashes, becomes
+unresponsive, or is terminated, the application's main thread can detect this state and
+trigger a predefined "fail-closed" action, such as pausing the interview, displaying a
+critical error message, and logging the event . This creates a powerful deterrent; a
+candidate attempting to disable the proctoring would find the interview session itself
+frozen, making circumvention futile. This principle is further reinforced by a fallback
+mechanism described in the TRD, which alerts the user to close background applications
+if FPS drops below a threshold of 15 FPS, demonstrating a multi-layered approach to
+maintaining system health and operational continuity .
+The system's compliance is further hardened by a "fail-closed" design philosophy, which
+dictates that in any state of uncertainty or detected anomaly, the system defaults to a
+secure, locked-down state rather than a permissive one . This extends beyond just the
+health of the CV engine. The architecture must account for various points of potential
+failure or attack. For instance, if the client's webcam feed is lost, the network connection
+degrades below a minimum upload speed of 5 Mbps, or the jitter exceeds 100ms, the
+system must halt the session to prevent a loss of monitoring integrity . Similarly, the
+system must actively monitor for candidate actions that could compromise the test
+environment. The PRD explicitly calls for the detection of secondary monitors, mobile
+phones, and unauthorized browser tabs/extensions . When such an entity is detected via
+object detection models running on the client side (e.g., YOLOv8), the system can follow
+a graduated response protocol: first issuing a gentle UI warning, then temporarily locking
+the screen, and finally terminating the session if the behavior persists. This automated,
+rule-based enforcement ensures that the proctoring system is not merely observing
+passively but is actively participating in maintaining the controlled environment. The
+entire frontend application, from the initial hardware check and environmental scan to
+the continuous monitoring during the interview, is designed as a closed-loop system
+where every component feeds back into the central proctoring logic. The UI itself acts as
+an enforcement tool, guiding the candidate through mandatory steps like the initial
+calibration and providing clear instructions when deviations occur, thereby reducing
+ambiguity and reinforcing the system's non-negotiable nature .
+The following table outlines the key components of the mandatory architectural
+foundation, detailing their functions and the technologies that enable them.8691
+499
+499
+
+=== PAGE 3 ===
+
+Component Function Enabling Technology / Protocol
+Client-Side
+Inference EngineExecutes all CV models (face detection, gaze estimation, pupil
+tracking) locally on the candidate's device.WebAssembly (Wasm), TensorFlow.js, ONNX
+Runtime Web 
+WebGPU
+AccelerationProvides GPU-level parallel processing for ML models, achieving
+low-latency (<200ms) inference on consumer hardware.WebGPU API, WGSL (Shading Language) 
+Fail-Closed
+EnforcementHalts the interview session and logs an event upon detection of
+system failures (e.g., engine crash, low FPS) or candidate
+circumvention attempts.Application-level state management, WebSocket
+error handling 
+Hardware &
+Environment CheckVerifies webcam functionality, lighting conditions, and scans the
+room for unauthorized devices before the session starts.WebRTC, MediaPipe Pose, YOLOv8 Object
+Detection
+Real-Time
+Telemetry
+StreamingContinuously sends processed biometric data (gaze, pupil size,
+head pose) from the client to the cloud backend.WebSockets ( /ws/v1/telemetry  endpoint)
+with compressed payloads (MessagePack/
+Protobuf) 
+This architectural blueprint transforms the concept of "mandatory" from a policy
+statement into a technical reality. By embedding the proctoring logic deep within the
+client-side application and leveraging the performance of WebGPU, the system creates a
+resilient and difficult-to-bypass monitoring environment. Every element, from the choice
+of WebAssembly for portability and security to the design of a fail-closed state machine, is
+oriented towards ensuring that the dual-modal gaze and pupil monitoring is not just a
+feature, but a foundational, non-negotiable aspect of the AI Interview Room platform.
+The implementation plan detailed in the provided documents reflects this by allocating
+significant resources to Computer Vision engineers focused on edge inference,
+underscoring its strategic importance .
+Implementation of Real-Time Gaze Tracking
+The implementation of real-time gaze tracking is a multi-stage process that transforms
+raw video data from a standard webcam into a continuous stream of precise, actionable
+data about a candidate's point of regard . This modality serves as the behavioral layer
+of the dual-system, capturing voluntary eye movements indicative of attention,
+distraction, or deception. The technical workflow, as synthesized from extensive research,
+involves a sequence of well-defined computer vision and machine learning tasks, each
+building upon the last to produce a robust gaze estimation model . The ultimate
+goal is to meet the stringent accuracy and latency requirements outlined in the TRD,
+ensuring the data is both reliable and usable in real-time without disrupting the interview
+flow . The system must be capable of operating effectively under typical home office6191105
+6492
+320
+499
+252
+155
+4509
+
+=== PAGE 4 ===
+
+conditions, which presents challenges related to ambient lighting, head movement, and
+varying webcam quality .
+The foundational step in any gaze tracking pipeline is the accurate detection and
+modeling of the human face and eyes . This is typically achieved using pre-trained
+deep learning models optimized for speed and accuracy on consumer-grade hardware.
+The MediaPipe Face Mesh solution is a prime example, capable of detecting 468
+landmarks on the face in real-time using a standard RGB webcam . These
+landmarks provide a stable geometric reference frame, precisely locating the boundaries
+of the eyes, nose, and mouth. From this, the system can isolate the region of interest—the
+eyes—which is crucial for the subsequent stages of pupil detection and gaze calculation.
+This initial detection phase is computationally intensive but benefits immensely from
+client-side acceleration via WebGPU, allowing it to run smoothly even on mid-range
+hardware . Once the eyes are located, the next critical step is the precise localization of
+the pupil's center . While early methods relied on simple heuristics like finding the
+darkest spot in the iris region, modern approaches leverage deep learning. Models like
+MediaPipe Iris or custom-built CNNs can accurately segment the pupil from the
+surrounding sclera, even under challenging lighting conditions or when partially
+obscured by eyelids . The output of this stage is a pixel coordinate representing the
+center of the pupil within the captured image of the eye.
+However, knowing the pupil's position relative to the eyeball is insufficient for
+determining where a person is looking on a screen. Head movements introduce
+significant noise into the calculation. A person can turn their head while keeping their
+gaze fixed straight ahead, or they can move their eyes to look sideways while keeping
+their head still. To disambiguate these cases, the system must simultaneously estimate
+the three-dimensional orientation of the head relative to the camera, known as head pose
+estimation . Using the 3D coordinates of the facial landmarks detected by
+MediaPipe, the system can calculate the Euler angles for pitch (up-down tilt), yaw (left-
+right rotation), and roll (tilting of the ear towards the shoulder) . This head pose
+information is used to normalize the raw eye orientation data, correcting for the effect of
+head movement and isolating the true gaze direction of the eyeball itself. This fusion of
+head pose and eye orientation data is a common technique in appearance-based gaze
+estimation systems . The final piece of the puzzle is calibration, a crucial procedure
+required to map the normalized eye and head orientation data to a specific point-of-gaze
+(PoG) on the computer screen . Without calibration, the system knows the direction
+of the gaze vector but not where it intersects the screen . The most common
+calibration method involves presenting the user with a series of targets at known
+locations on the screen and recording the corresponding eye/head data while they fixate428
+4
+491
+225
+222
+220222
+38560
+564
+329401
+26
+560
+
+=== PAGE 5 ===
+
+on each target . The system then uses this paired data to train a regression model
+(e.g., weighted least squares) that learns the mapping from sensor inputs to screen
+coordinates . To reduce friction, research into calibration-free methods is ongoing,
+exploring techniques that use appearance-based features or analyze natural fixation
+patterns to establish a baseline mapping automatically . For a high-stakes
+application like an interview, however, a brief, guided calibration step is essential for
+accuracy. During this phase, the system also records baseline metrics such as resting pupil
+size and skin tone under the ambient room lighting, which are vital for the subsequent
+PLR analysis .
+The following table details the technical specifications and considerations for
+implementing the gaze tracking component.
+Stage Description Key Technologies / Algorithms Output
+Face & Eye
+DetectionDetects the face and isolates the eye
+regions using facial landmarks.MediaPipe Face Mesh , OpenCV, Haar
+Cascades 468 facial landmarks;
+Cropped eye images
+Pupil Center
+LocalizationDetermines the precise center of the
+pupil within the eye image.Deep Learning (MediaPipe Iris ),
+Thresholding Pixel coordinates of the
+pupil center
+Head Pose
+EstimationCalculates the 3D orientation (pitch,
+yaw, roll) of the user's head.Perspective-n-Point (PnP) algorithm using
+facial landmarks Euler angles (Pitch, Yaw,
+Roll)
+Calibration Maps sensor data (pupil, head pose) to
+screen coordinates (Point-of-Gaze).Regression models (Weighted Least Squares 
+) on data from user-target interactions Calibration matrix/
+model
+Real-Time
+InferenceContinuously processes video frames to
+generate a stream of gaze data.Custom CNNs, WebGPU-accelerated
+TensorFlow.js Time-series of gaze
+vectors, fixations, blinks
+Once calibrated, the system enters its real-time operational mode. On each new frame
+from the webcam, the pipeline executes sequentially: face and eye detection, pupil
+localization, and head pose estimation. The resulting data is fed into the calibration
+model to compute the current point-of-gaze. This entire process must complete within a
+few milliseconds to maintain a smooth experience and meet the <200ms latency
+requirement . The final output is a rich, time-stamped data stream containing not only
+the gaze vector but also ancillary information like blink status and head pose, which is
+invaluable for context-aware analysis and anti-spoofing . This continuous stream of
+behavioral data forms the first half of the dual-modal input, ready to be fused with the
+physiological data from the pupillary light reflex analysis module.198480
+328333
+133306553
+402
+4
+444
+222
+222
+190
+328 6
+91225
+275
+
+=== PAGE 6 ===
+
+Implementation of Pupillary Light Reflex Analysis
+The second mandatory modality, pupillary light reflex (PLR) analysis, provides the
+physiological layer of the dual-system, measuring involuntary, subconscious responses to
+visual stimuli . Unlike gaze tracking, which measures voluntary behavior, PLR is
+governed by the autonomic nervous system and is extremely difficult to consciously
+control or fake . This makes it an exceptionally powerful indicator of genuine
+engagement with the screen content. The implementation of PLR analysis requires a
+tightly coupled system of stimulus presentation and high-frequency response
+measurement, both executed within the client-side browser environment. The goal is to
+programmatically induce the reflex and then capture the subtle changes in pupil diameter
+with sufficient precision to extract meaningful diagnostic parameters . This
+component directly addresses the challenge of verifying that a candidate's eyes are
+genuinely interacting with the digital display, forming a crucial check against
+sophisticated spoofing attacks.
+The technical workflow for PLR analysis begins with the controlled presentation of a
+visual stimulus designed to elicit the reflex . The PLR is triggered by changes in light
+intensity, so the system must dynamically alter the brightness of the screen . This can
+be accomplished in several ways. A simple yet effective method is to rapidly flash the
+entire screen between a bright white state and a dark state, creating a clear, repeatable
+stimulus cycle . More advanced implementations might involve changing the color or
+intensity of specific UI elements, such as buttons or question fields, to create localized
+stimuli . The timing and properties of these stimuli (e.g., duration, intensity) must be
+logged with high precision, often synchronized with the system clock, as PLR parameters
+like latency are measured relative to the exact moment of stimulus onset . The
+accuracy of this stimulus presentation is paramount, as errors can invalidate the
+subsequent analysis. The system should aim for stimulus changes that are rapid enough
+to reliably trigger the reflex but not so fast as to cause visual discomfort or flicker fusion.
+Standardized guidelines for stimulus calibration, similar to those used in ophthalmic
+instruments (e.g., ISCEV guidelines), can inform the design of these visual cues .
+Concurrent with the stimulus presentation, the system must measure the pupil's response
+with high temporal resolution. This is achieved using the same webcam and computer
+vision pipeline as the gaze tracker. After the eye region is detected and the pupil
+localized, the system tracks the radius of the pupil over time . Libraries like 
+jeelizPupillometry  demonstrate the feasibility of running such real-time
+pupillometry in the browser, leveraging the GPU for efficient computation . To capture
+the dynamics of the PLR, which includes a relatively fast constriction phase and a slower268
+30516
+2195
+21
+22
+245520
+534540
+86
+86
+
+=== PAGE 7 ===
+
+recovery phase, a high sampling rate is necessary . The raw time-series data of pupil
+diameter will be noisy, containing artifacts from head movement, blinking, and minor
+shifts in lighting. Therefore, a preprocessing and signal processing stage is essential. This
+involves filtering the signal to remove noise and then applying algorithms to identify key
+features of the PLR waveform . The primary parameters extracted from this analysis
+include:
+Latency:  The time delay between the onset of the light stimulus and the start of
+pupil constriction. This is a fundamental characteristic of the reflex pathway and is
+typically around 200-300 milliseconds in healthy individuals .
+Constriction Velocity:  The maximum speed at which the pupil diameter decreases
+during the initial response.
+Amplitude:  The maximum change in pupil diameter from its baseline size to its
+fully constricted state .
+Recovery Time:  The time it takes for the pupil to return to its baseline size after
+the light stimulus is removed .
+These parameters form a quantitative profile of the subject's pupillary response.
+Deviations from expected values—for instance, an abnormally long latency or reduced
+constriction velocity—can indicate neurological issues or, in the context of proctoring, an
+unnatural state where the pupil is not reacting as it should . The ability to measure
+these parameters remotely using a standard webcam has been demonstrated in several
+studies, validating the core premise of this component . The integration of PLR
+analysis with the gaze tracker creates a powerful synergy. While the gaze tracker
+confirms where the candidate is looking, the PLR analysis confirms that their eyes are
+physiologically reacting to what they see on the screen.
+The following table summarizes the technical aspects of the PLR analysis implementation.
+Aspect Description Implementation Details
+Stimulus Control Programmatically alters screen brightness/
+intensity to elicit the PLR.JavaScript-controlled canvas/screen flashes; Localized UI element
+changes .
+Response
+MeasurementTracks pupil diameter over time using the
+webcam.Real-time pupillometry library (e.g., jeelizPupillometry );
+High-frequency sampling (>60 Hz) .
+Signal Processing Filters raw data and extracts key PLR
+parameters.Noise filtering; Algorithmic identification of waveform peaks/
+troughs .
+Key Parameters Quantitative metrics derived from the PLR
+waveform.Latency, Constriction Velocity, Amplitude, Recovery Time 
+.
+Data
+SynchronizationAligns PLR measurements with stimulus onset
+timestamps.High-precision system clock synchronization; Timestampped log
+entries .170513
+521
+• 
+207209317
+• 
+• 
+552
+• 
+518
+208519
+96430
+86
+170
+521
+317518
+552
+245
+
+=== PAGE 8 ===
+
+By combining precise stimulus control with high-fidelity response measurement, the PLR
+analysis module adds a critical layer of physiological verification to the proctoring
+system. It moves beyond observing surface-level behavior (gaze) to probing the
+underlying biological response, making it significantly more difficult for a candidate to
+convincingly simulate being engaged with the interview. The output of this module—a
+time-series of pupil diameter measurements correlated with screen events—is the second
+critical input stream for the data fusion engine, which will use it to validate or refute the
+signals coming from the gaze tracker.
+Integrated Fusion Logic for Anomaly Detection and
+Liveness Verification
+The true power and mandatory nature of the dual-modal system are realized not in the
+individual capabilities of gaze tracking and pupillary light reflex (PLR) analysis, but in
+their intelligent fusion. This integrated logic forms the analytical core of the system,
+correlating behavioral and physiological signals to detect anomalies indicative of cheating
+or spoofing. The primary enforcement mechanism is a correlation-based anomaly
+detector that looks for statistically improbable combinations of data. The most salient
+threat scenario—looking away from the screen to consult unauthorized materials—
+creates a distinct signature that the fused system is uniquely equipped to identify: a
+prolonged off-screen gaze accompanied by an absent pupillary light reflex to sustained
+screen brightness . By requiring both modalities to be active and continuously cross-
+validating their outputs, the system creates a defense-in-depth architecture that is far
+more robust than either modality could be alone. This fusion logic is what elevates the
+system from a collection of sensors to a coherent, intelligent proctor.
+The foundation of this fusion logic is the establishment of a personalized baseline for
+each candidate during the initial setup and calibration phase . This baseline captures the
+individual's unique physiological and behavioral characteristics under normal, honest
+conditions. The system records several key metrics: the candidate's average resting pupil
+diameter under the ambient room lighting, their typical PLR latency and constriction
+velocity when presented with a standardized light stimulus, and their general gaze
+patterns when focusing on neutral content like the interviewer's video feed . These
+baselines are not static; they are established for the specific environmental conditions of
+the interview, particularly the lighting, which is a critical variable for both pupil size and9586
+206402
+
+=== PAGE 9 ===
+
+PLR measurement . With this baseline established, the system can begin real-time
+analysis, flagging any significant deviation from the norm as a potential risk event.
+During the interview, the fusion engine continuously monitors the two data streams. The
+primary pattern it hunts for is the "off-screen gaze + absent PLR" signature. The gaze
+tracker reports the direction of the candidate's gaze. If this vector indicates the candidate
+is looking off-screen (e.g., to the top-right corner, a common location for hidden notes)
+for a duration exceeding a set threshold (e.g., 3 seconds), a low-level alert is generated 
+. However, this by itself is not conclusive evidence of cheating, as a candidate might
+legitimately look away to think. Here is where the PLR module provides the decisive
+confirmation. The PLR analyzer is constantly monitoring the pupil diameter and the
+screen's luminance. If the candidate's gaze is off-screen, but the screen's background
+remains brightly lit, the system expects to see a PLR—the pupil should constrict in
+response to the light. If the system observes that the pupil diameter remains large and
+shows no signs of constriction, it constitutes strong corroborating evidence. The absence
+of a physiological response when a response is expected is a powerful indicator of an
+unnatural state, suggesting the candidate is not actually looking at the screen . The
+simultaneous occurrence of these two events—an off-screen gaze from the behavioral
+modality and an absent PLR from the physiological modality—triggers a high-confidence
+violation. The system can then escalate this event to a recruiter for review or, according
+to predefined policies, take automated actions like pausing the interview or terminating
+the session .
+Beyond detecting cheating, this dual-modality system is exceptionally effective for
+liveness detection, a critical component of anti-spoofing . Spoofing attacks, such as
+presenting a photograph, a recorded video, or a high-quality 3D mask of another person,
+rely on static or pre-recorded representations. These representations inherently lack the
+dynamic biological properties of a living person. The PLR analysis provides a direct
+countermeasure. A static photo or a simple video replay will not exhibit a pupillary light
+reflex; the pupil in the image will remain fixed regardless of changes in screen brightness 
+. Furthermore, active liveness checks can be integrated into the workflow. The system
+can randomly prompt the candidate to follow a moving dot on the screen with their eyes .
+A successful response requires both valid gaze tracking (the eyes must move to follow the
+dot) and a corresponding PLR (the pupil should react to the light changes inherent in the
+animation). A 3D mask might replicate a static gaze but may struggle to perfectly mimic
+the subtle micro-movements (saccades, blinks) and the full dynamic range of a real PLR,
+especially under inconsistent lighting . The combination of passive, continuous
+monitoring (correlating gaze with PLR) and periodic active challenges (requiring the
+candidate to perform specific eye movements) creates multiple layers of defense against a519531
+9
+268269
+142
+272
+266348
+
+=== PAGE 10 ===
+
+wide spectrum of spoofing attacks, from basic photo replays to more advanced deepfakes 
+. Compliance with international standards like ISO/IEC 30107-3, which defines
+methodologies for testing Presentation Attack Detection (PAD), should be a key design
+goal to ensure the system's anti-spoofing capabilities are robust and verifiable .
+The fusion of gaze and PLR, therefore, serves a dual purpose: it detects intent to cheat
+and it verifies the physical presence of the authentic candidate.
+The following table outlines the logic for the integrated anomaly detection system.
+Anomalous
+PatternBehavioral Modality (Gaze) Physiological Modality (PLR) System Interpretation & Action
+Potential
+CheatingGaze vector indicates off-
+screen look for >3s.Pupil remains dilated despite
+bright screen background.High Confidence Violation.  Candidate is likely
+viewing unauthorized aids. Trigger high-priority
+flag. 
+Possible
+DistractionGaze vector indicates off-
+screen look for <3s.PLR is present but may be
+weaker or delayed.Medium Priority Flag.  Candidate may be thinking
+or glancing away. Log for reviewer consideration.
+Spoofing
+Attempt (Photo)Gaze tracking is unstable or
+fails.No PLR is detected when screen
+brightness changes.Critical Violation.  Evidence of a static image.
+Immediately terminate session. 
+Spoofing
+Attempt (Video)Gaze tracking may be
+inaccurate or laggy.Absent or irregular PLR; lacks
+natural dynamics.Critical Violation.  Evidence of a video replay.
+Immediately terminate session. 
+Spoofing
+Attempt (Mask)Gaze may be present but
+lacks natural micro-
+movements.PLR may be present but has
+abnormal latency/velocity.High Confidence Violation.  Evidence of a
+sophisticated mask. Trigger high-priority flag. 
+Normal
+BehaviorGaze vector corresponds with
+on-screen activity.PLR is present and correlates
+with screen brightness changes.No Action.  Baseline condition confirmed. Continue
+monitoring.
+This sophisticated fusion logic, grounded in the principles of multimodal biometrics, is
+what makes the system truly mandatory and effective. It doesn't just collect data; it
+interprets it contextually, creating a holistic view of the candidate's state. By enforcing a
+correlation between what the candidate's eyes are doing and what their pupils are
+feeling, the system closes the loopholes that exist in single-modality systems, delivering a
+level of integrity assurance that is essential for high-stakes remote interviews.
+System Architecture, Data Management, and Reporting
+The successful implementation of a mandatory dual-modal proctoring system requires a
+robust, scalable, and secure system architecture that seamlessly integrates the client-side
+monitoring with a powerful backend for data aggregation, analysis, and reporting. The272432
+176177283
+9586
+272346
+272
+268
+269
+
+=== PAGE 11 ===
+
+proposed Hybrid Edge-Cloud model is central to this design, leveraging the strengths of
+both environments: the low-latency, real-time processing capabilities of the client's
+browser for inference, and the centralized, high-throughput processing power of the
+cloud for session management, telemetry ingestion, and long-term data storage . This
+division of labor ensures that the most time-sensitive tasks are handled locally to avoid
+streaming delays, while the heavy lifting of data analysis and reporting occurs in a
+controlled server-side environment. The architecture must support the continuous, high-
+frequency streaming of biometric data from thousands of concurrent users, demanding a
+carefully designed data pipeline and a polyglot persistence strategy to handle the diverse
+data types involved.
+On the client side, the application is responsible for orchestrating the entire proctoring
+workflow. It initializes the camera feed using WebRTC for low-latency streaming . The
+core of the client-side application is the WebAssembly/WebGPU-powered inference
+engine, which runs the CV models for gaze and PLR analysis in real-time . This
+engine continuously processes video frames and generates a stream of telemetry data. To
+manage network bandwidth and latency, this data is serialized into compact JSON
+payloads and sent to the backend via a dedicated WebSocket endpoint, /ws/v1/
+telemetry  . These payloads contain timestamped data points for gaze vectors, head
+pose, and pupil diameter, compressed using an efficient format like Protobuf or
+MessagePack to keep the data rate under 50 KB/s . The client application also manages
+the UI flow, guiding the user through the mandatory onboarding, calibration, and
+interview phases, and communicating system status and warnings back to the candidate .
+The backend architecture is designed for scalability and reliability. At its heart is an API
+Gateway (using GraphQL for flexible data fetching and REST for webhooks) that routes
+incoming requests . Real-time telemetry from clients is ingested by a high-throughput
+messaging system like Apache Kafka, which decouples the data producers (clients) from
+the data consumers (processing services) and buffers the massive influx of data . This
+allows the system to handle traffic spikes gracefully. Processing Workers, built with
+Python and FastAPI, consume the telemetry streams from Kafka. These microservices are
+responsible for a variety of tasks: writing the raw time-series data to a specialized
+database, running more computationally intensive anomaly detection algorithms that
+may not be suitable for the client-side, and aggregating data to calculate the final
+Integrity Score . The Recruiter Dashboard is also served by the backend, which fetches
+aggregated session data and risk events to populate its timeline and scoring interface. For
+scenarios where client-side processing is too resource-intensive (e.g., older hardware),
+the architecture must have a fallback to cloud-based processing, although this introduces
+higher latency and should be avoided when possible . The entire backend is deployed on5961
+
+=== PAGE 12 ===
+
+a Kubernetes cluster with auto-scaling to ensure 99.99% uptime, meeting enterprise-
+grade availability expectations .
+Effective data management is critical for both performance and regulatory compliance.
+Given the heterogeneous nature of the data—from high-frequency time-series telemetry
+to structured metadata and large video files—a polyglot persistence approach is
+necessary . The following table details the recommended database choices:
+Data Type Database Technology Reasoning
+Biometric Telemetry TimescaleDB (PostgreSQL
+extension) or InfluxDBOptimized for high-write throughput of time-series data; enables efficient
+queries over time ranges.
+User & Session
+MetadataPostgreSQL ACID-compliant relational database for structured data like user profiles,
+session status, and permissions.
+Facial Embeddings Vector Database (e.g., Pinecone,
+Milvus)Designed for efficient similarity search and storage of high-dimensional
+numerical vectors used for identity verification.
+Interview Artifacts
+(Video/Audio)AWS S3 (Object Storage) Scalable, durable, and cost-effective storage for large binary files, with
+fine-grained access control.
+This schema design supports the end-to-end application flow. The backend receives a
+continuous stream of biometric data, which is stored in the hypertable 
+biometric_telemetry . When a risk event is detected—for example, an extended off-
+screen gaze—it is inserted into the risk_events  table with a timestamp, event type,
+and confidence score, along with any relevant metadata . After the session ends, a
+backend job aggregates all the telemetry and risk events associated with a session_id
+to compute the final integrity_score , which is then saved in the sessions  table .
+This structured data is the foundation for the recruiter's analytics dashboard.
+The recruiter-facing interface, or "Command Center," is the culmination of this
+architectural effort. It provides a comprehensive, multi-layered view of the interview
+session. The main display is a video player showing the recorded interview . To the side,
+a "Ghost View" overlay can be toggled on, drawing the skeletal wireframe and gaze
+vectors over the candidate's head, giving the proctor a direct visualization of what the AI
+saw . Below the video, a multi-layered timeline displays different streams of telemetry: a
+gaze heatmap showing where the candidate looked, a graph of head pose angles, and a
+spectrogram of audio anomalies . Clicking a red "Risk Flag" marker on this timeline
+instantly jumps the video to that precise moment and pauses it, while a side panel
+displays the underlying telemetry data that triggered the flag, such as "Gaze vector
+detected looking at secondary screen for 4.2 seconds" . This rich, interactive reporting
+transforms raw data into actionable intelligence, empowering recruiters to make
+informed decisions about candidate integrity. The entire process, from real-time
+
+=== PAGE 13 ===
+
+monitoring on the client to post-session forensic analysis in the cloud, is supported by this
+robust and scalable architecture.
+Security, Privacy, and Compliance Framework
+Implementing a dual-modal biometric proctoring system necessitates a rigorous security
+and privacy framework, given the highly sensitive nature of the collected data. Biometric
+information, including facial geometry, eye movements, and pupillary responses, is
+considered Personally Identifiable Information (PII) and is protected under numerous
+global regulations such as the General Data Protection Regulation (GDPR) in Europe, the
+Biometric Information Privacy Act (BIPA) in Illinois, and the California Consumer Privacy
+Act (CCPA) . The system's design must therefore embed privacy and security by
+default, adhering to a "Privacy-Protecting Techniques for Behavioral Biometric Data"
+survey . The architecture must minimize data exposure, employ strong encryption, and
+provide transparency and control to the user, all while upholding the highest industry
+standards for authentication and anti-spoofing.
+The core principle of data security is end-to-end protection. All biometric data must be
+encrypted both in transit and at rest . Communication between the client browser and the
+cloud backend must use TLS 1.3 to prevent eavesdropping . For data at rest, all databases
+and storage systems must be encrypted using strong algorithms like AES-256 . A
+particularly critical aspect is the handling of raw biometric templates, such as the
+candidate's facial embedding vector used for identity verification. Instead of storing these
+vectors in plaintext, the system should store only a secure cryptographic hash of the
+vector in the relational database . This ensures that even if the database is
+compromised, the original biometric template cannot be easily reconstructed. Raw video
+recordings, which contain the most sensitive data, should ideally never leave the client's
+device unless a high-confidence risk event is detected. Even then, access to these
+recordings should be strictly controlled, granted only via short-lived, pre-signed URLs and
+audited meticulously . Furthermore, all Personally Identifiable Information (PII) within
+the application, such as candidate names and emails, should be masked or tokenized in
+analytics dashboards and logs to prevent accidental exposure .
+In addition to data protection, the system must comply with recognized industry
+standards for biometric authentication and anti-spoofing. For authentication assurance
+levels, the system's design should align with the NIST SP 800-63 Digital Identity
+Guidelines . Specifically, NIST SP 800-63B recommends the use of liveness422
+54
+215
+221
+490542
+
+=== PAGE 14 ===
+
+detection for any biometric authentication system intended for high-assurance identity
+proofing, a clear mandate for the PLR and active gaze-tracking components of this system
+. The system should be architected to support evolving NIST guidance, such as the
+emphasis on phishing-resistant MFA and continuous, in-session evaluation of user and
+device signals to catch fraud after login . For anti-spoofing, compliance with the
+ISO/IEC 30107 series of standards is a key benchmark . The standard ISO/IEC
+30107-3 specifically establishes methodologies for assessing the performance of
+Presentation Attack Detection (PAD) mechanisms . Achieving a compliance level
+like iBeta Level 2 would demonstrate that the system's defenses against photo, video, and
+print attacks have been independently tested and validated against a rigorous suite of
+attack types . Adherence to these standards is not just a best practice; it is becoming
+a market expectation and a prerequisite for enterprise adoption .
+Finally, the system must incorporate ethical safeguards and provide recourse for users.
+The TRD's mention of an "Accessibility and Usability" section highlights a commitment to
+responsible AI . The system should offer alternative flows for candidates with
+documented medical conditions that affect eye movement or pupil response, such as
+disabling strict gaze tracking upon request . Consent is a cornerstone of biometric
+privacy. Candidates must provide explicit, informed consent before any data is collected,
+with clear explanations of what is being monitored and why . This consent mechanism
+should be granular and revocable. The system should also be designed to mitigate
+algorithmic bias. The training datasets for the CV models must be diverse and
+representative of different demographics, including various skin tones, genders, and ages,
+to ensure the system performs equitably across all user groups . Regular fairness
+audits should be conducted to identify and correct any disparities in false positive rates.
+By integrating these security, compliance, and ethical considerations directly into the
+system's architecture and development lifecycle, the AI Interview Room can build trust
+and provide a solution that is not only technologically advanced but also socially
+responsible and legally compliant.
+Reference
+The validation of online webcam-based eye-tracking - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11289066/162588
+434574575
+176
+177286
+178283
+283
+127
+130567
+1. 
+
+=== PAGE 15 ===
+
+[PDF] Towards efficient calibration for webcam eye-tracking in online ... https://
+pure.mpg.de/rest/items/item_3386007_3/component/file_3477673/content
+Comparing a new webcam-based system and the EyeLink 1000 https://
+www.researchgate.net/publication/
+374659238_Webcam_eye_tracking_close_to_laboratory_standards_Comparing_a_new
+_webcam-based_system_and_the_EyeLink_1000
+Webcam Eye Tracking - iMotions https://imotions.com/biosensors/webcam-eye-
+tracking/?
+srsltid=AfmBOooRzaRkuYHPlsSvqrA5uplEdMQ8y7kTZd365ki4jNYqO581DSW_
+[PDF] Proctoring Online Exam Using Eye Tracking - SciTePress https://
+www.scitepress.org/Papers/2023/121206/121206.pdf
+[PDF] Proctoring Online Exam Using Eye Tracking - OPUS at UTS https://
+opus.lib.uts.edu.au/rest/bitstreams/431442f8-fadb-444d-bef0-eeaa6eee20d6/retrieve
+[PDF] Evaluating Calibration-free Webcam-based Eye Tracking for Gaze ... https://
+par.nsf.gov/servlets/purl/10443673
+Online Testing and Webcam Based Eye Tracking Technologies https://
+osnadocs.ub.uni-osnabrueck.de/handle/ds-2025012012064
+Online Proctor - EyeKon Technology https://www.eyekonapp.com/online-proctor/
+[PDF] Webcam Eye Tracking User Documentation - University of Twente https://
+www.utwente.nl/en/bmslab/infohub/webcam-eye-tracking-user-documentation.pdf
+pupil-community/README.md at master - GitHub https://github.com/pupil-labs/
+pupil-community/blob/master/README.md
+Eye Gaze Detection Using a Hybrid Multimodal Deep Learning ... https://
+www.mdpi.com/2076-3417/16/2/986
+Core - Overview - Pupil Labs Docs https://docs.pupil-labs.com/core/developer/
+[PDF] Multi-Modal Gaze Following in Conversational Scenarios https://
+openaccess.thecvf.com/content/WACV2024/papers/Hou_Multi-
+Modal_Gaze_Following_in_Conversational_Scenarios_WACV_2024_paper.pdf
+Showcase, Tutorials, Examples & More (Page 2) - WebGL / WebGPU https://
+www.webgpu.com/tag/webgpu/page/2/
+Multi-Modal Gaze Following in Conversational Scenarios - arXiv https://arxiv.org/
+abs/2311.05669
+GazeHub@Phi-ai Lab. https://phi-ai.buaa.edu.cn/Gazehub/
+WebGazer - EZ-MMLA Toolkit https://mmla.gse.harvard.edu/tools/webgazer/
+MMSP-L5: Cross-Modal Knowledge Distillation and Model Adaptation https://
+www.cmsworkshops.com/ICASSP2026/view_session.php?SessionID=1228&bare=12. 
+3. 
+4. 
+5. 
+6. 
+7. 
+8. 
+9. 
+10. 
+11. 
+12. 
+13. 
+14. 
+15. 
+16. 
+17. 
+18. 
+19. 
+
+=== PAGE 16 ===
+
+[PDF] Eye-gaze Guided Multi-modal Alignment for Medical Representation ... https://
+proceedings.neurips.cc/paper_files/paper/2024/file/
+0b9536e186a77feff516893a5f393f7a-Paper-Conference.pdf
+an imaging system for measuring pupillary light reflex at a distance https://
+opg.optica.org/abstract.cfm?uri=ao-53-32-7787
+Device to measure pupillary light reflex in infants and toddlers https://
+patents.google.com/patent/US9314157B2/en
+Pupillary light reflex as a diagnostic aid from computational viewpoint https://
+www.sciencedirect.com/science/article/pii/S1532046421000861
+rPLR: an imaging system for measuring pupillary light reflex at a ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC4308726/
+A haploscope based binocular pupillometer system to quantify the ... https://
+www.nature.com/articles/s41598-021-00434-z
+Model-based comparison of latency estimation methods for the ... https://
+www.researchgate.net/publication/404811816_Model-
+based_comparison_of_latency_estimation_methods_for_the_pupillary_light_reflex
+[PDF] The pupillary light reflex (PLR) as a marker for the ability to work or ... https://
+d-nb.info/1246141523/34
+Assessing the Inter-Rater and Inter-Trial Reliability of the NeurOptics ... https://
+ijspt.scholasticahq.com/article/128047-assessing-the-inter-rater-and-inter-trial-
+reliability-of-the-neuroptics-pupillary-light-response-3000-pupillometer
+Measuring the Pupillary Light Reflex Using Portable Instruments in ... https://
+www.mdpi.com/2411-5150/8/4/60
+Infrared Video Pupillography Coupled with Smart Phone LED for ... https://
+www.frontiersin.org/journals/integrative-neuroscience/articles/10.3389/
+fnint.2017.00006/full
+[PDF] Automatic pupil detection and gaze estimation using the ... - HAL https://
+hal.science/hal-03192701v1/document
+(PDF) An Intelligent Alarm Based Visual Eye Tracking Algorithm for ... https://
+www.researchgate.net/publication/
+272853666_An_Intelligent_Alarm_Based_Visual_Eye_Tracking_Algorithm_for_Cheatin
+g_Free_Examination_System
+Best low-cost methods for real-time detection of the eye and gaze ... https://
+www.degruyterbrill.com/document/doi/10.1515/icom-2023-0026/html?
+srsltid=AfmBOoq67MQiKiPdSPJG6jJhYAEFVPuLxaifJNNNvqEGVjwGvksr7is4
+Design of a Binocular Pupil and Gaze Point Detection System ... https://
+www.mdpi.com/2076-3417/7/5/49820. 
+21. 
+22. 
+23. 
+24. 
+25. 
+26. 
+27. 
+28. 
+29. 
+30. 
+31. 
+32. 
+33. 
+34. 
+
+=== PAGE 17 ===
+
+Pupil detection and tracking using multiple light sources https://
+www.sciencedirect.com/science/article/abs/pii/S0262885699000530
+3DeepVOG: An Open-Source Framework for Real-Time, Accurate ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12880844/
+Development of ET-DR Algorithm to Enhance Resolution for Gaze ... https://
+www.jmis.org/archive/view_article?pid=jmis-10-1-15
+[PDF] Real Time Eye Gaze Tracking With 3D Deformable Eye-Face Model https://
+openaccess.thecvf.com/content_ICCV_2017/papers/
+Wang_Real_Time_Eye_ICCV_2017_paper.pdf
+A lightweight framework for deep learning-based eye tracking using ... https://
+link.springer.com/article/10.3758/s13428-025-02645-y
+Real time eye tracking for human computer interaction https://patents.google.com/
+patent/US20160210503A1/en
+What Is Multimodal Biometric Authentication? A Complete Guide https://
+www.oloid.com/blog/beyond-fingerprints-the-power-of-multimodal-biometric-
+authentication
+ZKTeco dual-modal biometrics: the new trend of biometrics https://
+www.zkteco.co.th/News/
+ZKTeco_dual_modal_biometrics_the_new_trend_of_biometrics
+ZKTeco Dual-Modal Biometric Technology and Applications https://www.zkteco.me/
+news/new-trends-in-biometrics-zkteco-dual-modal-biometric-technology-and-
+applications-2025-08-22
+Multimodal Biometrics Enhancing Law Enforcement and Border ... https://
+www.laxton.com/blog/multimodal-biometrics-enhancing-law-enforcement-and-
+border-security/
+(PDF) Advancing Biometric Authentication With Dual-Threshold ... https://
+www.researchgate.net/publication/
+396552589_Advancing_Biometric_Authentication_with_Dual-Threshold_Multi-
+Modal_Systems_and_Geometric_Programming_for_Enhanced_Digital_Security
+The Future of ID Verification with Multimodal Biometrics - TECH5 https://tech5.ai/
+multi-modal-biometrics-identity-verification/
+[PDF] Responsible AI for Multimodal Biometric Authentication in ... - IJSAT https://
+www.ijsat.org/papers/2026/1/10563.pdf
+[PDF] FACIAL RECOGNITION AND BIOMETRIC SYSTEMS https://reference-
+global.com/2/v2/download/article/10.2478/raft-2025-0024.pdf
+Securing digital identity with multimodal biometrics https://
+www.biometricsinstitute.org/securing-digital-identity-with-multimodal-biometrics/35. 
+36. 
+37. 
+38. 
+39. 
+40. 
+41. 
+42. 
+43. 
+44. 
+45. 
+46. 
+47. 
+48. 
+49. 
+
+=== PAGE 18 ===
+
+A Federated Attention-Based Multimodal Biometric Recognition ... https://
+www.mdpi.com/1424-8220/23/13/6006
+[PDF] Eye-Movement behavior identification for AD diagnosis - arXiv https://
+arxiv.org/pdf/1702.00837
+[PDF] SMARTe-VR: Student Monitoring and Adaptive Response ... - arXiv https://
+arxiv.org/pdf/2501.10977
+Air Traffic Controller Fatigue Detection Based on Facial and Vocal ... https://
+ieeexplore.ieee.org/iel7/6287639/10380310/10505175.pdf
+[PDF] Privacy-Protecting Techniques for Behavioral Biometric Data: A Survey https://
+arxiv.org/pdf/2109.04120
+Scanning the Issue - May 2025 - IEEE Xplore https://ieeexplore.ieee.org/
+iel8/6979/10988578/10988532.pdf
+Proceedings of the - 1 9th Annual International Conference https://
+ieeexplore.ieee.org/iel4/6085/16334/00756496.pdf
+(PDF) Why is Multimedia Quality of Experience Assessment a ... https://
+ieeexplore.ieee.org/iel7/6287639/8600701/08808854.pdf
+[PDF] Biometric User Authentication Application, Evaluation, and Discussion https://
+arxiv.org/pdf/2311.13416
+Wasm, WebGPU, & WebNN: How compute abstraction are enabling ... https://
+www.youtube.com/watch?v=5CvOjKIpnYk
+Semantic search powered by WASM and WebGPU - Medium https://medium.com/
+@aminedirhoussi1/semantic-search-powered-by-wasm-and-wgpu-492e900b8796
+WebAssembly and WebGPU enhancements for faster Web AI, part 1 https://
+developer.chrome.com/blog/io24-webassembly-webgpu-1
+WebLLM: A High-Performance In-Browser LLM Inference Engine https://arxiv.org/
+html/2412.15803v2
+WebGPU Browser AI: Client-Side Inference in JavaScript - SitePoint https://
+www.sitepoint.com/webgpu-browser-ai-javascript-inference/
+The client-side AI stack | web.dev https://web.dev/learn/ai/client-side
+Running Local LLM Inference in the Browser Client - APX Terminal https://
+apxterminal.com/news/wasm-webgpu-local-ai-browser
+Building LLM-Powered Web Apps with client side WASM by Shivay ... https://
+www.youtube.com/watch?v=AFneOY7QA5Y
+Client-side AI: Running LLMs Directly in the Browser (WebGPU ... https://
+nquangit.io.vn/post/ai/
+WebAssembly/wasi-webgpu - GitHub https://github.com/WebAssembly/wasi-webgpu50. 
+51. 
+52. 
+53. 
+54. 
+55. 
+56. 
+57. 
+58. 
+59. 
+60. 
+61. 
+62. 
+63. 
+64. 
+65. 
+66. 
+67. 
+68. 
+
+=== PAGE 19 ===
+
+Deep Learning Models for Detecting Cheating in Online Exams https://
+www.techscience.com/cmc/v85n2/63822/html
+Cheating Detection for Online Examination Using Clustering Based ... https://joiv.org/
+index.php/joiv/article/view/2327
+Ensuring academic integrity through automated online exam ... https://
+link.springer.com/article/10.1007/s44217-026-01224-3
+Cheating Detection in Online Exams Using Deep Learning and ... https://
+www.mdpi.com/2076-3417/15/1/400
+Using Biclustering to Detect Cheating in Real Time on Mixed-Format ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12104213/
+Talent-Interview: Web-Client Cheating Detection for Online Exams https://arxiv.org/
+html/2312.00795
+Deep Learning Models for Detecting Cheating in Online Exams https://
+www.researchgate.net/publication/
+394394162_Deep_Learning_Models_for_Detecting_Cheating_in_Online_Exams
+Automated Cheating Detection in Exams | PDF | Cluster Analysis https://
+www.scribd.com/document/796270751/Cheating-Detection-for-Online-Examination-
+Using-Cl
+Smart Online Exam Proctoring Assist for Cheating Detection https://
+zuscholars.zu.ac.ae/works/4868/
+AI-Powered Online Exam Cheating Detection System - GitHub https://github.com/
+AarambhDevHub/exam-cheating-detection
+Pupil labs - Open source eye tracking - GitHub https://github.com/pupil-labs/pupil
+pupillometry · GitHub Topics https://github.com/topics/pupillometry?
+o=desc&s=stars
+vijulshah/webcam-based-pupil-diameter-estimation - GitHub https://github.com/
+vijulshah/webcam-based-pupil-diameter-estimation
+pupil-detection · GitHub Topics https://github.com/topics/pupil-detection?
+o=desc&s=forks
+PyPupilEXT: Advanced pupil size detection using computer ... - GitHub https://
+github.com/openPupil/PyPupilEXT
+ultravideo/eye-tracking-framework - GitHub https://github.com/ultravideo/eye-
+tracking-framework
+Enhancing Eye-Tracking with GPT-4 and GitHub Copilot - YouTube https://
+www.youtube.com/watch?v=ZZeoN-cVuB8
+GitHub - jeeliz/jeelizPupillometry: Real time pupillometry in the web ... https://
+github.com/jeeliz/jeelizPupillometry69. 
+70. 
+71. 
+72. 
+73. 
+74. 
+75. 
+76. 
+77. 
+78. 
+79. 
+80. 
+81. 
+82. 
+83. 
+84. 
+85. 
+86. 
+
+=== PAGE 20 ===
+
+A Novel Application for Webcam-Based Pupil Diameter Estimation https://arxiv.org/
+html/2407.11204v2
+nz0001na/Eye_Tracking_Repository: The repository of eye-tracking ... https://
+github.com/nz0001na/Eye_Tracking_Repository
+[PDF] WebGazer: Scalable Webcam Eye Tracking Using User Interactions https://
+www.ijcai.org/Proceedings/16/Papers/540.pdf
+WebGazer.js: Democratizing Webcam Eye Tracking on the Browser https://
+webgazer.cs.brown.edu/
+How to Build Real-Time Eye Tracking in the Browser - Roboflow Blog https://
+blog.roboflow.com/build-eye-tracking-in-browser/
+WebGPU: The Next Generation of Browser Graphics and Compute https://
+blog.4dpipeline.com/webgpu-the-next-generation-of-browser-graphics-and-compute
+WebGazer.js: Scalable Webcam EyeTracking Using User Interactions https://
+github.com/brownhci/webgazer
+WebGazer: Scalable Webcam Eye Tracking Using User Interactions https://
+www.researchgate.net/publication/
+305375498_WebGazer_Scalable_Webcam_Eye_Tracking_Using_User_Interactions
+Video-based pupillometry using Fourier Mellin image correlation https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12274612/
+Webcam-Based Pain Measurement Using Pupillary Diameter - MDPI https://
+www.mdpi.com/1424-8220/26/9/2746
+PyPlr: A versatile, integrated system of hardware and software for ... https://
+link.springer.com/article/10.3758/s13428-021-01759-3
+(PDF) Assessment of pupillary light reflex using a smartphone ... https://
+www.researchgate.net/publication/
+303477992_Assessment_of_pupillary_light_reflex_using_a_smartphone_application
+[PDF] Webcam-Based Pupil Diameter Prediction Benefits from Upscaling https://
+www.scitepress.org/Papers/2025/131628/131628.pdf
+Establishing the operating conditions of 'Ocula AI' in capturing the ... https://
+www.medrxiv.org/content/10.1101/2025.03.03.25323271.full
+Using smartphone pupillometer application to measure pupil... https://
+journals.lww.com/md-journal/fulltext/2025/02280/
+using_smartphone_pupillometer_application_to.47.aspx
+WebGPU vs WebASM: Browser Inference Benchmarks - SitePoint https://
+www.sitepoint.com/webgpu-vs-webasm-transformers-js/
+WebAssembly and WebGPU enhancements for faster Web AI, part 2 https://
+developer.chrome.com/blog/io24-webassembly-webgpu-287. 
+88. 
+89. 
+90. 
+91. 
+92. 
+93. 
+94. 
+95. 
+96. 
+97. 
+98. 
+99. 
+100. 
+101. 
+102. 
+103. 
+
+=== PAGE 21 ===
+
+WebGPU Inference, 2025 Playbook - Medium https://medium.com/@2nick2patel2/
+webgpu-inference-2025-playbook-a7f7467997b7
+[PDF] Unleashing the Power of WebGPU on LLM Inference in Web Browsers https://
+openreview.net/pdf?id=Qu2itILaoZ
+GAZE 2026: Eye and Gaze in Computer Vision https://gazeworkshop.github.io/
+Real-Time Gaze Estimation Using Webcam-Based CNN Models for ... https://
+www.mdpi.com/2073-431X/14/2/57
+Comparing a new webcam-based system and the EyeLink 1000 https://
+link.springer.com/article/10.3758/s13428-023-02237-8
+An efficient real-time gaze tracking method for browser-based ... - КПІ https://
+ela.kpi.ua/items/005845e3-9b1d-47a7-ad3d-16dda79e6c89
+[PDF] Event-based eye tracking for smart eyewear - Re.Public@polimi.it https://
+re.public.polimi.it/retrieve/47c2583b-5e4e-4399-9548-1e00750cb659/
+ETRA__Event_based_eye_tracking.pdf
+Adirect comparison between in-lab and web-based eye-tracking ... https://
+www.mpi.nl/publications/item3626344/webcams-windows-mind-adirect-comparison-
+between-lab-and-web-based-eye
+[PDF] A Webcam Artificial Intelligence-Based Gaze-Tracking Algorithm https://
+www.scitepress.org/Papers/2024/127597/127597.pdf
+A Cookbook for Eye Tracking in Software Engineering https://dl.acm.org/doi/
+10.1145/3723010.3723018
+NeuroChat: A Neuroadaptive AI Chatbot for Customizing Learning ... https://
+dl.acm.org/doi/10.1145/3719160.3736623
+Envisioning and Understanding AI Parenting Supports through ... https://dl.acm.org/
+doi/10.1145/3613904.3642619
+Designing Effective Consent Mechanisms for Spontaneous ... https://dl.acm.org/doi/
+10.1145/3706598.3713519
+A Cookbook for Eye Tracking in Software Engineering - ResearchGate https://
+dl.acm.org/doi/pdf/10.1145/3723010.3723018
+Designing Effective Consent Mechanisms for Spontaneous ... https://dl.acm.org/doi/
+pdf/10.1145/3706598.3713519
+The Psychology of Human-Computer Interaction: | Guide books https://dl.acm.org/
+doi/10.5555/578027
+ThingShare: Ad-Hoc Digital Copies of Physical Objects for Sharing ... https://
+dl.acm.org/doi/full/10.1145/3544548.3581148
+CHI'26 - ACM Digital Library https://dl.acm.org/action/showFmPdf?
+doi=10.1145%2F3772318104. 
+105. 
+106. 
+107. 
+108. 
+109. 
+110. 
+111. 
+112. 
+113. 
+114. 
+115. 
+116. 
+117. 
+118. 
+119. 
+120. 
+121. 
+
+=== PAGE 22 ===
+
+Conferences Best Paper Awards 2023 https://www.acm.org/conferences/best-paper-
+awards-2023
+AutoOEP -- A Multi-modal Framework for Online Exam Proctoring https://
+www.researchgate.net/publication/395526410_AutoOEP_--_A_Multi-
+modal_Framework_for_Online_Exam_Proctoring
+Smart Eye and FPC Demonstrate Multi-Modal Biometric ... https://smarteye.se/news/
+smart-eye-and-fpc-demonstrate-multi-modal-biometric-authentication-combining-face-
+and-iris-recognition/
+CVPR 2026 Papers https://cvpr.thecvf.com/virtual/2026/papers.html
+Cyber Coercion Detection Using LLM-Assisted Multimodal Biometric ... https://
+www.mdpi.com/2076-3417/15/19/10658
+[PDF] Opinion 11/2024 on the use of facial recognition to streamline airport ... 
+https://www.edpb.europa.eu/system/files/2024-05/
+edpb_opinion_202411_facialrecognitionairports_en.pdf
+Multi-Modal ABIS Automated Biometric Identification System - Eyecool https://
+www.eyecooltech.com/multi-modal-abis-automated-biometric-identification-system/
+Biometric Systems Private by Design - ANR https://anr.fr/Project-ANR-12-INSE-0013
+Beyond the algorithm: Why rigorous biometric testing matters https://
+www.biometricsinstitute.org/beyond-the-algorithm-why-rigorous-biometric-testing-
+matters/
+IJCB 2026 Call for Papers - IEEE Biometrics Council https://ieee-biometrics.org/
+ijcb-2026-call-for-papers/
+(PDF) A Webcam Artificial Intelligence-Based Gaze-Tracking Algorithm https://
+www.researchgate.net/publication/382224373_A_Webcam_Artificial_Intelligence-
+Based_Gaze-Tracking_Algorithm
+Democratizing eye-tracking? Appearance-based gaze estimation ... https://
+www.sciencedirect.com/science/article/pii/S0952197625004944
+Feature decomposition-based gaze estimation with auxiliary head ... https://
+www.semanticscholar.org/paper/Feature-decomposition-based-gaze-estimation-with-
+Ni-Chen/5f091a3a700dc04895b0ac3d05e581b39727a45e
+Adaptive Feature Fusion Network for Gaze Tracking in Mobile Tablets https://
+arxiv.org/abs/2103.11119
+Virmarie Maquiling - Google Scholar https://scholar.google.com/citations?
+user=uPIKN-MAAAAJ&hl=en
+Improving Eye-Tracking Data Quality: A Framework for Reproducible ... https://
+www.mdpi.com/1424-8220/24/9/2688122. 
+123. 
+124. 
+125. 
+126. 
+127. 
+128. 
+129. 
+130. 
+131. 
+132. 
+133. 
+134. 
+135. 
+136. 
+137. 
+
+=== PAGE 23 ===
+
+Webcam-based gaze estimation for computer screen interaction https://
+www.frontiersin.org/journals/robotics-and-ai/articles/10.3389/frobt.2024.1369566/
+full
+Publications - Ulm University - Eyes4ICU https://www.eyes4icu.eu/publications/
+Usability and Applied Eye-Tracking Publications - SR Research https://www.sr-
+research.com/usability-applied-publications/
+Liveness Detection Guide: Protecting Digital Identity 2026 - OLOID https://
+www.oloid.com/blog/liveness-detection
+Liveness Detection – The Key to Robust Biometric Authentication https://
+nextbiometrics.com/news_archive_2026/liveness-detection-the-key-to-robust-
+biometric-authentication/
+Biometric Authentication Warnings - Didit Documentation https://docs.didit.me/core-
+technology/biometric-auth/warnings-biometric-authentication
+Biometric liveness detection explained for 2026 - ID-Pal https://www.id-pal.com/
+blog/biometric-liveness-detection-explained-for-2026/
+Continuous Authentication in Resource-Constrained Devices via ... https://
+www.mdpi.com/1424-8220/25/18/5711
+Dual-Sensor Fingerprint Authentication System https://www.epj-conferences.org/
+articles/epjconf/abs/2026/26/epjconf_iemphys-26_01023/
+epjconf_iemphys-26_01023.html
+Liveness detection for biometric authentication in mobile applications https://
+www.researchgate.net/publication/
+286108098_Liveness_detection_for_biometric_authentication_in_mobile_applications
+Alternatives to Fingerprint and Facial Recognition (2026) | PalmAI https://
+palm.tencent.com/resources/alternatives-to-fingerprint-and-facial-recognition?
+type=news
+AI Adaptive Authentication and Behavioral Biometrics 2026 https://
+guptadeepak.com/ai-powered-adaptive-authentication-and-behavioral-biometrics-the-
+enterprise-guide-2026/
+Liveness is Not Enough: Enhancing Fingerprint Authentication with ... https://
+www.usenix.org/conference/usenixsecurity20/presentation/wu
+[PDF] Prediction of Gaze Estimation Error for Error-Aware Gaze-Based ... https://
+www.collaborative-ai.org/publications/barz16_techrep.pdf
+Using Webcam-Based Eye Tracking during a Learning Task to ... https://
+educationaldatamining.org/EDM2025/proceedings/2025.EDM.long-papers.97/
+index.html
+pupil-labs/hmd-eyes: Building blocks for eye tracking in AR and VR. https://
+github.com/pupil-labs/hmd-eyes138. 
+139. 
+140. 
+141. 
+142. 
+143. 
+144. 
+145. 
+146. 
+147. 
+148. 
+149. 
+150. 
+151. 
+152. 
+153. 
+
+=== PAGE 24 ===
+
+[PDF] Eye Gaze Tracking With a Web Camera in a Desktop Environment https://
+www.comp.hkbu.edu.hk/~ymc/papers/journal/
+THMS2400442_publication_version.pdf
+A Comprehensive Framework for Eye Tracking: Methods, Tools ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12564957/
+Eye-Tracking for Human Performance Assessment in Industry 5.0 ... https://
+www.mdpi.com/3042-7126/2/2/5
+Building a realtime eye tracking experience with Supabase and ... https://dev.to/
+laznic/building-a-realtime-eye-tracking-experience-with-supabase-and-webgazerjs-3llj
+NIST Special Publication 800-63B https://pages.nist.gov/800-63-3/sp800-63b.html
+[PDF] Digital Identity Guidelines: Authentication and Lifecycle Management https://
+nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-63b.pdf
+NIST SP 800-63 Digital Identity Guidelines https://pages.nist.gov/800-63-3/
+NIST 800-63-4 Guidelines: An Identity Call To Action | iProov https://
+www.iproov.com/blog/nist-800-63-4-guidelines-identity-call-to-action
+DRAFT NIST Special Publication 800-63B https://openid-foundation-japan.github.io/
+800-63-3/sp800-63b.html
+NIST Special Publication 800-63-3 https://pages.nist.gov/800-63-3/sp800-63-3.html
+NIST SP 800-63 - Identity Proofing Verification https://experience.idemia.com/
+identity-proofing/develop/identity-proofing-verification/api-docs/1/nist/
+NIST SP 800-63 - Azure Compliance - Microsoft Learn https://learn.microsoft.com/en-
+us/azure/compliance/offerings/offering-nist-800-63
+[PDF] NIST.SP.800-63B-4.pdf https://nvlpubs.nist.gov/nistpubs/SpecialPublications/
+NIST.SP.800-63B-4.pdf
+[PDF] Conformance Criteria for NIST SP 800-63A and 800-63B https://www.nist.gov/
+document/conformance-criteria-sp-800-63b-authentication-and-lifecycle-management
+(PDF) Automatic Detection of Gaze Convergence in Multimodal ... https://
+www.researchgate.net/publication/
+331800609_Automatic_Detection_of_Gaze_Convergence_in_Multimodal_Collaboratio
+n_A_Dual_Eye-Tracking_Technology
+The percentile-matching technique for synthetic eye tracking signal ... https://
+pubmed.ncbi.nlm.nih.gov/41259410/
+Cognition and Behavioral Data Collection Core – University of Macau https://
+ccbs.ici.um.edu.mo/cognition-and-behavioral-data-collection-core/
+https://scholar.google.com/citations?view_op=view_... https://scholar.google.com/
+citations?154. 
+155. 
+156. 
+157. 
+158. 
+159. 
+160. 
+161. 
+162. 
+163. 
+164. 
+165. 
+166. 
+167. 
+168. 
+169. 
+170. 
+171. 
+
+=== PAGE 25 ===
+
+view_op=view_citation&hl=en&user=75x4pdcAAAAJ&citation_for_view=75x4pdcAA
+AAJ:P7Ujq4OLJYoC
+[PDF] A Survey on Gaze-Based Biometric Authentication Systems https://
+www.aipajournal.com/index.php/pub/article/download/AIPA/11
+[PDF] temporal persistence and intercorrelation of embeddings learned by ... https://
+arxiv.org/pdf/2402.16399
+[PDF] Eye-Tracking Technologies for Facilitating Multimodal Interaction in ... https://
+elib.dlr.de/210424/1/engproc-90-00110-v2.pdf
+EyeCon: A Multimodal Human-Computer Interface Integrating Gaze ... https://
+papers.ssrn.com/sol3/papers.cfm?abstract_id=5684802
+ISO 30107-3 Presentation Attack Detection Test Methodology ... - iBeta https://
+www.ibeta.com/iso-30107-3-presentation-attack-detection-confirmation-letters/
+ISO/IEC 30107-3:2023(en), Information technology https://www.iso.org/obp/ui/es/
+#!iso:std:79520:en
+Identy.io Achieves ISO/IEC 30107-3 Level 2 PAD Compliance with ... https://
+www.identy.io/identy-io-facial-biometric-technology-receives-nist-iso-30107-3-level-2-
+pad-certification-with-perfect-score/
+ISO/IEC 30107-3 - Biometric Update https://www.biometricupdate.com/tag/iso-
+iec-30107-3
+NIST Special Publication 800-63B https://pages.nist.gov/800-63-4/sp800-63b.html
+Press Release: Neurotechnology Achieves Compliance for ... https://
+www.neurotechnology.com/press_release_pad_level_2_compliance.html
+Biometric Security Guide : Understanding ISO/IEC 30107 Standards https://
+blog.pacificcert.com/biometric-security-guide-understanding-iso-iec-30107/
+[PDF] Biometric Vulnerability Assessment Checklist https://
+www.biometricsinstitute.org/?sdm_process_download=1&download_id=6712
+Multi-Modal Method for Candidate Interview Assessment Based on ... https://
+www.mdpi.com/2504-2289/10/4/106
+Exploring AI-Driven Mock Technical Interviews on Student ... - arXiv https://
+arxiv.org/html/2506.16542v1
+Detecting Scripted vs. Spontaneous Interview Responses with AI ... https://
+medium.com/@bilalmashooq/detecting-scripted-vs-spontaneous-interview-responses-
+with-ai-based-eye-gaze-analysis-35a962d36943
+Alpha Lab - Build an AI Vision Assistant - Pupil Labs Docs https://docs.pupil-labs.com/
+alpha-lab/gpt4-eyes/
+AI Interviews Get Smarter with Eye Movement Tracking - Aptahire https://aptahire.ai/
+eye-movement-tracking-in-ai-hiring/172. 
+173. 
+174. 
+175. 
+176. 
+177. 
+178. 
+179. 
+180. 
+181. 
+182. 
+183. 
+184. 
+185. 
+186. 
+187. 
+188. 
+
+=== PAGE 26 ===
+
+AI Interview Eye Tracking Explained: What Video Interviews Actually ... https://
+www.aceround.app/blog/ai-interview-eye-tracking-explained/
+A Multi-Modal AI Proctoring System for Remote Examinations – IJERT https://
+www.ijert.org/a-multi-modal-ai-proctoring-system-for-remote-examinations-
+ijertv15is051154
+[PDF] AI-BASED MULTIMODAL INTERVIEW ASSESSMENT SYSTEM https://
+www.irjmets.com/upload_newfiles/irjmets71100066729/paper_file/
+irjmets71100066729.pdf
+Artificial intelligence approach for recommendation of pupil dilation ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC9513048/
+Webcam Gaze Tracker, Gaze Label Tool & Video Annotation Tool https://github.com/
+ChiShengChen/webcam_gaze_webapp
+gaze-tracking · GitHub Topics https://github.com/topics/gaze-tracking?
+l=c%2B%2B&o=desc&s=forks%2F1000
+EyeTrax – webcam-based eye tracking made simple - GitHub https://github.com/ck-
+zhang/eyetrax
+Real-Time Eye Tracking with JavaScript - YouTube https://www.youtube.com/watch?
+v=aE51sehcOkY
+GitHub - antoinelame/GazeTracking: Eye Tracking library easily ... https://
+github.com/antoinelame/GazeTracking
+An automatic calibration procedure for remote eye-gaze tracking ... https://
+pubmed.ncbi.nlm.nih.gov/19964649/
+An Automatic Calibration Procedure for Remote Eye-Gaze Tracking ... https://
+www.researchgate.net/publication/
+40451623_An_Automatic_Calibration_Procedure_for_Remote_Eye-
+Gaze_Tracking_Systems
+CA2545202C - Method and apparatus for calibration-free eye tracking https://
+patents.google.com/patent/CA2545202C/un
+https - DOI https://doi.org/10.1145/968363.968372
+A simple calibration method to quantify the effects of head ... https://
+ui.adsabs.harvard.edu/abs/2016imtc.conf..165C/abstract
+[PDF] Eye-tracking in Virtual Reality: Calibration and validation for the ... https://
+edepot.wur.nl/657862
+[PDF] A Novel Camera-to-Robot Calibration Method for Vision-Based ... https://
+arxiv.org/pdf/2603.15126
+(PDF) Towards efficient calibration for webcam eye-tracking in ... https://
+www.researchgate.net/publication/189. 
+190. 
+191. 
+192. 
+193. 
+194. 
+195. 
+196. 
+197. 
+198. 
+199. 
+200. 
+201. 
+202. 
+203. 
+204. 
+205. 
+
+=== PAGE 27 ===
+
+361174471_Towards_efficient_calibration_for_webcam_eye-
+tracking_in_online_experiments
+Establishing invariance to illumination in the pupillary light reflex... https://
+www.researchgate.net/figure/Establishing-invariance-to-illumination-in-the-pupillary-
+light-reflex-PLR-A-We_fig1_379723570
+Latency of the transient pupillary light reflex (TPLR): normalization ... https://
+iovs.arvojournals.org/article.aspx?articleid=2769965
+[PDF] Pupillary light reflex as a diagnostic aid from computational viewpoint https://
+metrovision.fr/
+2021/2021_Pinheiro_Literature_review_of_pupil_light_reflex_for_diagnostic.pdf
+[PDF] Latency of pupillary reflex to light stimulation and its relationship to ... http://
+wexler.free.fr/library/files/
+feinberg%20(1965)%20latency%20of%20pupillary%20reflex%20to%20light%20stim
+ulation%20and%20its%20relationship%20to%20aging.pdf
+[PDF] PyPlr: A versatile, integrated system of hardware and software for ... https://
+www.biorxiv.org/content/10.1101/2021.06.02.446731v2.full.pdf
+Reflex - PLR Analyzer - App Store - Apple https://apps.apple.com/ca/app/reflex-plr-
+analyzer/id1412154869
+Design and evaluation of a privacy-preserving multi-level federated ... https://doi.org/
+10.1016/j.future.2025.108217
+(PDF) Multi-Modal Biometric System: An Approach towards Security ... https://
+www.researchgate.net/publication/376050137_Multi-
+Modal_Biometric_System_An_Approach_towards_Security_Management_in_Vulnerabl
+e_Location
+[PDF] global biometrics and the https://www.irbnet.de/daten/iconda/CIB7392.pdf
+Publications | Giuseppe Stragapede https://gstrag.com/publications/
+[PDF] Multi-modal biometric authentication: Leveraging shared layer ... https://
+arxiv.org/pdf/2411.02112
+EANimesha/Online-Exam-Cheating-Detection-with-Eye-Tracking https://github.com/
+EANimesha/Online-Exam-Cheating-Detection-with-Eye-Tracking
+An improved gaze tracking technique based on eye model https://
+www.researchgate.net/publication/
+286604622_An_improved_gaze_tracking_technique_based_on_eye_model
+[PDF] AI Based Anti-Cheating Surveillance System - Atlantis Press https://
+www.atlantis-press.com/article/126021240.pdf
+Deep-Learning-Based Pupil Center Detection and Tracking ... - MDPI https://
+www.mdpi.com/2076-3417/11/2/851206. 
+207. 
+208. 
+209. 
+210. 
+211. 
+212. 
+213. 
+214. 
+215. 
+216. 
+217. 
+218. 
+219. 
+220. 
+
+=== PAGE 28 ===
+
+Eye and Gaze Tracking Research Papers - Academia.edu https://www.academia.edu/
+Documents/in/Eye_and_Gaze_Tracking
+Browser-Based Pupil Dilation Tracking: MediaPipe Iris vs. Darkest ... https://
+www.youtube.com/watch?v=Vb7ZHvQ4gnw
+Deep learning models for webcam eye tracking in online experiments https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11133145/
+Automated Pupil Dilation Tracking System Using Computer Vision ... https://
+www.mdpi.com/2076-3417/16/3/1173
+ML in the browser with WebGPU: real-time inference | Joan León https://
+joanleon.dev/en/webgpu-ml-browser/
+[PDF] Exploring Temporal Dynamics in Event-based Eye Tracker https://
+openaccess.thecvf.com/content/CVPR2025W/EventVision/papers/
+Huang_Exploring_Temporal_Dynamics_in_Event-
+based_Eye_Tracker_CVPRW_2025_paper.pdf
+Pupil Labs: Eye tracking technology - Gain insight into human ... https://pupil-
+labs.com/
+WebEyeTrack: Real-time Eye-Tracking in the Browser - GitHub https://github.com/
+RedForestAi/WebEyeTrack
+RealEye.io: Online Research Platform with Webcam Eye-Tracking https://
+www.realeye.io/
+Integration of WebAssembly in Performance-critical Web Applications https://
+asrjetsjournal.org/American_Scientific_Journal/article/view/11676
+HPCA 2025 | Awesome Papers https://paper.lingyunyang.com/reading-notes/
+conference/hpca-2025
+(PDF) Through the Eyes: A Survey on Gaze-Based Biometric ... https://
+www.researchgate.net/publication/
+395844387_Through_the_Eyes_A_Survey_on_Gaze-
+Based_Biometric_Authentication_Systems_AIPA's
+Gaze analysis: A survey on its applications - ScienceDirect.com https://
+www.sciencedirect.com/science/article/pii/S0262885624000647
+Pupil Detection Algorithm Based on ViM - PMC https://pmc.ncbi.nlm.nih.gov/articles/
+PMC12251934/
+Automatic detection of cognitive events using machine learning and ... https://
+www.nature.com/articles/s41598-025-16165-4
+Alpha Lab - Map Gaze Onto Anything - Pupil Labs Docs https://docs.pupil-labs.com/
+alpha-lab/map-onto-anything/221. 
+222. 
+223. 
+224. 
+225. 
+226. 
+227. 
+228. 
+229. 
+230. 
+231. 
+232. 
+233. 
+234. 
+235. 
+236. 
+
+=== PAGE 29 ===
+
+pupil-labs/real-time-screen-gaze - GitHub https://github.com/pupil-labs/real-time-
+screen-gaze
+Using Gaze for Behavioural Biometrics - MDPI https://www.mdpi.com/
+1424-8220/23/3/1262
+A multimodal AI framework for real-time student engagement ... https://
+link.springer.com/article/10.1007/s44443-026-00639-0
+Eye-tracked Virtual Reality: A Comprehensive Survey on Methods ... https://arxiv.org/
+html/2305.14080v2
+Real-time eye-gaze estimation using a low-resolution webcam https://
+www.researchgate.net/publication/257627417_Real-time_eye-
+gaze_estimation_using_a_low-resolution_webcam
+A robust, real-time camera-based eye gaze tracking system to ... https://
+www.semanticscholar.org/paper/A-robust%2C-real-time-camera-based-eye-gaze-
+tracking-Singh-Modi/b0a6ab40575d0904f3741cecfc29f2b99192f699
+A single-camera gaze tracking system under natural light - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC7904270/
+Webcam Eye Tracking vs. an Eye Tracker [Pros & Cons] - iMotions https://
+imotions.com/blog/learning/best-practice/webcam-eye-tracking-vs-an-eye-tracker/?
+srsltid=AfmBOoq2e379DifPG6nazgrvzL9h9BPPL-yAZ0vvJ1eaVdHDBT6Av8Pe
+[PDF] PyPlr: A versatile, integrated system of hardware and software for ... https://
+eprints.whiterose.ac.uk/id/eprint/194712/1/
+Martin_et_al._2021_Behavior_Research_Methods_PyPlr_A_versatile_integrated_syste
+m_of_hardware_and_software_for_researching_the_hum.pdf
+[PDF] Measuring the Pupillary Light Reflex Using Portable Instruments in ... https://
+oro.open.ac.uk/101480/1/101480.pdf
+[PDF] Smart Borders Pilot Project Report on the technical conclusions of ... https://
+www.eulisa.europa.eu/sites/default/files/documents/smart-borders-technical-
+report.pdf
+Challenging Cognitive Load Theory: The Role of Educational ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11852728/
+Theses and Dissertations Available from ProQuest - Purdue e-Pubs https://
+docs.lib.purdue.edu/dissertations/
+[PDF] Converging Technologies for Improving Human Performance https://
+obamawhitehouse.archives.gov/sites/default/files/microsites/ostp/bioecon-
+%28%23%20023SUPP%29%20NSF-NBIC.pdf
+[PDF] General-Orders.pdf - Dallas Police Department https://dallaspolice.net/
+resources/Shared%20Documents/General-Orders.pdf
+Dictionary https://www.eecis.udel.edu/~lliao/cis320f05/dictionary.txt237. 
+238. 
+239. 
+240. 
+241. 
+242. 
+243. 
+244. 
+245. 
+246. 
+247. 
+248. 
+249. 
+250. 
+251. 
+252. 
+
+=== PAGE 30 ===
+
+[PDF] THE EUROPEAN UNION ARTIFICIAL INTELLIGENCE ACT https://
+editorialescientifica.it/wp-content/uploads/2025/06/eBook-Ceridap-Galletta_THE-
+EUROPEAN-UNION-ARTIFICIAL-INTELLIGENCE-ACT.pdf
+[PDF] a dictionary PDF https://www.bluefirereader.com/certification/dictionary.pdf
+[PDF] STUDENT SCHOLAR SYMPOSIUM - Chapman University https://
+www.chapman.edu/research/center-for-undergraduate-excellence/2026-Spring-
+Abstract-Final-4.27.28.pdf
+Proceedings | CHI 2021 - ACM https://chi2021.acm.org/proceedings
+words.txt - UCSB Computer Science https://sites.cs.ucsb.edu/~mikec/cs16/misc/
+demos/savitch10pgms/Chapter07/words.txt
+English dictionary https://super.cs.uchicago.edu/usable18/dictionarysmall.txt
+[PDF] The College: Arts & Sciences - African & African-American Studies https://
+www.rochester.edu/registrar/assets/pdf/descriptions_fall09.pdf
+https://cs.arizona.edu/~mercer/Projects/BoggleWords https://cs.arizona.edu/
+~mercer/Projects/BoggleWords
+dictionary.txt - W&M Computer Science https://www.cs.wm.edu/~tadavis/cs141/p3/
+dictionary.txt
+A AARDVARK AARDWOLF ABA ABACA ABACI ABACK ... - MIT https://web.mit.edu/
+games/src/mboggle/words/websterwords
+large test input - Computer Science https://www.cs.williams.edu/~jannen/teaching/
+s17/cs136/labs/lexicon/ospd2.txt
+dictionary.txt - andrew.cmu.ed https://www.andrew.cmu.edu/course/15-121/
+dictionary.txt
+multiple-choice test items: Topics by Science.gov https://www.science.gov/
+topicpages/m/multiple-choice+test+items.html
+Anti-spoofing in face recognition with liveness detection using pupil ... https://
+www.semanticscholar.org/paper/Anti-spoofing-in-face-recognition-with-liveness-
+Killioglu-Taskiran/ec883879bdd9adf46b56fd7b6aaf948447ba3dbf
+Anti-spoofing in face recognition with liveness detection using pupil ... https://
+www.researchgate.net/publication/313441872_Anti-
+spoofing_in_face_recognition_with_liveness_detection_using_pupil_tracking
+Robust Facial Biometric Authentication System Using Pupillary Light ... https://
+www.techscience.com/CMES/v139n1/55103/html
+Anti-spoofing in face recognition with liveness detection using pupil ... https://
+ui.adsabs.harvard.edu/abs/2017sami.conf...12K/abstract
+[PDF] IriTrack: Liveness Detection Using Irises Tracking for Preventing ... https://
+arxiv.org/pdf/1810.03323253. 
+254. 
+255. 
+256. 
+257. 
+258. 
+259. 
+260. 
+261. 
+262. 
+263. 
+264. 
+265. 
+266. 
+267. 
+268. 
+269. 
+270. 
+
+=== PAGE 31 ===
+
+Passive Facial Liveness Detection: Advantages and Methods https://antispoofing.org/
+passive-facial-liveness-detection-advantages-and-methods/
+Gaze Tracking in Liveness Detection | Keeping an Eye on ... - Facia.ai https://facia.ai/
+blog/gaze-tracking-in-liveness-detection-keeping-an-eye-on-everyones-eyes/
+[PDF] Liveness Detection for Face Recognition - SciSpace https://scispace.com/pdf/
+liveness-detection-for-face-recognition-1udn535sa5.pdf
+Real Time Face Liveliness Detection Using Eye Blinking and ... https://
+www.psychosocial.com/index.php/ijpr/article/view/4660
+Pupil Labs Chat Archive - # core 2020/August https://chat-archive.pupil-labs.com/
+logs/core/2020/08/
+Gaze and eye tracking software - Visage Technologies https://visagetechnologies.com/
+eye-gaze-tracking/
+Noise estimation for head-mounted 3D binocular eye tracking ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11062346/
+(PDF) Investigating the Feasibility of Conducting Webcam-Based ... https://
+www.researchgate.net/publication/
+399517125_Investigating_the_Feasibility_of_Conducting_Webcam-Based_Eye-
+Tracking_Studies_in_Code_Comprehension
+Guangrong Zhao - Google Scholar https://scholar.google.com/citations?
+user=FYaAvhcAAAAJ&hl=en
+Pupil Detection Algorithm Based on ViM - MDPI https://www.mdpi.com/
+1424-8220/25/13/3978
+eyetrackingDB/GazeTrackingFramework: Android based framework ... https://
+github.com/eyetrackingDB/GazeTrackingFramework
+ISO/IEC 30107-3:2017 - Information technology — Biometric ... https://www.iso.org/
+standard/67381.html
+iBeta Level 3 and the New Standards - Unidata https://unidata.pro/blog/ibeta-level-3-
+new-standards/
+ISO/IEC 30107-1:2023(en), Information technology — Biometric ... https://
+www.iso.org/obp/ui/en/#!iso:std:83828:en
+iBeta Presentation Attack Detection Conformance Level 1 & 2 https://
+www.innovatrics.com/awards/level-1-ibeta-presentation-attack-detection-
+conformance/
+ISO 30107-3: Biometric Liveness Detection Standards. - Didit.me https://didit.me/
+blog/iso-30107-3-biometric-liveness-detection/
+IDENTYUM ISO-IEC 30107-3 CERTIFIED https://identyum.com/identyum-iso-
+iec-30107-3-certified/271. 
+272. 
+273. 
+274. 
+275. 
+276. 
+277. 
+278. 
+279. 
+280. 
+281. 
+282. 
+283. 
+284. 
+285. 
+286. 
+287. 
+
+=== PAGE 32 ===
+
+Eye-tracking Technologies in Mobile Devices Using Edge Computing https://
+dl.acm.org/doi/10.1145/3546938
+Enhancing User-Centered Product Innovation with Eye Tracking https://dl.acm.org/
+doi/pdf/10.5555/3735398
+test - ACM https://www.acm.org/conferences/hk-test
+[PDF] I, Patrick Gilligan, being a candidate for the degree of https://doras.dcu.ie/
+18751/1/Patrick_Gilligan_20130509144744.pdf
+[PDF] breifny antiquarian society's - Cavan Library https://www.cavanlibrary.ie/
+cavan-history/history-online/digitised-material/breifny-antiquarian-society-
+journal-1923-vol-ii-no-i-ii-iii-.pdf
+word list - Ucsb http://oldsite.english.ucsb.edu/faculty/ayliu/unlocked/humanities-
+patents/antconc_wordlist.txt
+[XML] U5L1-Spell-Checker.xml - The Beauty and Joy of Computing https://
+bjc.berkeley.edu/bjc-r/prog/5-algorithms/U5L1-Spell-Checker.xml
+bing.txt - FTP Directory Listing ftp://ftp.cs.princeton.edu/pub/cs226/autocomplete/
+bing.txt
+Publications | Collaborative Artificial Intelligence https://www.collaborative-ai.org/
+publications/
+Vol. 39 No. 21: AAAI-25 Technical Tracks 21 https://ojs.aaai.org/index.php/AAAI/
+issue/view/644
+[2605.22073] Behavior-Guided Candidate Calibration for Multimodal ... https://
+arxiv.org/abs/2605.22073
+https://scholar.google.com/citations?view_op=view_... https://scholar.google.com/
+citations?view_op=view_citation&hl=en&user=GaPN-
+R4AAAAJ&citation_for_view=GaPN-R4AAAAJ:PicmXY_cuE0C
+Publications by Our Members - MCML https://mcml.ai/publications/
+David Mizrahi - Google 学术搜索 https://scholar.google.com.hk/citations?
+user=IF8OK3IAAAAJ&hl=zh-CN&newwindow=1
+Session 4 Using AI for Teaching & Learning (Part II) - Panopto https://
+iit.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=7afab5fb-8448-46ac-8404-
+b3da010a8a81&start=433
+publications | Cady Tianyu Xu https://cadyxu.com/publications/
+EDSTAR - European Union https://edstar.eda.europa.eu/Standards/Details/
+83d6659f-8c31-4701-b9d3-142cb445b6bb
+ISO/IEC 19792:2009 - Security evaluation of biometrics https://www.iso.org/
+standard/51521.html288. 
+289. 
+290. 
+291. 
+292. 
+293. 
+294. 
+295. 
+296. 
+297. 
+298. 
+299. 
+300. 
+301. 
+302. 
+303. 
+304. 
+305. 
+
+=== PAGE 33 ===
+
+User-calibration-free remote eye-gaze tracking system with ... https://
+oamonitor.ireland.openaire.eu/national/search/publication?
+pid=10.1109%2Fccece.2011.6030667
+US10884494B1 - Eye tracking device calibration - Google Patents https://
+patents.google.com/patent/US10884494B1/en
+Biometric Security Certifications & Compliance Standards iProov https://
+www.iproov.com/certifications
+[PDF] A method for standardizing eye-tracking and behavioral data ... - HAL https://
+hal.science/hal-04890974v1/file/NeuroArcheo%20METHODO_GRAPP.pdf
+https://www.um.edu.mt/operatingprocedures/doc/SCE-... https://www.um.edu.mt/
+operatingprocedures/doc/SCE-008-02
+WebGPU vs. WebAssembly for Kokoro TTS Inference https://kokoroweb.app/en/blog/
+webgpu-vs-wasm-tts-inference
+Automated Pupillary Light Reflex Test on a Portable Platform - ar5iv https://
+ar5iv.labs.arxiv.org/html/1905.08886
+Evaluation of temporal stability of eye tracking algorithms using ... https://
+www.sciencedirect.com/science/article/abs/pii/S0957417416303761
+Best low-cost methods for real-time detection of the eye and gaze ... https://
+www.researchgate.net/publication/377232980_Best_low-cost_methods_for_real-
+time_detection_of_the_eye_and_gaze_tracking
+Best low-cost methods for real-time detection of the eye and gaze ... https://
+www.degruyterbrill.com/document/doi/10.1515/icom-2023-0026/html?
+srsltid=AfmBOoqQbfgssgbGIsZAImSAIFILwo9BpLyHPF9qZ-r_wWMS_1yMFxXV
+[PDF] A Review and Analysis of Eye-Gaze Estimation Systems, Algorithms ... https://
+arxiv.org/pdf/1708.01817
+AI-driven pupillary–computer interface via binary-coded flickering ... https://
+www.sciencedirect.com/science/article/pii/S001048252501409X
+WebLLM: A High-Performance In-Browser LLM Inference Engine https://arxiv.org/
+html/2412.15803v1
+(PDF) WebGPU Accelerated Client-Side AI for Privacy Preserving ... https://
+www.researchgate.net/publication/401110730_WebGPU_Accelerated_Client-
+Side_AI_for_Privacy_Preserving_Dermatological_Diagnostics_Performance_Benchmark
+ing_and_Local_Differential_Privacy_Integration
+WebGPU API - MDN Web Docs - Mozilla https://developer.mozilla.org/en-US/docs/
+Web/API/WebGPU_API
+[PDF] Biometric vulnerabilities Ensuring future law enforcement ... - Europol https://
+www.europol.europa.eu/cms/sites/default/files/documents/Biometric-
+vulnerabilities.pdf306. 
+307. 
+308. 
+309. 
+310. 
+311. 
+312. 
+313. 
+314. 
+315. 
+316. 
+317. 
+318. 
+319. 
+320. 
+321. 
+
+=== PAGE 34 ===
+
+Multi Modal Biometric Authentication - Eyecool https://www.eyecooltech.com/
+multimodal-biometric-algorithm/
+An eye on the future | Ada Lovelace Institute https://www.adalovelaceinstitute.org/
+report/an-eye-on-the-future/
+Actions · vijulshah/webcam-based-pupil-diameter-estimation - GitHub https://
+github.com/vijulshah/webcam-based-pupil-diameter-estimation/actions
+vijulshah/webcam-based-pupil-diameter-estimation - GitHub https://github.com/
+vijulshah/webcam-based-pupil-diameter-estimation/security
+A Step-by-Step Guide to Analyzing Webcam Eye-Tracking Data for ... https://
+jgeller112.github.io/L2_VWP_Webcam/
+LukeAllen/optimeyes: Webcam-based eye pupil tracking ... - GitHub https://
+github.com/LukeAllen/optimeyes
+(PDF) A Regression-Based User Calibration Framework for Real ... https://
+www.researchgate.net/publication/305695676_A_Regression-
+Based_User_Calibration_Framework_for_Real-Time_Gaze_Estimation
+Instant interaction driven adaptive gaze control interface - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11111737/
+[PDF] Adaptive Linear Regression for Appearance-Based Gaze Estimation https://phi-
+ai.buaa.edu.cn/publications/papers/
+Adaptive%20Linear%20Regression%20for%20Appearance-
+Based%20Gaze%20Estimation.pdf
+Appearance-based Gaze Estimation with Deep Learning - arXiv https://arxiv.org/html/
+2104.12668v2
+ETRA 2018 https://etra.acm.org/2018/etratoc.html
+[PDF] A Regression-based User Calibration Framework for Real-time ... https://
+infoscience.epfl.ch/bitstreams/b69d6f59-e037-47cd-bea6-20239df61a1d/download
+A review on personal calibration issues for video-oculographic ... https://
+www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2024.1309047/full
+Characterizing eye gaze and mental workload for assistive device ... https://
+www.cambridge.org/core/journals/wearable-technologies/article/characterizing-eye-
+gaze-and-mental-workload-for-assistive-device-control/
+B3B0963FE36034181D41E73BB2B06859
+[PDF] Accessible Real-time Eye-gaze Tracking for Neurocognitive Health ... https://
+www.isca-archive.org/interspeech_2025/tisdale25_interspeech.pdf
+Ensuring academic integrity through automated online exam ... https://
+link.springer.com/content/pdf/10.1007/s44217-026-01224-3.pdf322. 
+323. 
+324. 
+325. 
+326. 
+327. 
+328. 
+329. 
+330. 
+331. 
+332. 
+333. 
+334. 
+335. 
+336. 
+337. 
+
+=== PAGE 35 ===
+
+An Integrative Model Of Organizational Trust - AOM Journals https://
+journals.aom.org/doi/10.5465/amr.1995.9508080335
+US20170173262A1 - Medical systems, devices and methods https://
+patents.google.com/patent/US20170173262A1/en
+dictionary.txt - UCF Department of Computer Science http://www.cs.ucf.edu/
+~dmarino/ucf/dictionary.txt
+ETD Collection for Fordham University https://research.library.fordham.edu/
+dissertations/
+dictionary.txt http://web.stanford.edu/class/archive/cs/cs106b/cs106b.1178/
+lectures/10-RecursiveBacktracking2/code/clumsyThumbsy/res/dictionary.txt
+english.cleaned.all.95.txt - Rose-Hulman https://www.rose-hulman.edu/class/cs/
+binaries/csse230/Doublets/english.cleaned.all.95.txt
+Spelling dictionary - Wharton Statistics http://stat.wharton.upenn.edu/~buja/
+STAT-961/dict.dat
+Robust Facial Biometric Authentication System Using Pupillary Light ... https://
+www.researchgate.net/publication/
+377057355_Robust_Facial_Biometric_Authentication_System_Using_Pupillary_Light_
+Reflex_for_Liveness_Detection_of_Facial_Images
+[PDF] Face Liveness Detection from A Single Image with Sparse Low ... https://
+parnec.nuaa.edu.cn/_upload/article/files/4d/43/8a227f2c46bda4c20da97715f010/
+db1eef47-b25f-4af9-88d4-a8afeccda889.pdf
+[PDF] arXiv:2003.08024v3 [cs.CV] 16 Jun 2022 https://arxiv.org/pdf/2003.08024
+Face Anti-Spoofing Based on Adaptive Channel Enhancement and ... https://
+www.mdpi.com/2313-433X/11/4/116
+Pupil Labs Chat Archive - # core 2024/June https://chat-archive.pupil-labs.com/logs/
+core/2024/06/
+[PDF] Pupil: An Open Source Platform for Pervasive Eye Tracking and ... https://
+www.collaborative-ai.org/publications/kassner14_ubicomp.pdf
+Problem with Eye-Tracking Experiment - Forum - Cogsci.nl https://forum.cogsci.nl/
+discussion/9744/problem-with-eye-tracking-experiment
+Lazy or Efficient? Towards Accessible Eye-Tracking Event Detection ... https://
+arxiv.org/html/2604.13243v1
+(PDF) Pupil: An Open Source Platform for Pervasive Eye Tracking ... https://
+www.researchgate.net/publication/
+262030071_Pupil_An_Open_Source_Platform_for_Pervasive_Eye_Tracking_and_Mobil
+e_Gaze-based_Interaction338. 
+339. 
+340. 
+341. 
+342. 
+343. 
+344. 
+345. 
+346. 
+347. 
+348. 
+349. 
+350. 
+351. 
+352. 
+353. 
+
+=== PAGE 36 ===
+
+Gaze Estimation API – Eye Gaze Tracking & Analysis - Face https://
+www.faceplusplus.com/gaze-estimation/
+[PDF] Gaze-Based Interaction Adaptation for People with Involuntary Head ... https://
+ojs.aaai.org/index.php/AAAI/article/view/30519/32666
+Webcam Eye Tracking Technology by Labvanced https://www.labvanced.com/
+content/technology/en/labvanced-eye-tracking/
+Cheating Detection System Based on Eye Gaze, Head Pose and Lip ... https://
+www.atlantis-press.com/proceedings/icast-es-25/126020514
+[PDF] A Cheating Detection System in Online Examinations Based on the ... https://
+eudl.eu/pdf/10.4108/eai.16-4-2022.2318165
+Figure 12 from Eye-gaze detection with a single WebCAM based on ... https://
+www.semanticscholar.org/paper/Eye-gaze-detection-with-a-single-WebCAM-based-on-
+Cuong-Huynh/33088fa064e10481645e661505424890ddec31f1/figure/3
+OSF https://osf.io/wrvj3
+csw15.txt - cs.wisc.edu https://pages.cs.wisc.edu/~o-laughl/csw15.txt
+800-63-3/sp800-63b/sec5_authenticators.md at nist-pages - GitHub https://
+github.com/usnistgov/800-63-3/blob/nist-pages/sp800-63b/sec5_authenticators.md
+NIST 800-63B - Intercede https://www.intercede.com/solutions/compliance/
+nist-800-63b/
+[PDF] Okta + NIST 800-63B https://www.okta.com/sites/default/files/2024-08/
+Okta_and_NIST_800-63B.pdf
+Multimodal Biometric Template Protection Based on a Cancelable ... https://
+www.mdpi.com/2076-3417/12/4/2023
+Design of multimodal biometrics system based on feature level fusion https://
+www.sci-hub.box/10.1109/isco.2016.7727072
+[PDF] Deep Learning Approach for Multimodal Biometric Recognition ... https://
+www.ijsat.org/papers/2025/2/5843.pdf
+[PDF] MACET: A Novel Approach to Secure Multimodal Biometric ... https://
+journals.ekb.eg/article_462590_57a780ba1d5e402b1dd1f0fe39e7d821.pdf
+[PDF] Quality-Aware Multimodal Biometric Recognition - arXiv https://arxiv.org/pdf/
+2112.05827
+[PDF] Multimodal biometric systems overview - SciSpace https://scispace.com/pdf/
+multimodal-biometric-systems-overview-47bx941zan.pdf
+Cross-Browser Local LLM Inference Using WebAssembly https://picovoice.ai/blog/
+cross-browser-local-llm-inference-using-webassembly/354. 
+355. 
+356. 
+357. 
+358. 
+359. 
+360. 
+361. 
+362. 
+363. 
+364. 
+365. 
+366. 
+367. 
+368. 
+369. 
+370. 
+371. 
+
+=== PAGE 37 ===
+
+WebGPU Inference: Sub-100ms in the Browser | by Nikulsinh Rajput https://
+medium.com/@hadiyolworld007/webgpu-inference-sub-100ms-in-the-
+browser-38120300d3da
+WebGPU vs. WebGL: Performance Benchmarks for Client-Side ... https://
+www.sitepoint.com/webgpu-vs-webgl-inference-benchmarks/
+A Novel Application for Webcam-Based Pupil Diameter Estimation https://dl.acm.org/
+doi/full/10.1145/3715669.3723125
+Cross-Modal Object Tracking via Modality-Aware Fusion Network ... https://arxiv.org/
+abs/2312.14446
+A fast approach to refraction-aware 3D eye-model fitting and gaze ... https://
+www.collaborative-ai.org/publications/dierkes19_etra/
+[PDF] Eye Tracking and Pupillometry Are Indicators of Dissociable Latent ... https://
+ski.clps.brown.edu/papers/Cavanagh_JEPG.pdf
+JOSS Papers: Eye-tracking - Journal of Open Source Software https://joss.theoj.org/
+papers/tagged/Eye-tracking
+Publications - Pupil Labs https://pupil-labs.com/publications
+[PDF] EYE AND GAZE TRACKING ALGORITHM FOR COLLABORATIVE ... https://
+shs.hal.science/halshs-00360961v1/document
+Evaluation of Gaze Tracking Calibration for Longitudinal Biomedical ... https://
+pubmed.ncbi.nlm.nih.gov/30188843/
+APA https://bop.unibe.ch/JEMR/citationstylelanguage/get/apa?
+submissionId=3748&publicationId=2217&issueId=772
+Harnessing Vision-Language Models for Time Series Anomaly ... https://ojs.aaai.org/
+index.php/AAAI/article/view/39319
+Towards Time Series Reasoning for Anomaly Diagnosis with LLM ... https://arxiv.org/
+abs/2507.15066
+[PDF] Tracking System - The Cureus Journal of Medical Science https://
+www.cureus.com/articles/268375-development-of-automated-visual-acuity-
+measurement-using-a-calibration-free-eye-tracking-system.pdf
+https://scholar.google.com/citations?view_op=view_... https://scholar.google.com/
+citations?
+view_op=view_citation&hl=en&user=RHuxNS4AAAAJ&citation_for_view=RHuxNS4
+AAAAJ:mVmsd5A6BfQC
+science - machineMD https://www.machinemd.com/science
+gfxdisp/eye_tracking: Gaze and the eye-position tracking ... - GitHub https://
+github.com/gfxdisp/eye_tracking372. 
+373. 
+374. 
+375. 
+376. 
+377. 
+378. 
+379. 
+380. 
+381. 
+382. 
+383. 
+384. 
+385. 
+386. 
+387. 
+388. 
+
+=== PAGE 38 ===
+
+[PDF] Implementing gaze tracking with a simple web camera - kth .diva https://
+kth.diva-portal.org/smash/get/diva2:1333975/FULLTEXT01.pdf
+AI Powered Iris Tracking with WebGazer.Js - YouTube https://www.youtube.com/
+watch?v=Wh77ZGdIaZQ
+US9788714B2 - Google Patents - Google Patents https://patents.google.com/patent/
+US9788714B2/en
+US20160262608A1 - Google Patents - Google Patents https://patents.google.com/
+patent/US20160262608A1/en
+(PDF) To measure the amount of ocular deviation in strabismus ... https://
+www.researchgate.net/publication/
+352146400_To_measure_the_amount_of_ocular_deviation_in_strabismus_patients_wi
+th_an_eye-tracking_virtual_reality_headset
+Systems and methods for biomechanically-based eye signals for ... https://
+patents.google.com/patent/US9823744B2/en
+Multi-Sensor Eye-Tracking Systems and Tools for Capturing Student ... https://
+www.researchgate.net/publication/353991996_Multi-Sensor_Eye-
+Tracking_Systems_and_Tools_for_Capturing_Student_Attention_and_Understanding_
+Engagement_in_Learning_A_Review
+Systems and methods for discerning eye signals and continuous ... https://
+patents.google.com/patent/AU2015297036B2/da
+EP3140780B1 - Systems and methods for discerning eye signals ... https://
+patents.google.com/patent/EP3140780B1/en
+用于向安全移动通信使用眼睛信号的系统和方法 - Google Patents https://
+patents.google.com/patent/CN106462743A/da
+EP3140780B1 - Systems and methods for discerning eye signals ... https://
+patents.google.com/patent/EP3140780B1/ja
+Systems and methods for discerning eye signals and continuous ... https://
+patents.google.com/patent/KR102173699B1/en
+Gaze Estimation Network Based on Multi-Head Attention, Fusion ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11945386/
+ETRA '25: Proceedings of the 2025 Symposium on Eye Tracking ... https://
+www.siggraph.org/wp-content/uploads/2025/08/ETRA.html
+ETRA 2025: ACM Symposium on Eye Tracking Research ... https://etra.acm.org/
+2025/acceptedpapers.html
+Low-cost Geometry-based Eye Gaze Detection using Facial ... https://
+www.authorea.com/doi/10.22541/au.170432961.11380493389. 
+390. 
+391. 
+392. 
+393. 
+394. 
+395. 
+396. 
+397. 
+398. 
+399. 
+400. 
+401. 
+402. 
+403. 
+404. 
+
+=== PAGE 39 ===
+
+https://doi.org/10.1145/1743666.1743672 https://doi.org/
+10.1145/1743666.1743672
+Pupil Core - Eye tracking platform technical specifications https://pupil-labs.com/
+products/core/tech-specs
+Biometric security - ISO https://www.iso.org/contents/news/2021/01/Ref2613.html
+Sitemap - Beijing Eyecool Technology Co., Ltd. https://www.eyecooltech.com/
+sitemap.html
+Semantic search powered by WASM and WebGPU | AmineDiro https://
+aminediro.com/posts/semsearch_wasm/
+Why WebAssembly and WebGPU are the Future of Browser-Based AI https://
+nitishagar.medium.com/the-architecture-of-edge-intelligence-why-webassembly-and-
+webgpu-are-the-future-of-browser-based-9405dc0ae7e1
+on device models and how they work in the browser thanks to web ... https://dev.to/
+aileenvl/on-device-models-and-how-they-work-in-the-browser-thanks-to-web-
+assembly-and-webgpu-5bo6
+mlc-ai/web-llm: High-performance In-browser LLM Inference Engine https://
+github.com/mlc-ai/web-llm
+High-frequency gaze tracking and estimation with event-based ... https://
+www.sciencedirect.com/science/article/abs/pii/S095741742601184X
+Research on an Eye Control Method Based on the Fusion of Facial ... https://
+www.mdpi.com/2076-3417/14/22/10520
+Eye tracking algorithms, techniques, tools, and applications with an ... https://
+ouci.dntb.gov.ua/en/works/4a0Pow07/
+gaze-tracking · GitHub Topics https://github.com/topics/gaze-tracking?l=python
+Biometric Technologies (S-14) | Policy Office - Purdue University https://
+www.purdue.edu/vpec/policies/information-technology/s14/
+[PDF] Submitted via Regulations.gov November 20, 2025 Kristi Noem ... https://
+www.cliniclegal.org/file-download/download/public/80006
+[PDF] Biometric Surveillance Policy A. Legal Authority/Requirement https://
+www.intechacademy.org/uploads/2025/02/Biometric-Surveillance-Policy-27-
+Feb-2025-1.pdf
+[PDF] Commission Policy Statement on Biometric Information https://www.ftc.gov/
+system/files/ftc_gov/pdf/p225402biometricpolicystatement.pdf
+[PDF] A policy void: An analysis of biometric facial recognition technology ... https://
+iacis.org/iis/2025/3_iis_2025_445-456.pdf405. 
+406. 
+407. 
+408. 
+409. 
+410. 
+411. 
+412. 
+413. 
+414. 
+415. 
+416. 
+417. 
+418. 
+419. 
+420. 
+421. 
+
+=== PAGE 40 ===
+
+Biometric Privacy Laws in 2025: What Security Integrators Need to ... https://
+www.parabit.com/post/biometric-privacy-laws-in-2025-what-security-integrators-
+need-to-know
+https://scholar.google.com/citations?view_op=view_... https://scholar.google.com/
+citations?view_op=view_citation&hl=en&user=g-_ZXGsAAAAJ&citation_for_view=g-
+_ZXGsAAAAJ:MXK_kJrjxJIC
+[PDF] Biometrics and Behavior Analysis for Online Educational Platforms https://
+ojs.aaai.org/index.php/AAAI/article/view/27066/26838
+[PDF] AI-based Multimodal Biometrics for Detecting Smartphone Distractions https://
+arxiv.org/pdf/2506.17364
+[PDF] A Stimulus-Response Based EEG Biometric using Mallows Distance https://
+cse.buffalo.edu/~wenyaoxu/papers/journal/xu-ccf2020.pdf
+Implicit user modeling through the detection of gaze patterns https://
+gazerecorder.com/implicit-user-modeling-through-the-detection-of-gaze-patterns/
+Why a Webcam Can't Compete with the GP3 for Eye Tracking https://
+www.gazept.com/blog/why-a-webcam-cant-compete-with-the-gp3-for-eye-tracking/?
+srsltid=AfmBOopRISFNleUe8G9I-mx7W0IRw_JGXnYVBq-in90mouCGjsPtIJRh
+Pupil Labs Chat Archive - # core 2026/January https://chat-archive.pupil-labs.com/
+logs/core/2026/01/
+[PDF] Racially fair pupillometry measurements for RGB smartphone ... https://
+escholarship.org/content/qt5d84c6d6/qt5d84c6d6.pdf
+Aurora Guard: Reliable Face Anti-Spoofing via Mobile Lighting System https://
+arxiv.org/abs/2102.00713
+towards scalable and generalizable anti-spoofing models https://
+www.cmsworkshops.com/ICASSP2026/view_paper.php?PaperNum=13609&bare=1
+Interpretable Face Anti-Spoofing: Enhancing Generalization with ... https://
+ojs.aaai.org/index.php/AAAI/article/view/33073
+Phishing-Resistant MFA in 2025: Buyer's Guide to NIST SP 800-63 ... https://
+www.wwpass.com/blog/phishing-resistant-mfa-in-2025-buyer-s-guide-to-nist-
+sp-800-63-4-omb-m-22-09/
+NIST Special Publication 800-63A https://pages.nist.gov/800-63-4/sp800-63a.html
+Face recognition anti-spoofing method, system and terminal based ... https://
+www.goveda.com/patent/CN-111695406-A
+AI-assisted Gaze Detection for Proctoring Online Exams - arXiv https://arxiv.org/html/
+2409.16923v1
+An In-Browser Proctoring System Using YOLO-Based ... - IRO Journals https://
+irojournals.com/aicn/article/view/205422. 
+423. 
+424. 
+425. 
+426. 
+427. 
+428. 
+429. 
+430. 
+431. 
+432. 
+433. 
+434. 
+435. 
+436. 
+437. 
+438. 
+
+=== PAGE 41 ===
+
+AI-assisted Gaze Detection for Proctoring Online Exams https://
+www.researchgate.net/publication/384365318_AI-
+assisted_Gaze_Detection_for_Proctoring_Online_Exams
+AI-assisted Gaze Detection for Proctoring Online Exams - ADS https://
+ui.adsabs.harvard.edu/abs/arXiv:2409.16923
+[PDF] Advanced AI Examination Monitoring and Security System https://
+www.scitepress.org/Papers/2025/136127/136127.pdf
+Ai-based Online Interview Behavioral Analysis - IJSART https://ijsart.com/ai-based-
+online-interview-behavioral-analysis-an-ai-driven-approach-to-proctoring-and-
+integrity-verification-105210
+proctoring-ai · GitHub Topics https://github.com/topics/proctoring-ai
+[PDF] Elevating Interviews with AI Proctoring Precision - IJRAR.org https://ijrar.org/
+papers/IJRAR23D3124.pdf
+A Systematic Review on AI-based Proctoring Systems - PMC - NIH https://
+pmc.ncbi.nlm.nih.gov/articles/PMC8220875/
+[PDF] ai – based exam proctoring system - IJETRM https://ijetrm.com/issues/files/
+Nov-2024-11-1731334172-NOV015.pdf
+Eye Tracking for Movement SDK for Unity - Meta for Developers https://
+developers.meta.com/horizon/documentation/unity/move-eye-tracking/
+GazeCloudAPI | Real-Time online Eye-Tracking API - GazeRecorder https://
+gazerecorder.com/gazecloudapi/
+Eye Tracking - jsPsych https://www.jspsych.org/v7/overview/eye-tracking/
+WEB-BASED EYE TRACKING FOR GAZE ANALYSIS - ScholarWorks https://
+scholarworks.calstate.edu/concern/projects/d791ss248
+3D Gaze Tracking in Python - YouTube https://www.youtube.com/watch?
+v=hImmJDTgXjw
+Gaze interactions and eye tracking in Windows apps - Microsoft Learn https://
+learn.microsoft.com/en-us/windows/uwp/ui-input/gaze-interactions
+Integrating GazeCloudAPI, a high accuracy webcam based eye ... https://
+medium.com/@williamwang15/integrating-gazecloudapi-a-high-accuracy-webcam-
+based-eye-tracking-solution-into-your-own-web-app-2d8513bb9865
+FIDO Biometrics Requirements https://fidoalliance.org/specs/biometric/
+requirements/Biometrics-Requirements-v4.0-fd-20240522.html
+https://biometricdevices.idemia.com/sfc/servlet.sh... https://
+biometricdevices.idemia.com/sfc/servlet.shepherd/document/download/
+0690X00000DqF79QAF439. 
+440. 
+441. 
+442. 
+443. 
+444. 
+445. 
+446. 
+447. 
+448. 
+449. 
+450. 
+451. 
+452. 
+453. 
+454. 
+455. 
+
+=== PAGE 42 ===
+
+[PDF] ISO 24157 - iTeh Standards https://cdn.standards.iteh.ai/samples/
+42041/644b43a5b1714c0bb037ca22f29b364c/ISO-24157-2008.pdf
+https://studntnu-my.sharepoint.com/:b:/g/personal/... https://studntnu-
+my.sharepoint.com/:b:/g/personal/dominiko_ntnu_no/
+EdsfRWbBN7JCvZb1WxdPqLIB3x8kqZnxtXbcYWNd2pUEjw?e=3ZKXOb
+[PDF] Dual Iris & Face Biometric Camera - CardLogix https://www.cardlogix.com/
+downloads/literature/information-sheets/7200104-VistaEY2-Dual-Iris-and-Face-
+Biometric-Camera.pdf
+Cheating Detection in Browser-based Online Exams through Eye ... https://
+www.researchgate.net/publication/357598466_Cheating_Detection_in_Browser-
+based_Online_Exams_through_Eye_Gaze_Tracking
+[PDF] Cheating Detection System Based on Eye Gaze, Head Pose and Lip ... https://
+www.atlantis-press.com/article/126020514.pdf
+Eye Gaze and Visual Focus | https://team.inria.fr/perception/research/eye-gaze/
+[PDF] Exploring Modality-Aware Fusion and Decoupled Temporal ... https://
+ojs.aaai.org/index.php/AAAI/article/view/37973/41935
+Geometry-Aware Cross-Modal Translation with Temporal ... - MDPI https://
+www.mdpi.com/2079-9292/14/23/4663
+Cross-Modal Fusion Enhancement for VLM Hallucination Mitigation https://
+openreview.net/forum?id=V3412jhu1x
+17177 PDFs | Review articles in GAZE TRACKING - ResearchGate https://
+www.researchgate.net/topic/Gaze-Tracking/publications
+Multimodal EEG and Eye Tracking Feature Fusion Approaches for ... https://
+www.frontiersin.org/journals/computer-science/articles/10.3389/
+fcomp.2022.780580/full
+Anti-Occlusion Visual Tracking Algorithm for UAVs with Multi ... https://
+www.fujipress.jp/jaciii/jc/jacii002800030573/
+Authentication Services: Fusion vs. Fallback in Biometrics https://palm.tencent.com/
+resources/multimodal-biometrics-fusion-vs-fallback?type=Insights
+multi-modal behavioral biometrics for continuous user verification in ... https://
+www.researchgate.net/publication/396744331_MULTI-
+MODAL_BEHAVIORAL_BIOMETRICS_FOR_CONTINUOUS_USER_VERIFICATION_IN_
+AI-DRIVEN_ZERO_TRUST_ARCHITECTURES
+ICTACT Journals https://ictactjournals.in/ArticleDetails?id=CB535T
+A review on personal calibration issues for video-oculographic ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC10987702/456. 
+457. 
+458. 
+459. 
+460. 
+461. 
+462. 
+463. 
+464. 
+465. 
+466. 
+467. 
+468. 
+469. 
+470. 
+471. 
+
+=== PAGE 43 ===
+
+(PDF) Evaluation of Gaze Tracking Calibration for Longitudinal ... https://
+www.researchgate.net/publication/
+327451311_Evaluation_of_Gaze_Tracking_Calibration_for_Longitudinal_Biomedical_I
+maging_Studies
+[PDF] DETECTING AUTISM OF EXAMINEE IN AUTOMATED ONLINE ... https://
+www.jatit.org/volumes/Vol101No3/30Vol101No3.pdf
+A novel end-to-end dual-camera system for eye gaze synchrony ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11480169/
+Combining Eye Gaze and Facial Recognition for Autism Spectrum ... https://
+ijchml.com/index.php/ijchml/article/view/154
+[PDF] Abstract - University of Otago Research Archive https://ourarchive.otago.ac.nz/
+view/pdfCoverPage?
+instCode=64OTAGO_INST&filePid=13397349910001891&download=true
+vocab.txt - Hugging Face https://huggingface.co/microsoft/BiomedVLP-CXR-BERT-
+general/raw/main/vocab.txt
+vocab.pubmed - UCI Machine Learning Repository https://archive.ics.uci.edu/ml/
+machine-learning-databases/bag-of-words/vocab.pubmed.txt
+[PDF] Remote Proctoring System - JETIR.org https://www.jetir.org/papers/
+JETIR2309602.pdf
+Remote point-of-gaze estimation with single-point personal ... https://
+www.researchgate.net/publication/221280059_Remote_point-of-
+gaze_estimation_with_single-
+point_personal_calibration_based_on_the_pupil_boundary_and_corneal_reflections
+[PDF] ISO/IEC 24741:2024 | iTeh Standards https://cdn.standards.iteh.ai/samples/
+80656/b773b89047734707a7fc4dbacc8421ec/ISO-IEC-24741-2024.pdf
+Remote point-of-gaze estimation with single-point personal ... https://
+www.semanticscholar.org/paper/Remote-point-of-gaze-estimation-with-single-point-
+Guestrin-Eizenman/ef2d699769e39727e6eb26ab3ce77126a2b811d7
+[PDF] Remote Exams - European University Cyprus https://euc.ac.cy/wp-content/
+uploads/2025/03/Remote-Exams-2025-.pdf
+(PDF) A Systematic Review of AI-Driven Interviewing Systems for ... https://
+www.researchgate.net/publication/397481406_A_Systematic_Review_of_AI-
+Driven_Interviewing_Systems_for_Technical_and_Professional_Skills
+Research papers - Gen AI Hub https://www.genai.ac.uk/research-papers
+CVPR 2024 Open Access Repository https://openaccess.thecvf.com/content/
+CVPR2024W/MULA/html/
+Agrawal_Listen_Then_See_Video_Alignment_with_Speaker_Attention_CVPRW_2024_
+paper.html472. 
+473. 
+474. 
+475. 
+476. 
+477. 
+478. 
+479. 
+480. 
+481. 
+482. 
+483. 
+484. 
+485. 
+486. 
+
+=== PAGE 44 ===
+
+Clinical AI Readiness - AlloPatient https://www.allopatient.com/research
+Projects - Shikun Liu https://shikun.io/projects
+alignAI: Home https://alignai.eu/
+Demystifying NIST SP 800-63 - Paravision AI https://www.paravision.ai/news/
+demystifying-nist-sp-800-63-a-practical-guide-for-organizations-navigating-digital-
+identity/
+[PDF] NIST 800-63: Request For Information - Reply - FaceTec.com https://
+facetec.com/NIST_800-63_RFI_FaceTec_Reply.pdf
+Your password policy is wrong: NIST SP 800-63B - Agilicus https://
+www.agilicus.com/your-password-policy-is-wrong-nist-sp-800-63b/
+What Is NIST SP 800-63-4? - SpruceID https://spruceid.com/learn/nist-guidelines
+Complying with NIST SP 800-63-4 Standards: Identity as the Roadmap https://
+www.pingidentity.com/en/resources/blog/post/complying-with-nist-standards.html
+SP 800-63B-4, Digital Identity Guidelines: Authentication and ... https://csrc.nist.gov/
+pubs/sp/800/63/b/4/2pd
+Structured Overview of NIST SP 800-63-4 Digital Identity Guidelines https://
+www.linkedin.com/pulse/structured-overview-nist-sp-800-63-4-digital-identity-chris-
+davis-2ryfc
+Unleashing AI and 3D With WebGPU - Ayşegül Yönet, ARtistus, LLC https://
+www.youtube.com/watch?v=xasvTzfidLU
+WebGPU https://webgpu.org/
+Fail-Closed AI Systems: Deterministic Enforcement by Default https://
+www.trigguardai.com/fail-closed-ai-systems
+Fast and Accurate Visuomotor Policy Learning with Selective Flow ... https://
+arxiv.org/html/2511.08583v1
+[PDF] Multimodal Vigilance Estimation Using Deep Learning https://bcmi.sjtu.edu.cn/
+home/blu/papers/2022/2022-6.pdf
+I Built a Multimodal AI — It Broke Me Twice | by Robi Kumar Tomar https://
+pub.towardsai.net/i-built-a-multimodal-ai-it-broke-me-twice-ac37c4e0444b
+[PDF] LLaVAShield: Safeguarding Multimodal Multi-Turn Dialogues in ... https://
+openaccess.thecvf.com/content/CVPR2026/papers/
+Huang_LLaVAShield_Safeguarding_Multimodal_Multi-Turn_Dialogues_in_Vision-
+Language_Models_CVPR_2026_paper.pdf
+real-stanford/diffusion_policy: [RSS 2023] Diffusion Policy ... - GitHub https://
+github.com/real-stanford/diffusion_policy487. 
+488. 
+489. 
+490. 
+491. 
+492. 
+493. 
+494. 
+495. 
+496. 
+497. 
+498. 
+499. 
+500. 
+501. 
+502. 
+503. 
+504. 
+
+=== PAGE 45 ===
+
+Motion-corrected eye tracking (MoCET) improves gaze accuracy ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11952553/
+[PDF] Neuromorphic Eye Tracking for Low-Latency Pupil Detection - arXiv https://
+arxiv.org/pdf/2512.09969
+Recent Progress on Eye-Tracking and Gaze Estimation for AR/VR ... https://
+www.mdpi.com/2079-9292/14/17/3352
+[PDF] Real time eye gaze tracking for human machine interaction in the ... https://
+www.research-collection.ethz.ch/bitstreams/16c2188d-7f8c-4982-8a83-
+efd42ccc100e/download
+Gaze Tracking and Estimation - YouTube https://www.youtube.com/watch?v=-lmc2-
+podgQ
+Identifying eye movement behavior indicators of social competence ... https://
+www.sciexplor.com/ec/articles/ec.2026.0015
+Touchless short-wave infrared imaging for dynamic rapid ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11303404/
+Attenuation of the dynamic pupil light response during screen ... https://
+www.frontiersin.org/journals/virtual-reality/articles/10.3389/frvir.2022.971613/full
+Pupillary light reflex (PLR) assessment in open-eye and closed-eye... https://
+www.researchgate.net/figure/Pupillary-light-reflex-PLR-assessment-in-open-eye-and-
+closed-eye-conditions-a-Schematic_fig1_382915067
+[PDF] Attenuation of the dynamic pupil light response during screen ... https://
+access.archive-ouverte.unige.ch/access/metadata/8c214f72-ba11-4d5e-
+add0-468439834902/download
+Leveraging the pupillary light reflex for cognitive pupillometry https://
+jov.arvojournals.org/article.aspx?articleid=2792447
+Pupillometry: Psychology, Physiology, and Function https://journalofcognition.org/
+articles/10.5334/joc.18
+(PDF) Latency of the Pupil Light Reflex: Sample Rate, Stimulus ... https://
+www.researchgate.net/publication/
+10837153_Latency_of_the_Pupil_Light_Reflex_Sample_Rate_Stimulus_Intensity_and_
+Variation_in_Normal_Subjects
+[PDF] Method Conclusions Background Abstract Study Aims Results Pupil ... https://
+uwreadilab.com/wp-content/uploads/2016/05/Pupil-IMFAR-2016-FINAL.pdf
+Machine learning approach for ambient-light-corrected parameters ... https://
+www.frontiersin.org/journals/neurology/articles/10.3389/fneur.2024.1363190/full
+SSVE(PLR): Comparing target classification via pupillary light ... https://
+jov.arvojournals.org/article.aspx?articleid=2792402505. 
+506. 
+507. 
+508. 
+509. 
+510. 
+511. 
+512. 
+513. 
+514. 
+515. 
+516. 
+517. 
+518. 
+519. 
+520. 
+
+=== PAGE 46 ===
+
+A Preprocessing Pipeline for Pupillometry Signal from Multimodal ... https://
+www.mdpi.com/1424-8220/25/15/4737
+API Docs - Eyedid SDK https://docs.seeso.io/docs/api/ios-api-docs/
+alireza787b/Python-Gaze-Face-Tracker - GitHub https://github.com/alireza787b/
+Python-Gaze-Face-Tracker
+Gaze Detection with L2CS-Net and Roboflow - YouTube https://www.youtube.com/
+watch?v=kDHrhQ27nQQ
+Argus Science Services - SDK with samples https://www.argusscience.com/
+ETSDK.html
+Proceedings of ICEEE 2023 [2] 9819986605, 9789819986606 https://dokumen.pub/
+innovations-in-electrical-and-electronic-engineering-proceedings-of-
+iceee-2023-2-9819986605-9789819986606.html
+vocab_100k.txt https://keithv.com/data/vocab_100k.txt
+Eyeing up the Future of the Pupillary Light Reflex in Neurodiagnostics https://
+www.mdpi.com/2075-4418/8/1/19
+KoMCI.org https://www.komci.org/GSResult.php?RID=2382681&DT=1
+Automated Pupillary Light Reflex Test on a Portable Platform - arXiv https://
+arxiv.org/abs/1905.08886
+Investigation of Web-Based Eye-Tracking System Performance ... https://
+www.mdpi.com/0718-1876/18/4/105
+Online Eye Tracking for Aphasia: A Feasibility Study Comparing ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11519703/
+Docket - Regulations.gov https://www.regulations.gov/docket/FAR-2023-0018
+ISCEV guidelines for calibration and verification of stimuli ... - PubMed https://
+pubmed.ncbi.nlm.nih.gov/37269394/
+[PDF] Principles for Regulating Facial Recognition (and Other Biometric ... https://
+chicagocouncil.org/wp-content/uploads/2021/09/2021-CCL-Facial-Recognition-
+Memo-2-1.pdf
+Towards Fully Automated ISO/ICAO Face Compliance Verification ... https://
+www.researchgate.net/publication/
+404018375_Towards_Fully_Automated_ISOICAO_Face_Compliance_Verification_via_
+Prompt_Learning
+ISO/IEC/IEEE 8802-1AS:2021/Cor 1:2023 - supplement https://punarnava.net/wp-
+includes/abilities-api/index.php?
+iso=ISO%2FIEC%2FIEEE+8802-1AS%3A2021%2FCor+1%3A2023+-+supplement
+ISO 15004-1:2006(en), Ophthalmic instruments https://www.iso.org/obp/ui/
+#iso:std:iso:15004:-1:ed-1:en521. 
+522. 
+523. 
+524. 
+525. 
+526. 
+527. 
+528. 
+529. 
+530. 
+531. 
+532. 
+533. 
+534. 
+535. 
+536. 
+537. 
+538. 
+
+=== PAGE 47 ===
+
+[PDF] arXiv:2312.00013v1 [cs.CY] 27 Oct 2023 https://arxiv.org/pdf/2312.00013
+Ophthalmic examination device data — Part 1 - ISO https://www.iso.org/obp/ui/fr/
+#!iso:std:72899:en
+Navigating the Impact of NIST 800-63B-4's New Password ... https://
+www.intercede.com/navigating-the-impact-of-nist-800-63b-4s-new-password-
+guidelines-on-your-organization/
+NIST Finalizes Long-Awaited Digital ID Guidelines Update, Tightens ... https://
+idtechwire.com/nist-finalizes-long-awaited-digital-id-guidelines-update-tightens-
+biometric-standards/
+Motion GPU: A Minimal WebGPU Framework Shaders and Multi ... https://
+www.webgpu.com/showcase/motion-gpu-webgpu-shaders/
+Proceedings - CHI 2019 - ACM https://chi2019.acm.org/for-attendees/proceedings/
+Proceedings – CHI 2018 – Engage with CHI - ACM https://chi2018.acm.org/
+attending/proceedings/
+HRI: ACM/IEEE International Conference on Human-Robot Interaction https://
+dl.acm.org/doi/proceedings/10.1145/3610978?tocHeading=heading6
+Pattern Recognition and Machine Learning (Information Science ... https://
+dl.acm.org/doi/10.5555/1162264
+CHI 2020 Free Proceedings https://chi2020.acm.org/chi-2020-free-proceedings/
+Advance Program - CHI 2012 - ACM https://chi2012.acm.org/program/mobile/
+program.html
+Data Mining: Practical Machine Learning Tools and Techniques ... https://dl.acm.org/
+doi/10.5555/1205860
+[PDF] Conference Program - CHI 2016 https://chi2016.acm.org/wp/wp-content/
+uploads/2016/05/chi2016-program-final-for-web.pdf
+PLR parameter correlations coefficients within LED and SCREEN ... https://
+www.researchgate.net/figure/PLR-parameter-correlations-coefficients-within-LED-
+and-SCREEN-condition_tbl2_325764656
+A Calibration-Free Method for Tracking Horizontal Gaze Direction https://
+www.collaborative-ai.org/publications/zhang14_avi/
+Associations between the pupil light reflex and the broader autism ... https://
+www.frontiersin.org/journals/human-neuroscience/articles/10.3389/
+fnhum.2022.1052604/full
+[PDF] The impact of the pupil size artifact on pupil-based eye-tracking data ... https://
+dspace.library.uu.nl/bitstreams/f23926bb-0b94-43de-b83f-4d8736e71835/download
+Alpha Lab - Build Gaze-Contingent Assistive Applications https://docs.pupil-labs.com/
+alpha-lab/gaze-contingency-assistive/539. 
+540. 
+541. 
+542. 
+543. 
+544. 
+545. 
+546. 
+547. 
+548. 
+549. 
+550. 
+551. 
+552. 
+553. 
+554. 
+555. 
+556. 
+
+=== PAGE 48 ===
+
+The Pupillary Light Response Validation (PLR-V) Study https://journals.sagepub.com/
+doi/10.1177/0310057X251381378
+Eye gaze estimation using a webcam. 100 lines of code - Medium https://
+medium.com/mlearning-ai/eye-gaze-estimation-using-a-webcam-in-100-lines-of-
+code-570d4683fe23
+[PDF] web-based eye tracking for gaze analysis: a study - ScholarWorks https://
+scholarworks.calstate.edu/downloads/hq37vz45p
+[PDF] Webcam-based gaze estimation for computer screen interaction https://
+gazerecorder.com/wp-content/uploads/2024/04/frobt-11-1369566-1.pdf
+眼科仪器基本要求和试验方法第2部分：光危害防护 https://std.samr.gov.cn/gb/
+search/gbDetailed?id=E116673E357BA3B7E05397BE0A0AC6BF
+[PDF] FIDO Biometrics Requirements https://fidoalliance.org/specs/biometric/
+requirements/Biometrics-Requirements-v2.0-fd-20201006.pdf
+[PDF] Facial Metrics for EES (EESFM) - arXiv https://arxiv.org/pdf/2211.08030
+[PDF] Face-Gaze Biometric Fusion for Enhanced Personal Authentication https://
+sciresol.s3.us-east-2.amazonaws.com/IJST/Articles/2024/Issue-44/
+IJST-2024-3512.pdf
+[PDF] BS EN ISO 12312‐1:2022+A11:2024 - BSI Standards Publication https://
+webstore.ansi.org/preview-pages/bsi/preview_30501319.pdf?
+srsltid=AfmBOorrbyH217roj-_Q55CroS7iHUYekSC7G7cczUKpPPd5lI7i5hpR
+ISO/IEC 24714:2023 - Biometrics — Cross-jurisdictional and societal ... https://
+www.iso.org/standard/80936.html
+Fairness-based parameter selection in multi-modal biometric ... https://
+www.academia.edu/12046914/
+Fairness_based_parameter_selection_in_multi_modal_biometric_authentication
+[PDF] Guidelines for Technology-Based Assessment https://www.intestcom.org/
+upload/media-library/tba-guidelines-ver-11-july-2025-1754044782Z3vV9.pdf
+US6850252B1 - Intelligent electronic appliance system and method https://
+patents.google.com/patent/US6850252B1/en
+words.txt - Topcoder https://www.topcoder.com/contest/problem/Enigma/words.txt
+IJCAHPO COA Exam 2026: FREE Ophthalmic Assistant Study Guide https://open-
+exam-prep.com/blog/coa-ophthalmic-assistant-exam-guide-2026
+Vision-Based Eye-Gaze Tracking For Human Computer Interface https://
+www.researchgate.net/publication/3829197_Vision-Based_Eye-
+Gaze_Tracking_For_Human_Computer_Interface
+NIST 800-63B Rev 4: What's New in Password Security | Enzoic https://
+www.enzoic.com/blog/nist-sp-800-63b-rev4/557. 
+558. 
+559. 
+560. 
+561. 
+562. 
+563. 
+564. 
+565. 
+566. 
+567. 
+568. 
+569. 
+570. 
+571. 
+572. 
+573. 
+
+=== PAGE 49 ===
+
+Achieving Compliance with NIST SP 800-63-4: A Guide to Ident... https://nhimg.org/
+community/nhi-support-guidance-forum/achieving-compliance-with-nist-sp-800-63-4-
+a-guide-to-identity-assurance/
+NIST SP 800-63B-4 Introduces “Session Monitoring” See How ... https://
+blog.typingdna.com/nist-sp-800-63b-rev-4-session-monitoring/
+Key Changes in NIST SP 800-63B Revision 4 - UberEther https://uberether.com/
+mastering-authentication-nist-sp-800-63b-revision-4/
+NIST Special Publication 800-63B - Article - SailPoint https://www.sailpoint.com/
+identity-library/nist-800-63b
+Auto Detecting Cognitive Events Using Machine Learning on ... - arXiv https://
+arxiv.org/html/2410.14174v1
+Introduction to Eye Tracking: A Hands-On Tutorial for Students and ... https://
+arxiv.org/html/2404.15435v1
+Eye-tracked Virtual Reality: A Comprehensive Survey on Methods ... https://arxiv.org/
+html/2305.14080v3
+Understanding and Predicting Temporal Visual Attention Influenced ... https://
+arxiv.org/html/2510.08777v1
+[PDF] Dynamic lens and monovision 3D displays to improve viewer comfort https://
+arxiv.org/pdf/1512.09163
+Quantifying Objective and Perceived Image Quality Through EEG ... https://
+ieeexplore.ieee.org/iel8/6287639/10820123/10946149.pdf
+GazePrompt: Enhancing Low Vision People's Reading Experience ... https://arxiv.org/
+html/2402.12772v2
+Eye-Tracking Assistive Technologies for Individuals with ... https://
+ieeexplore.ieee.org/iel7/6287639/6514899/09745906.pdf
+[PDF] cover letter - arXiv https://arxiv.org/pdf/2112.04038
+LitMAS: A Lightweight and Generalized Multi-Modal Anti-Spoofing ... https://
+arxiv.org/html/2506.06759v1
+A Guide to Liveness Detection Standards for Risk Managers https://microblink.com/
+resources/blog/liveness-detection-standards/
+US9665784B2 - Systems and methods for spoof detection and ... https://
+patents.google.com/patent/US9665784B2/ko
+https://www.wilmerhale.com/en/sitecore/content/whl... https://
+www.wilmerhale.com/en/sitecore/content/whlaunch/home/research/news-
+publications/20230522-ftc-signals-increased-scrutiny-of-biometric-technologies
+Calibration and use of eye tracking - Google Patents https://patents.google.com/
+patent/US20230221568A1/en574. 
+575. 
+576. 
+577. 
+578. 
+579. 
+580. 
+581. 
+582. 
+583. 
+584. 
+585. 
+586. 
+587. 
+588. 
+589. 
+590. 
+591. 
+
+=== PAGE 50 ===
+
+https://itec.cat/certification/ce/eta_23_0778_23.1... https://itec.cat/certification/ce/
+eta_23_0778_23.12.2023_en.pdf
+SP 800-63B-4 (Draft), Digital Identity Guidelines: Authentication and ... https://
+csrc.nist.rip/publications/detail/sp/800-63b/4/draft
+[PDF] NIST's Digital Identity Guidelines Update – Kicking off Revision 4! https://
+www.nccoe.nist.gov/sites/default/files/2023-01/digital-identity-guidelines-kickoff-
+revision-4-presentation.pdf
+Anti-spoofing Face Recognition Using Infrared Structure Light https://www.nec-
+labs.com/blog/anti-spoofing-face-recognition-using-infrared-structure-light/
+[PDF] analysis of textural features for face biometric anti-spoofing - EURASIP https://
+www.eurasip.org/Proceedings/Eusipco/Eusipco2013/papers/1569744187.pdf
+[PDF] Feature Generation and Hypothesis Verification for Reliable Face ... https://
+cdn.aaai.org/ojs/20071/20071-13-24084-1-2-20220628.pdf
+[PDF] Multi-Modal Face Anti-Spoofing System Using Deep Learning - IJFMR https://
+www.ijfmr.com/papers/2026/2/71311.pdf
+Crowdsourcing Saliency with Webcam based Eye Tracking - ar5iv https://
+ar5iv.labs.arxiv.org/html/1504.06755
+Figure 13 from Eye-gaze detection with a single WebCAM based on ... https://
+www.semanticscholar.org/paper/Eye-gaze-detection-with-a-single-WebCAM-based-on-
+Cuong-Huynh/33088fa064e10481645e661505424890ddec31f1/figure/4
+[PDF] WebGazer: Scalable Webcam Eye Tracking Using User Interactions https://
+jeffhuang.com/papers/WebGazer_IJCAI16.pdf592. 
+593. 
+594. 
+595. 
+596. 
+597. 
+598. 
+599. 
+600. 
+601. 

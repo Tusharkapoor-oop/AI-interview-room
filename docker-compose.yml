@@ -59,6 +59,18 @@ services:
     depends_on:
       - prometheus
 
+  telemetry-purge:
+    image: aegis-backend  # Reuses the same Docker image (requires a cron runner or one-shot)
+    container_name: aegis-telemetry-purge
+    profiles: ["cron"]
+    environment:
+      DATABASE_URL: postgresql://aegis:${POSTGRES_PASSWORD}@postgres:5432/aegis
+      TELEMETRY_RETENTION_DAYS: "90"
+    command: ["python", "scripts/purge_old_telemetry.py", "--apply"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: .
@@ -69,10 +81,11 @@ services:
     environment:
       DATABASE_URL: postgresql://aegis:${POSTGRES_PASSWORD}@postgres:5432/aegis
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      # CRITICAL: JWT_SECRET MUST be set in production — no fallback
+      JWT_SECRET: ${JWT_SECRET?JWT_SECRET is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
       LOG_LEVEL: INFO
     depends_on:
       postgres:

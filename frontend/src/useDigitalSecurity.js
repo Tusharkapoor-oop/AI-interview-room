@@ -157,6 +157,108 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
     showToast('Right-click is disabled during the interview.', 'info', 3000);
   }, [enabled, phase, showToast]);
 
+  // ── 7. CSS Injection Scan (Vector 6) ───────────────────────────
+  // Detects DOM manipulation via injected stylesheets or inline style mutations
+  // that could hide overlay UI elements from the proctoring system.
+  const checkCssInjection = useCallback(() => {
+    if (!enabled || phase !== 'interview') return;
+    const styleSheets = document.styleSheets;
+    for (let i = 0; i < styleSheets.length; i++) {
+      try {
+        const rules = styleSheets[i].cssRules || styleSheets[i].rules;
+        if (rules) {
+          for (let j = 0; j < rules.length; j++) {
+            const cssText = rules[j].cssText || '';
+            if (cssText.includes('display:none') || cssText.includes('visibility:hidden') || cssText.includes('opacity:0')) {
+              const selectors = cssText.split('{')[0]?.trim();
+              if (selectors && (selectors.includes('video') || selectors.includes('canvas') || selectors.includes('[data-aegis') || selectors.includes('.ghost'))) {
+                triggerRiskEvent({
+                  type: 'CSS_INJECTION',
+                  severity: 'HIGH',
+                  desc: `Suspicious CSS rule hiding proctoring element: "${cssText.slice(0, 80)}"`,
+                });
+                return;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // CORS-blocked stylesheets are normal; skip silently
+      }
+    }
+  }, [enabled, phase, triggerRiskEvent]);
+
+  // ── 8. Timing Attack Detection (Vector 5) ──────────────────────
+  // Monitors for consistent response latency regardless of question difficulty —
+  // a hallmark of AI tool use where a fixed delay is added to mask real-time
+  // assistance latency.
+  const timingRef = useRef({ lastTimestamp: 0, latencies: [], questionDifficulty: 0 });
+  const recordResponseTiming = useCallback((difficulty) => {
+    if (!enabled || phase !== 'interview') return;
+    const now = Date.now();
+    const t = timingRef.current;
+    if (t.lastTimestamp > 0) {
+      const gap = now - t.lastTimestamp;
+      t.latencies.push(gap);
+      if (t.latencies.length > 10) t.latencies.shift();
+      if (t.latencies.length >= 5) {
+        const mean = t.latencies.reduce((a, b) => a + b, 0) / t.latencies.length;
+        const variance = t.latencies.reduce((a, b) => a + (b - mean) ** 2, 0) / t.latencies.length;
+        const std = Math.sqrt(variance);
+        const cv = std / mean;
+        if (cv < 0.15 && mean > 3000) {
+          triggerRiskEvent({
+            type: 'TIMING_ANOMALY',
+            severity: 'MEDIUM',
+            desc: `Suspiciously uniform response latency (CV=${cv.toFixed(2)}, mean=${Math.round(mean)}ms). Possible masked AI tool delay.`,
+          });
+          t.latencies = [];
+        }
+      }
+    }
+    t.lastTimestamp = now;
+    t.questionDifficulty = difficulty;
+  }, [enabled, phase, triggerRiskEvent]);
+
+  // ── 9. Screen Dimension Change Detection ───────────────────────
+  // Detects when window size changes abruptly, which can indicate
+  // split-screen or secondary display use.
+  const screenDimRef = useRef({ width: window.innerWidth, height: window.innerHeight });
+  const checkScreenDim = useCallback(() => {
+    if (!enabled || phase !== 'interview') return;
+    const prev = screenDimRef.current;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const dw = Math.abs(w - prev.width);
+    const dh = Math.abs(h - prev.height);
+    if ((dw > 100 || dh > 100) && (dw < 50 || dh < 50) === false) {
+      triggerRiskEvent({
+        type: 'SCREEN_CHANGE',
+        severity: 'LOW',
+        desc: `Window dimensions changed (${dw}x${dh}px delta). Possible split-screen or display switch.`,
+      });
+    }
+    screenDimRef.current = { width: w, height: h };
+  }, [enabled, phase, triggerRiskEvent]);
+
+  // ── 10. Clipboard API Monitoring ───────────────────────────────
+  // Detects unauthorized clipboard reads that could indicate
+  // automated answer injection.
+  const checkClipboardApi = useCallback(() => {
+    if (!enabled || phase !== 'interview') return;
+    if (navigator.clipboard && navigator.clipboard.read) {
+      navigator.clipboard.read().then(clipboardItems => {
+        if (clipboardItems.length > 0) {
+          triggerRiskEvent({
+            type: 'CLIPBOARD_ACCESS',
+            severity: 'LOW',
+            desc: 'Background clipboard read detected — possible automated content injection.',
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [enabled, phase, triggerRiskEvent]);
+
   // ── Mount all listeners ────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return;
@@ -167,6 +269,9 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
     document.addEventListener('keydown', handleKeyDown);
 
     const devtoolsInterval = setInterval(checkDevTools, 2000);
+    const cssInterval = setInterval(checkCssInjection, 5000);
+    const screenDimInterval = setInterval(checkScreenDim, 3000);
+    const clipboardInterval = setInterval(checkClipboardApi, 10000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -174,12 +279,16 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
       document.removeEventListener('paste', handlePaste);
       document.removeEventListener('keydown', handleKeyDown);
       clearInterval(devtoolsInterval);
+      clearInterval(cssInterval);
+      clearInterval(screenDimInterval);
+      clearInterval(clipboardInterval);
     };
-  }, [enabled, handleVisibilityChange, handleWindowBlur, handlePaste, handleKeyDown, checkDevTools]);
+  }, [enabled, handleVisibilityChange, handleWindowBlur, handlePaste, handleKeyDown, checkDevTools, checkCssInjection, checkScreenDim, checkClipboardApi]);
 
   // Expose current counters for the sidebar badge
   return {
     tabSwitchCount:  tabSwitchCount.current,
     pasteCount:      pasteCount.current,
+    recordResponseTiming,
   };
 }

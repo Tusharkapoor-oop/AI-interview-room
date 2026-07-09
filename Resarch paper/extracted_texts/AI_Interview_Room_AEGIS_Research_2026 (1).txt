@@ -1,0 +1,1559 @@
+
+
+=== PAGE 1 ===
+
+AEGIS RESEARCH INSTITUTE
+DEEP TECHNICAL INTELLIGENCE REPORT
+AI Interview Rooms:
+Anatomy of Fraud, Biometric
+Defense,
+and Advanced Gesture Intelligence
+How the World's Leading Tech Companies Conduct AI-Powered Interviews
+— How Candidates Bypass Every Layer of Protection — And How Advanced
+Gesture + Eye Tracking Closes Every Gap
+71%
+Candidates admit to cheating
+80%
+Use LLMs on coding tests
+25%
+Profiles will be fake by 2028
+(Gartner)
+ 
+99.49%
+CAST deepfake detection
+ AUC
+ 
+$50K+
+Cost of a single bad hire
+DOCUMENT CLASS
+CLASSIFICATION
+VERSION
+DATE
+Deep Research Report
+CONFIDENTIAL
+v3.0 FINAL
+June 2026
+Prepared by: Tushar Kapoor | B.Tech CSE (AI/ML) | K.R. Mangalam University, Gurugram | GO-BRICS Business Lab
+Cohort-I | tusharkapoor052@gmail.com
+
+
+=== PAGE 2 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  2
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+TABLE OF CONTENTS
+1. Executive Summary & TL;DR Intelligence Brief
+2. The Global AI Interview Ecosystem — Platform Architecture
+2.1 Four Categories of AI Interview Platforms
+2.2 How the World's Top Companies Run AI Interviews
+2.3 Adoption Rates, Pricing, and Market Dynamics
+2.4 AI Scoring and Evaluation Mechanics
+3. The Complete Threat Model — How Candidates Cheat
+3.1 Scale of the Problem — Data and Statistics
+3.2 Layer 1: Invisible Overlay Tools (Cluely, FinalRound AI)
+3.3 Layer 2: Deepfake Video and Voice Cloning
+3.4 Layer 3: Proxy Interview Networks and KVM Switches
+3.5 Layer 4: Virtual Machines and Hardware Exploits
+3.6 Layer 5: Secondary Device and Wearable Strategies
+3.7 Layer 6: Generative AI Answer Injection
+4. How Each Cheating Protocol is Bypassed — Technical Anatomy
+5. Eye Tracking — The Science of Gaze-Based Detection
+5.1 MediaPipe Iris + Kalman Filter Architecture
+5.2 The Deviation Angle Formula and Proctoring Application
+5.3 Fixation, Saccade, and Whitespace Fixation Detection
+5.4 Pupillary Light Reflex (PLR) and rPPG Liveness
+5.5 Gaze Pattern Signatures of Cheating Behavior
+5.6 Statistical Baseline Deviation — KS-Test Implementation
+6. Advanced Gesture Recognition — Kinematic Surveillance
+6.1 BlazePose, MediaPipe, and OpenPose Architecture
+6.2 33-Keypoint Skeletal Mapping for Fraud Detection
+6.3 Hand-to-Ear Detection, Off-Camera Reach, Burst Typing
+6.4 Multi-Person Detection and Secondary Individual Flags
+6.5 How Gesture + Gaze Fusion Overcomes Individual Limits
+7. Deepfake Detection — CNN-Transformer Architectures
+7.1 CAST Cross-Attention Architecture (99.49% AUC)
+7.2 Audio-Visual Lip-Sync Misalignment (LipFD, SAVe)
+7.3 Challenge-Response: The Gotcha System
+7.4 rPPG + PLR Combined Liveness Check
+8. The Five-Layer Anti-Cheat Defense Architecture
+9. Behavioral Biometrics — The Cognitive Fingerprint
+10. What Existing Systems Miss — The 5 Unsolved Problems
+11. The AEGIS Framework — Next-Generation Blueprint
+11.1 Whitespace Fixation Detection
+11.2 KS-Test Statistical Baseline Gaze Modeling
+11.3 Combined PLR + rPPG Single-Check Liveness
+11.4 Five-Channel Behavioral Consistency Fusion
+11.5 Full Edge-Cloud Production Architecture
+12. Legal and Ethical Landscape — 8 Global Frameworks
+13. World-Class Master Prompt — For AI Research Agents
+14. Implementation Roadmap and Future Directions
+
+
+=== PAGE 3 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  3
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+1. EXECUTIVE SUMMARY & TL;DR INTELLIGENCE BRIEF
+What This Report Covers
+This is the most comprehensive technical intelligence document ever assembled on AI-powered interview room technology. It
+covers three parallel arms races simultaneously: (1) how the world's leading tech companies architect and deploy AI interview
+systems; (2) the complete technical anatomy of every known method candidates use to bypass these systems; and (3) the
+full scientific basis and implementation blueprint for advanced gesture recognition and eye tracking as the most effective
+countermeasures available today.
+Key Intelligence Findings
+71%
+of job seekers admit to cheating during the hiring process (Resume Templates, 2025)
+80%
+of candidates use LLMs on coding tests despite explicit prohibition (Karat Research)
+81%
+of FAANG interviewers suspect AI cheating; 33% have caught someone (Interviewing.io)
+55.54%
+human deepfake detection accuracy — statistically indistinguishable from random chance
+99.49%
+AUC achieved by CAST CNN-Transformer on FaceForensics++ dataset
+$5.3M
+raised by Cluely (Interview Coder) — 'zero documented cases of detection'
+3,000%
+spike in deepfake fraud attempts in 2023 alone
+97.5%
+gaze tracking accuracy in controlled environments (MediaPipe Iris + Kalman Filter)
+93.7%
+F1-score for hand gesture fraud detection using MediaPipe (IJSRA Research)
+25%
+of candidate profiles projected to be entirely fake by 2028 (Gartner)
+
+
+=== PAGE 4 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  4
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+2. THE GLOBAL AI INTERVIEW ECOSYSTEM
+2.1 Four Categories of AI Interview Platforms
+The AI interview market has stratified into four architecturally distinct categories, each addressing different stages of the
+hiring pipeline with fundamentally different technical approaches. Understanding this taxonomy is essential for understanding
+where each category's security vulnerabilities lie.
+CATEGORY
+PLATFORMS
+ARCHITECTURE
+SECURITY EXPOSURE
+Live AI Interviewers
+(Bidirectional)
+Fabric, Talently.ai,
+Goodfit
+Real-time NLP + STT +
+Adaptive Q-Gen (0.8s latency)
+Highest — live stream
+manipulation window
+Pre-Recorded Video
+(Async Scoring)
+HireVue, Interviewer.AI,
+Spark Hire
+Asynchronous CV analysis,
+transcript scoring, rubric match
+Medium — deepfake
+video injection
+Technical Assessment
+(Code Evaluation)
+CodeSignal, HackerRank,
+HackerEarth, Codility
+Live IDE, pair-programming,
+algorithmic auto-grading
+High — invisible overlay
+tools (Cluely)
+Interview Intelligence
+(Human Augmentation)
+BrightHire, Metaview,
+Talview
+Recording + NLP coaching,
+structured interview notes
+Low — augments human
+interviewer judgment
+2.2 How the World's Top Companies Run AI Interviews
+Each major technology company has developed a distinct philosophy toward AI-assisted hiring, creating different attack
+surfaces and requiring different defensive strategies.
+COMPANY / PLATFORM
+AI INTERVIEW METHOD
+UNIQUE TECH
+ADOPTION SCALE
+HireVue
+(Fortune 500 dominant)
+Asynchronous video + game-based
+cognitive assessments
+Removed facial analysis 2021
+(EPIC/FTC complaint). Now: transcript
++ tone + word-choice scoring
+30M+ interviews processed;
+~50% of Fortune 100
+Talview
+(Enterprise + Campus)
+Live + async proctoring with
+'Seven-Layer Framework'
+Smart device detection, room scan,
+behavioral AI, 50+ languages, dual-camera
+95% detection accuracy claimed;
+8x higher than traditional
+Mercer Mettl
+(Assessment + Interview)
+Proctored assessments + 3-point
+authentication
+26+ question formats, Bluetooth
+scanner, keystroke biometrics
+Campus hiring at 100K+
+concurrent scale
+Goodfit
+(AI-Native, India)
+Conversational voice AI —
+no fixed app required
+Multilingual foundation models
+(14 Indic languages), 0.8s follow-up,
+dual-model auditing
+Starting at Rs.100/interview;
+high-volume mid-market
+CodeSignal
+(Technical Hiring)
+Live IDE + pair programming +
+AI-powered scoring
+FedRAMP certified; 40+ languages;
+sandboxed execution environment
+FAANG and top-100 tech
+companies; US-dominant
+Pymetrics / Harver
+(Neuroscience-Based)
+12 gamified cognitive and
+emotional assessments
+Neuroscience game battery;
+behavioral trait profiling;
+bias-aware ML matching
+Unilever (cut interview
+time by 75%); global enterprise
+Interviewer.AI
+(India, Mobile-First)
+Sentiment analysis + competency
+rubric scoring
+Optimized for 4G networks;
+mobile-first design
+Rs.1,000-2,900 per interview;
+early-stage companies
+Fabric
+(Detection-First)
+Live AI conversation + 20+
+forensic signals simultaneously
+Adaptive questioning breaks AI
+coherence; behavioral consistency
+modeling
+85% cheating detection;
+100+ signal analysis
+
+
+=== PAGE 5 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  5
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+2.3 Platform Pricing and Market Dynamics (India Focus)
+PLATFORM
+INDIA PRICING
+TARGET SEGMENT
+PROCTORING LEVEL
+Interviewer.AI
+Rs. 1,000 - 2,900 / interview
+Early-stage
+Basic (face + audio)
+Talview
+Rs. 1,650 - 4,150 / interview
+Banking + Enterprise
+Full 7-layer
+Spark Hire
+Rs. 4,150 - 12,450 / month
+Startups + Agencies
+Medium
+Goodfit
+From Rs. 100 / interview
+High-volume mid-market
+Behavioral + DOM
+Mercer Mettl
+Custom enterprise
+Campus + Global events
+Full + Bluetooth scan
+OmniHire
+Custom service model
+Pan-India remote
+AI shortlisting + human
+HireVue
+Rs. 29L - 1.2Cr / year
+Fortune 500 India ops
+Advanced (no face emotion)
+ClearRound.ai
+Rs. 199 / week
+Individual candidates
+N/A (cheating tool)
+
+
+=== PAGE 6 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  6
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+3. THE COMPLETE THREAT MODEL — HOW CANDIDATES CHEAT
+3.1 Scale of the Problem
+71%
+admit cheating (Resume
+Templates)
+80%
+LLMs on code tests (Karat)
+81%
+FAANG suspect cheating
+3000%
+deepfake fraud spike 2023
+6.5%
+of all fraud is deepfake
+The economic calculus is brutal: cheating tools cost $20-50/month while the positions they target pay $150,000+ annually. A
+single bad hire costs organizations $50,000+ in wasted salary, team productivity loss, and re-hiring expenses. The
+risk-reward ratio overwhelmingly favors the cheater under current detection regimes.
+3.2 Layer 1 — Invisible Overlay Tools: The Cluely Architecture
+Cluely (formerly Interview Coder) represents the most technically sophisticated category of cheating. Created by Columbia
+student Chungin 'Roy' Lee — expelled for using it to obtain an Amazon internship — the tool has raised $5.3 million and
+claims zero documented detections.
+TECHNICAL MECHANISM
+HOW IT WORKS
+WHY CURRENT SYSTEMS MISS IT
+Stateless Overlay
+(Core Exploit)
+Renders at the OS compositor layer below the capture level of WebRTC/screen-share APIs. The interviewer sees a blank IDE; the candidate sees AI solutions superimposed transparently.
+Screen-capture APIs operate at the application layer. Cluely injects at Core Graphics (macOS) below all recording hooks. There is literally nothing to capture.
+Background Daemon
+(Stealth Operation)
+Runs as a background process invisible in Activity Monitor, Dock, and Taskbar. No visible window, no app icon.
+Current secure browsers scan for known process names. Cluely uses obfuscated process names and anti-debugging techniques.
+OCR Question Capture
+(Input Method)
+Silently screenshots the screen at optimized intervals, OCRs the technical problem or transcribes spoken interviewer questions in real-time.
+The screenshot occurs locally. No suspicious network traffic. No foreign process touching the browser window.
+Local LLM / RAG
+(Response Generation)
+Routes captured questions to a local RAG system or via API to frontier models (GPT-4, Claude). Response appears on transparent overlay within 2-4 seconds.
+Response delivery is purely visual. No DOM manipulation. No keyboard injection. Nothing for browser APIs to intercept.
+Cross-Platform Support
+(Universal Reach)
+Works on Zoom, Teams, Google Meet, Amazon Chime, Cisco Webex, HackerRank, CoderPad, Codility, LeetCode.
+No single platform has a defense. The exploit is OS-level, not app-level.
+FinalRound AI takes a different approach — running as a browser tab that monitors audio via Web Speech API, sends to an
+LLM backend, and displays responses as DOM overlays. Detection requires analyzing WebSocket connection patterns, DOM
+mutation rates, and browser extension manifests.
+3.3 Layer 2 — Deepfake Video and Voice Cloning
+The deepfake threat operates on three tiers of escalating technical complexity, each requiring a different countermeasure:
+
+
+=== PAGE 7 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  7
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+TIER
+TECHNIQUE
+TOOLS
+DETECTION DIFFICULTY
+Tier 1
+Basic
+Real-time face-swap via virtual camera routing. Neural network tracks source face landmarks, dynamically overlays target face.
+DeepFaceLive, OBS VirtualCam, Wav2Lip
+Medium — PLR/rPPG fails, but AV lip-sync misalignment detectable (95.3% accuracy)
+Tier 2
+Advanced
+Voice cloning + lip-sync. Audio synthesis clones vocal patterns from minimal samples, preserving emotional tone and cadence.
+ElevenLabs, RVC, Wav2Lip
+High — human detection at 55.54% (random chance). Requires spectral analysis.
+Tier 3
+State-Level
+Full synthetic identity: non-existent photorealistic face, synthetic audio, fabricated credentials, digital footprint. Used in North Korean DoJ case (300+ Fortune 500 companies infiltrated; $5M+ revenue).
+Custom GAN pipelines, KVM switches, US-based facilitators
+Extreme — requires hardware attestation (TPM) + e-Passport NFC + 3-way biometric
+3.4 Layer 3 — Proxy Networks, KVM Switches, and Lip-Sync
+Proxy interview rings operate as organized syndicates, particularly prevalent in high-volume IT hubs. A technically proficient
+proxy attends on behalf of the applicant. In advanced 'lip-sync proxy' setups, the actual applicant is on camera and silently
+moves their mouth while the hidden proxy supplies spoken answers via hidden earpiece. KVM (Keyboard-Video-Mouse)
+switches allow overseas facilitators to remotely control domestic laptops — a hardware-level attack that bypasses all
+software-based remote desktop detection.
+3.5 Layers 4-6 — Hardware, VM, and Wearable Exploits
+EXPLOIT METHOD
+TECHNICAL MECHANISM
+CURRENT DETECTION STATUS
+Virtual Machine
+Sandboxing
+Testing environment installed inside a VM guest OS. Proctoring software sees a clean, compliant environment. Host OS runs unrestricted with secondary monitor outside webcam field.
+Partially detected: PEBble secure browser performs deep system process scans for hypervisors. Advanced actors spoof CPUID instructions and hide virtual drivers.
+Bluetooth Earpiece
+Real-time audio from external expert transmitted via micro-earpiece. No visible wires. Expert accesses interview audio via second device.
+TrustExam.ai Bluetooth scanner: 97% detection accuracy. Range-limited. Standard proctoring: no detection at all.
+AR Glasses
+Project digital text directly into user's field of vision. Appear as standard eyewear to webcam. Receive answers from external AI via Bluetooth.
+No current webcam-based detection. Requires physical inspection or RF scanning.
+Smartwatch
+(Wearable)
+Displays AI-generated answers on wrist. Kinematic signature: prolonged downward head pitch + wrist rotation micro-movement sequence.
+Detectable via pose estimation: YOLO-Pose tracks wrist rotation + opposing hand micro-movements. Flags gaze-to-wrist focus loop.
+Secondary Phone
+(Bezel Placement)
+Phone placed directly against laptop bezel, minimizing eye movement to adjacent screen. Displays AI chatbot responses.
+Detectable via whitespace fixation analysis: gaze concentrates in UI whitespace where no test content exists.
+
+
+=== PAGE 8 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  8
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+4. HOW EACH CHEATING PROTOCOL IS BYPASSED — TECHNICAL ANATOMY
+This section provides a complete technical mapping of how every layer of current proctoring is bypassed, and what the
+residual detection signal is in each case.
+PROCTORING CONTROL
+BYPASS METHOD
+RESIDUAL DETECTION SIGNAL
+Browser Full-Screen
+Lockdown
+Run proctoring inside VM guest; host OS unrestricted. Stateless overlays render below compositor. Page Visibility API events not triggered by compositor-level injection.
+DOM-level session replay tracks micro-flicker (focus loss <100ms). VM detection via CPUID/registry scans. Overlay: whitespace fixation in gaze data.
+Screen Recording /
+Share Detection
+Cluely renders below WebRTC capture layer. FinalRound AI uses browser tab disguised as documentation. Secondary device keeps cheat apparatus physically separate.
+No direct detection for compositor-level overlays. Browser tab: WebSocket anomaly analysis. Secondary device: gaze deviation + whitespace fixation.
+Face Liveness
+(Blink/Nod)
+GoldPickaxe trojan harvests real liveness footage (nod, blink, open mouth), feeds through AI face-swap. Shanghai tax fraud: pre-prepared deepfake video fed to liveness check via modified phone.
+PLR (Pupillary Light Reflex): flash screen, measure pupil constriction — deepfakes cannot replicate correctly timed physiological response. rPPG: heartbeat from skin color variation.
+Head Pose
+Threshold (>45 deg)
+'Head-forward, eyes-away' exploit: skull stationary, pupils shifted to off-screen content. Simple bounding-box trackers only detect head rotation, not gaze direction.
+Gaze-pose discrepancy analysis: L2CS-Net computes 3D gaze vector independently of head pose. Delta between head orientation and ocular vector definitively catches covert reading.
+Audio Monitoring
+(Secondary Voice)
+Bluetooth micro-earpiece: no ambient audio generated. Expert speaks into phone mic connected to candidate's ear only. Lip-sync proxy: audio from hidden expert, candidate moves lips.
+Beamforming mic arrays triangulate speaker location. MAR (Mouth Aspect Ratio) vs. audio energy correlation: lip movement without localized acoustic energy = flag. Spectral analysis for 'microphone bleed-through.'
+Object Detection
+(Phone/Notes)
+Phone placed in bezel blind spot below webcam field-of-view. Notes placed outside frame. Virtual displays cannot be scanned programmatically.
+Gaze: whitespace fixation (eyes track bezel-mounted phone). Pose: asymmetrical shoulder drop + hidden arm movements (mobile typing biomechanics). Environmental scan at session start catches notes.
+Keystroke Biometrics
+(Typing Pattern)
+Clipboard injection: Cluely injects code at OS level without simulating keystrokes. DOM replay shows code appearing instantaneously without keystroke events.
+DOM-level session replay: detects code appearing without corresponding keystroke events = programmatic injection. Burst typing: large code blocks appearing in zero milliseconds.
+Identity Verification
+(Face Match at Login)
+Deepfake overlay at login only, then real candidate appears. Face-match happens once — not continuously. Proxy: different person after login verification.
+Continuous face recognition throughout session via face embedding comparison. Behavioral consistency modeling: cognitive fingerprint must remain consistent across all signals.
+
+
+=== PAGE 9 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  9
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+5. EYE TRACKING — THE SCIENCE OF GAZE-BASED DETECTION
+5.1 MediaPipe Iris + Kalman Filter — The Production Architecture
+The dominant eye-tracking pipeline for browser-based proctoring combines Google MediaPipe FaceMesh (468 3D facial
+landmarks) with MediaPipe Iris (iris, pupil, and eye contour) and a Kalman Filter for temporal smoothing. This pipeline runs
+entirely on the candidate's device via WebAssembly/WebGPU, achieving sub-30ms latency without any server round-trip.
+COMPONENT
+SPECIFICATION
+PROCTORING APPLICATION
+MediaPipe FaceMesh
+468 3D facial landmarks; 30ms latency on CPU; runs via WebGL in browser
+Base layer for all gaze and pose analysis; provides dense eye region mesh
+MediaPipe Iris Model
+Iris, pupil, and eye contour landmarks; trained on ~50,000 manually annotated images; diverse illumination and head poses
+Precise pupil center tracking; depth estimation via constant iris diameter (11.7 +/- 0.5mm)
+Kalman Filter (2D State)
+Models gaze vector position and velocity; predicts next gaze direction from previous state; accounts for measurement noise
+Eliminates jitter from natural micro-saccades; smooths trajectory for pattern analysis; enables 97.5% accuracy in controlled conditions
+L2CS-Net (Alternative)
+Joint classification-regression; outputs pitch and yaw as continuous angles; ~50ms latency; maps to screen coordinates via MLP
+Independent gaze vector computation regardless of head pose; critical for discrepancy analysis
+Depth Estimation
+(Pinhole Model)
+d = (real_iris_width * focal_length) / iris_pixel_width; <10% relative error; no depth sensor required
+Normalizes gaze estimates for candidates who shift position; corrects for varying distance from camera
+5.2 The Deviation Angle Formula and Proctoring Application
+The core gaze detection algorithm computes the deviation angle between the eye gaze vector and the camera center axis:
+theta = arccos( (G_vec . C_vec) / (|G_vec| * |C_vec|) )
+Where G_vec is the gaze direction vector derived from iris landmarks and C_vec is the camera axis vector. A deviation
+exceeding 25 degrees triggers a cheating alert, but the system requires this threshold to be exceeded for 3+ consecutive
+frames to reduce false positives from natural eye movements. The Kalman-filtered hybrid achieves 97.5% accuracy in
+controlled environments, dropping to 92.3% in low-light and 85.2% under head motion — still above the 80% operational
+threshold.
+5.3 Fixation, Saccade Analysis, and Whitespace Fixation Detection
+The most powerful application of gaze tracking is not angle thresholding but behavioral pattern classification. Eight major
+gaze features have been identified as fraud indicators in systematic literature review:
+GAZE FEATURE
+NORMAL COGNITIVE PATTERN
+CHEATING PATTERN
+DETECTION METHOD
+Fixation
+(most common feature,
+19/37 studies)
+100-400ms still periods during active information processing; distributed across screen content areas
+High-density fixation clusters in UI whitespace (bezel overlay); mechanical fixation at same horizontal positions (reading pattern)
+Fixation density heatmap; spatial cluster analysis vs. content zones
+Saccades
+(rapid eye movements)
+Natural ballistic jumps between fixation points; velocity varies with distance; unpredictable trajectory
+Mechanical left-to-right saccades with consistent snap-back (script reading); velocity too uniform; trajectory too horizontal
+Saccade velocity distribution analysis; L-R asymmetry ratio
+Pupil Size
+(2nd most common,
+10/37 studies)
+Varies with cognitive load, lighting, and emotional arousal; natural baseline fluctuation
+Constriction in response to PLR test stimulus (live person); no response = photo/video/deepfake
+PLR: screen brightness cycling; pupil diameter change rate measurement
+Blink Rate
+Natural: 15-20 blinks/minute; brief closures 150-400ms duration
+Reduced blinking during intense reading from overlay; abnormal blinking = stress or evasion
+Eyelid landmark tracking; blink rate/duration statistical deviation
+Gaze Entropy
+(randomness)
+High entropy during genuine thinking/recall; eyes drift upward or sideways (visual recall pattern — NLP research)
+Low entropy = robotic reading pattern; high entropy = scanning room for external help
+Shannon entropy of gaze point distribution over 10-second windows
+Off-Screen Gaze
+(duration)
+Brief natural glances 0-2 seconds; returns to content; occurs during genuine recall
+Sustained off-screen fixation >3 seconds = consulting external material; top-right concentration = hidden notes/second screen
+Screen boundary detection; quadrant concentration analysis; duration thresholding
+
+
+=== PAGE 10 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  10
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+GAZE FEATURE
+NORMAL COGNITIVE PATTERN
+CHEATING PATTERN
+DETECTION METHOD
+Whitespace
+Fixation
+Candidate should have near-zero fixation in UI whitespace (blank margins, empty IDE areas)
+Cluely/bezel phone: gaze concentrates in whitespace where no test content exists — the only webcam-detectable Cluely signal
+UI layout coordinate mapping; gaze-vs-content-zone density ratio
+Gaze-Response
+Temporal Correlation
+Eye movements precede or coincide with spoken answer construction; gaze reflects active thinking process
+Eyes show reading pattern WHILE candidate speaks fluently — indicates reading AI-generated response, not constructing answer
+Temporal synchronization of gaze vectors with audio speech segments
+5.4 Pupillary Light Reflex (PLR) and rPPG — Active Liveness
+The two most powerful liveness signals available from a standard RGB webcam are the Pupillary Light Reflex (PLR) and
+Remote Photoplethysmography (rPPG). Neither can be reliably replicated by photos, pre-recorded videos, or current
+deepfake generators.
+TECHNIQUE
+MECHANISM
+DEFEATS
+ACCURACY
+IMPLEMENTATION
+Pupillary Light
+Reflex (PLR)
+System rapidly cycles screen brightness. Live pupil constricts in bright flash, dilates in dark. Timing and magnitude measured via FaceMesh iris landmarks.
+Photo attacks (TPR 99.0% at 10% FPR); 3D mask attacks (TPR 99.4%); static video replay
+99.0-99.4% TPR
+@ 10% FPR
+JavaScript screen brightness API + FaceMesh pupil diameter measurement at 30fps; randomized stimulus timing
+Remote Photo-
+plethysmography (rPPG)
+Analyzes minute cyclical variations in skin color caused by blood flow through capillaries. Isolates micro-variations in RGB channels; applies FFT to extract heart rate.
+Sophisticated deepfakes (no realistic pulsatile blood flow); masks; photos; some real-time face-swaps
+Feasible detection;
+RNN-enhanced
+approaches
+Facial skin region isolation; frame-by-frame RGB channel analysis; FFT for BPM extraction; RNN for signal improvement
+PLR + rPPG
+Combined Check
+(NOVEL APPROACH)
+Single 10-second active challenge: screen flashes trigger PLR while continuous rPPG extracts heartbeat. Both signals must be present and physiologically consistent.
+All photo/video/deepfake attacks simultaneously. Current commercial systems use one OR the other — never both in a single combined check.
+Theoretical:
+>99.5% combined
+(no published
+benchmark yet)
+This is the research gap. The combination in a single webcam check with a standard RGB camera is the publishable contribution.
+
+
+=== PAGE 11 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  11
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+5 (CONT.) — GAZE SIGNATURES + STATISTICAL BASELINE MODELING
+5.5 Gaze Pattern Signatures of Cheating Behavior
+BEHAVIORAL SIGNATURE
+INDICATES
+DETECTION CONFIDENCE
+TECHNICAL BASIS
+Horizontal L-to-R scanning
+with quick snap-back
+Reading from hidden script or invisible overlay
+High (91.4% F1 — IJSRA)
+Saccade velocity pattern + trajectory asymmetry ratio
+Repeated off-screen fixation
+>3 seconds in one direction
+Hidden phone / second device / notes
+High
+Gaze entropy analysis + duration threshold + spatial clustering
+Consistent downward gaze
+during response
+Notes on desk or phone below camera
+Medium-High
+Pitch angle negative deviation from neutral (FloCareer)
+Whitespace fixation
+concentration
+Cluely overlay or bezel-mounted phone — the only webcam-detectable Cluely signal
+High (novel approach)
+UI content zone mapping; gaze-vs-whitespace density KDE
+Gaze aversion during
+flash (PLR test)
+Photo / video / deepfake — no genuine physiological pupil response
+Very High (99.0-99.4% TPR)
+PLR: screen brightness change + pupil constriction measurement
+Mechanical fixation + fluent
+speech simultaneously
+Reading AI-generated response while speaking — not constructing answer
+High
+Temporal gaze-speech correlation; reading pattern during audio activity
+Consistent 3-4 second pause
+before EVERY answer
+'Flatline response timing' — AI processing delay signature
+Medium-High
+Response latency distribution analysis; variance too low = AI
+Top-right quadrant
+fixation concentration
+Hidden notes / second screen in top-right physical location
+High
+Screen quadrant gaze density mapping; top-right vs. content ratio
+5.6 Statistical Baseline Deviation — The KS-Test Implementation
+The critical upgrade from commercial systems: replace raw threshold-based gaze flags (if angle > 25° for 3 frames = flag)
+with per-candidate statistical baseline modeling using the Kolmogorov-Smirnov test. This is documented in literature but
+implemented in no open-source proctoring pipeline.
+Implementation Steps:
+1. CALIBRATION PHASE (first 90 seconds): Collect candidate's natural gaze distribution. Build baseline gaze point cloud.
+Record natural fixation patterns, entropy levels, saccade velocities.
+2. CONTINUOUS MONITORING: Collect rolling 10-second gaze windows throughout interview.
+3. KS-TEST APPLICATION: Apply two-sample Kolmogorov-Smirnov test comparing active window distribution against
+personal baseline. Flag ONLY when distribution shift is statistically significant: p < 0.05.
+4. CONTEXTUAL SUPPRESSION: If candidate is responding verbally (audio activity detected), suppress gaze flags for
+natural cognitive drift. Flag only when gaze deviation coincides with sustained silence OR with AI-phrasing detected in
+concurrent speech analysis.
+5. FUSION: Combine KS-test flag with other channels. Require 3+ concurrent channel deviations before raising integrity
+event.
+Why this matters: A candidate with naturally wandering eyes will never be flagged because their active
+distribution matches their personal baseline. A candidate reading from an overlay will show a statistically
+significant shift to low-entropy, directionally concentrated gaze — regardless of where their eyes naturally
+wander when thinking.
+
+
+=== PAGE 12 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  12
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+6. ADVANCED GESTURE RECOGNITION — KINEMATIC SURVEILLANCE
+6.1 BlazePose, MediaPipe, and OpenPose — Framework
+Comparison
+FRAMEWORK
+LANDMARKS
+PARAMETERS
+FPS (MOBILE)
+KEY INNOVATION
+PROCTORING USE
+BlazePose Lite
+(MediaPipe)
+33 body
+1.3M
+31 FPS
+(Pixel 2)
+Two-stage detect-
+then-track + ROI
+refinement
+Real-time skeletal
+mapping in browser
+via WebGL/Wasm
+BlazePose Full
+(MediaPipe)
+33 body
+3.5M
+30+ FPS
+Heatmap + regression
+dual-head architecture
+Higher accuracy;
+detects subtle arm
+and wrist movements
+OpenPose
+17-25 body
+25.1M
+23.7 FPS
+Bottom-up PAF:
+identifies all body
+parts then groups
+Multi-person: detects
+secondary individual
+in frame (crowded scenes)
+YOLOv8-Pose
+(YOLO-Pose)
+17 body
+Custom
+Real-time
+Object detection +
+pose estimation
+in single pass
+Simultaneous object
+(phone/notes) +
+pose detection
+MediaPipe Hands
+21/hand
+Lightweight
+30+ FPS
+21 3D landmarks
+per hand including
+finger joints
+Hand-to-ear detection;
+off-camera reach;
+burst typing patterns
+6.2 33-Keypoint Skeletal Mapping — What Each Keypoint Catches
+BlazePose's 33-landmark schema provides superior articulation coverage compared to OpenPose's 17-point COCO format.
+The additional landmarks (knuckles, heels, foot index) are not relevant for interview proctoring, but the upper-body landmarks
+provide the following fraud signals:
+KEYPOINT GROUP
+LANDMARK IDs
+FRAUD SIGNAL DETECTED
+Face landmarks
+(11, 12, 0-10)
+Nose, eyes, ears, mouth corners
+Head pose (yaw/pitch/roll); gaze direction cross-reference; lip movement for MAR calculation
+Shoulders
+(11, 12)
+Left and right shoulder
+Asymmetrical shoulder drop = off-camera mobile typing biomechanics; forward lean = reading from hidden material close to camera
+Elbows
+(13, 14)
+Left and right elbow
+Arm trajectory analysis; motion toward ear (earpiece interaction); arm extended off-camera = reaching for notes or device
+Wrists
+(15, 16)
+Left and right wrist
+Wrist rotation + downward head pitch = smartwatch interaction; wrist disappearing below frame = phone/keyboard usage
+Hands / Knuckles
+(17-22)
+Pinky, index, thumb tips + bases
+21-landmark MediaPipe Hand model activated for precision; hand-to-ear proximity detection; covering mouth gesture (signal-to-accomplice)
+Upper Arm Velocity
+Computed from shoulder-elbow-wrist trajectory
+Sudden rapid arm movement toward off-camera zone = fetching hidden device; kinematic signature distinct from natural gesturing
+6.3 Specific Gesture Fraud Detection — Technical Implementation
+
+
+=== PAGE 13 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  13
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+GESTURE / ACTION
+KINEMATIC SIGNATURE
+DETECTION LOGIC
+FALSE POSITIVE RISK
+Hand-to-Ear
+(Earpiece)
+Hand landmark trajectory: rapid upward movement toward ear region (landmark 7/8). Wrist velocity spike. Sustained proximity of hand to ear region >2 seconds.
+MediaPipe Hand: track palm center Y-coordinate relative to FaceMesh ear landmark (landmark 234/454). Flag when distance < 80px sustained for 60+ frames.
+Medium: scratching ear, pushing back hair. Mitigated by requiring sustained proximity + correlation with audio anomaly.
+Off-Camera Reach
+(Hidden Device)
+Wrist landmark moves beyond frame_width * 0.8 threshold. Asymmetric shoulder rotation precedes reach. Hand bounding box disappears from valid frame area.
+Hand landmark bounding box vs. frame boundary: flag when hands disappear or move beyond 80% frame boundary. Require 3+ consecutive frames.
+Low: natural hand gesturing. Wrist disappearance has near-zero false positive at 3-frame threshold.
+Burst Typing Pattern
+(Code Injection)
+No keystroke events in DOM replay but large code block appears. Typing cadence: unnaturally fast and perfectly consistent. Zero error-correction events.
+DOM session replay: code appearing without keystroke events = programmatic injection. Typing WPM > 180 sustained = automated. Error rate = 0% sustained = non-human.
+Very Low: nobody types 180 WPM with zero errors for 10+ seconds. This is definitive.
+Smartwatch
+Interaction
+Prolonged downward head pitch (>20 deg) coupled with specific wrist rotation sequence (supination). Opposing hand micro-movement for scroll.
+Head pitch angle from FaceMesh + wrist rotation from BlazePose: flag gaze-to-wrist focus loop. Require both pitch AND rotation simultaneously.
+Low: checking watch is natural but brief. Sustained pitch + rotation combination is distinctive.
+Multi-Person
+Detection
+Second set of 33 landmarks detected in frame. Partial occlusion handled by OpenPose PAF grouping. Shoulder/head landmarks of second person at frame edge.
+MediaPipe num_poses=4 configured. Count distinct landmark sets. If count > 1 sustained for 2+ seconds: HIGH SEVERITY flag. Partial detection (edge of frame): MEDIUM flag.
+Very Low: accidental passerby triggers medium flag only. Sustained second presence is unambiguous.
+Covering Mouth
+(Signal to Accomplice)
+Both hands converge toward lower face region. MAR (Mouth Aspect Ratio) changes without audio activity. Sustained hand-face contact.
+FaceMesh mouth landmarks + MediaPipe Hand proximity. Flag when hands occlude lower face for >3 seconds without concurrent speech audio.
+Medium: natural gesturing while thinking. Require simultaneous absence of audio activity.
+6.5 Why Gesture + Gaze Fusion Overcomes Individual Limitations
+DETECTION LAYER
+ALONE (LIMITATIONS)
+FUSED WITH OTHER LAYERS (RESULT)
+Eye Tracking Only
+False positives: natural cognitive drift, thinking pauses, medical conditions. Cannot detect Cluely (no gaze anomaly for overlay tools). 91.4% F1 but noisy.
+Gaze + Hand: if eyes show whitespace fixation AND hand is in normal position, confidence rises. Gaze + Audio: if reading pattern during fluent speech, near-definitive.
+Gesture Recognition Only
+Cannot confirm what candidate is looking at. Shoulder drop alone insufficient. 93.7% F1 but context-dependent.
+Gesture + Gaze: asymmetric shoulder drop + off-screen gaze = secondary device reading. Gesture + Audio: hand-to-ear + audio anomaly = earpiece. 
+Audio Analysis Only
+Cannot isolate earpiece whisper from background noise. Voice cloning evades voice biometrics. 85% accuracy.
+Audio + Gesture: ear proximity + audio anomaly = definitive earpiece. Audio + Gaze: flatline latency + gaze aversion = AI processing delay.
+Keystroke Dynamics Only
+Cannot detect Cluely (no keystrokes simulated). Can detect clipboard injection / burst typing. >99% accuracy for typing.
+Keystroke + DOM: burst code appearance with no keystroke events = definitive programmatic injection. Keystroke + Gaze: typing without looking at IDE = external control.
+Content / NLP Only
+LLMs can generate human-sounding answers. Vocabulary jump detectable but not definitive alone. ~82% accuracy.
+Content + Gaze: vocabulary jump + reading pattern simultaneously = near-definitive AI generation. Content + Latency: perfect answer + flatline delay = AI processing.
+
+
+=== PAGE 14 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  14
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+7. DEEPFAKE DETECTION — CNN-TRANSFORMER ARCHITECTURES
+7.1 CAST: Cross-Attentive Spatio-Temporal Architecture
+CAST represents the current state-of-the-art in deepfake video detection. Its core innovation is a unified cross-attention
+mechanism enabling temporal features to dynamically attend to relevant spatial regions, enhancing detection of time-evolving
+artifacts like flickering eyes, warped lips, and inconsistent facial textures.
+MODEL
+CNN BACKBONE
+AUC (FF++)
+AUC (Celeb-DF)
+AUC (DFD)
+KEY MECHANISM
+CAST-B5
+EfficientNet-B5
+99.49%
+74.92%
+92.07%
+Cross-attention fusion
+CAST-B0
+EfficientNet-B0
+98.98%
+76.98%
+93.31%
+Better generalization
+D2-Fusion
+EfficientNet
+96.87%
+79.40%
+91.90%
+Dual-branch fusion
+MAT
+Swin Transformer
+97.60%
+67.40%
+N/A
+Mixed attention transformer
+FaceGraphNet
+ResNet+GNN+LSTM
+N/A
+0.96
+0.96
+Graph neural network hybrid
+TimeSformer
+Divided Attention
+Sota K400
+N/A
+N/A
+Space-time divided attention; 96 frames
+CRITICAL LIMITATION: CAST's cross-dataset generalization drops from 99.49% on known datasets to 74.92% on
+unseen datasets (Celeb-DF). This 25-point accuracy gap is the active research frontier and the reason
+challenge-response approaches are being developed as primary alternatives.
+7.2 Audio-Visual Lip-Sync Detection
+Genuine speech produces deterministic biological correlations between acoustic frequencies and facial muscle movements.
+Synthetic media uses separate generation pipelines for audio and video, creating imperceptible synchronization failures
+detectable by AI.
+METHOD
+MECHANISM
+DATASET / ACCURACY
+Mouth Aspect Ratio (MAR)
+MAR = geometric relationship between labial landmarks (dlib points 60, 62, 64, 67). Compares audio spectrum vs. discrete MAR values frame-by-frame.
+AVLips dataset (340K samples): >95.3% accuracy (LipFD)
+SAVe (Self-Supervised AV)
+Dual-headed model: processes visual lip sequence + audio spectrogram concurrently. Detects cross-modal temporal misalignments.
+Cross-modal misalignment detection; real-time capable
+ViViT (Video Vision Transformer)
+Whole-face temporal features: irregular blink rates, unnatural skin smoothing, micro-pixel flickering at face-swap boundaries.
+State-of-art video classification; applied to deepfake spatiotemporal artifacts
+Voice Style Detection
+Monitors AI voice clone artifacts: missing acoustic micro-hesitations, respiratory artifacts, unnatural pacing. Spectral analysis for 'microphone bleed-through' (secondary voice).
+Pindrop: pitch, cadence, waveform pattern analysis
+7.3 Challenge-Response: The Gotcha System (UC Berkeley)
+Instead of passively detecting deepfake artifacts, Gotcha makes deepfake generation fail in real-time. Each challenge
+component exploits a deepfake pipeline vulnerability:
+CHALLENGE TYPE
+HOW IT BREAKS DEEPFAKES
+DATA COLLECTED
+Rapid head turns
+(extreme angles)
+Face-swap pipelines have optimal operating angles; extreme rotation causes landmark estimation failure and edge artifacts.
+47 real users; 56,247 real + fake short videos; consistent visible degradation
+Hand-over-face
+(partial occlusion)
+Occlusion handling is the weakest point in real-time deepfake pipelines. Inpainting artifacts at occlusion boundaries are detectable.
+Same dataset
+Lighting changes
+(lights on/off)
+Deepfake renderers are trained on specific lighting distributions. Sudden lighting changes cause skin tone inconsistencies and shadow errors.
+Same dataset
+
+
+=== PAGE 15 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  15
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+CHALLENGE TYPE
+HOW IT BREAKS DEEPFAKES
+DATA COLLECTED
+Simultaneous speech
++ movement
+Most deepfake pipelines process audio and video separately. Simultaneous complex multi-modal action causes synchronization failures.
+Same dataset
+
+
+=== PAGE 16 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  16
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+8. THE FIVE-LAYER ANTI-CHEAT DEFENSE ARCHITECTURE
+Complete Defense-in-Depth Framework
+LAYER
+NAME
+TECHNOLOGIES
+CATCHES
+MISSES / LIMITATIONS
+Layer 1
+Environmental
+Controls
+Full-screen API, Page Visibility API, JavaScript event interception, YOLOv8 room scan, DOM session replay
+Tab switching, copy-paste, context menu access, prohibited objects (room scan), clipboard injection (DOM replay)
+Compositor-level overlays (Cluely), VM sandboxing (partial), AR glasses, bezel-mounted phone in blind spot
+Layer 2
+Identity &
+Liveness
+MediaPipe FaceMesh + Iris, PLR screen cycling, rPPG skin color analysis, face embedding comparison, Kalman filter
+Photo attacks (99.0% TPR), 3D mask attacks (99.4% TPR), video replay (PLR timing), deepfake (rPPG heartbeat)
+Cross-dataset deepfake generalization (CAST: 74.92% on unseen sets), Tier 3 synthetic identities with perfect PLR simulation
+Layer 3
+Behavioral
+Monitoring
+Gaze estimation (L2CS-Net), KS-test statistical baseline, whitespace fixation analysis, BlazePose 33-keypoint skeletal tracking, MediaPipe Hands 21-landmark tracking
+Script reading (gaze pattern), overlay tools (whitespace fixation), off-camera devices (gesture), earpiece (hand-to-ear + audio), secondary person
+Naturally wandering eyes (KS-test mitigates), medical conditions (Accommodation Mode), composited overlays with no gaze anomaly
+Layer 4
+Audio
+Forensics
+Speaker verification (GMM-UBM, i-vectors), secondary voice detection, MAR lip-sync correlation, keyboard typing analysis, microphone beamforming arrays
+Hidden earpiece (beamforming + audio anomaly), voice cloning (spectral artifacts), lip-sync deepfake (MAR mismatch), secondary human in room
+Perfect voice clone matching candidate's voice, noise-heavy environments, quiet keyboards
+Layer 5
+Human
+Oversight
+Scrubable video timeline, Ghost View (CV overlay), Quick Jump to flagged events, Integrity Score 0-100, recruiter dashboard
+False positives from Layers 1-4 (human context resolves), edge cases requiring human judgment, candidate appeals
+Requires trained reviewer time; cannot be fully automated; EU AI Act mandates this layer for high-risk systems
+System Performance Benchmarks
+METRIC
+TARGET
+FALLBACK THRESHOLD
+WHAT HAPPENS AT THRESHOLD
+CV Inference Latency
+<200ms (client-side)
+200-500ms
+Warn user; close background apps
+Frame Rate
+30 FPS minimum
+<15 FPS
+Alert user; switch to reduced-strictness mode
+Telemetry Bandwidth
+<50 KB/s per session
+>100 KB/s
+Switch to MessagePack compression
+System Uptime
+99.99% SLA
+<99.9%
+Kubernetes auto-scaling; multi-region failover
+False Positive Rate
+<2%
+>2%
+Retrain CV models; adjust KS-test p-value threshold
+Deepfake Detection
+>98% on known attacks
+<90%
+Escalate to challenge-response + human review
+Data Retention
+90-day auto-purge
+Manual override only
+AWS Lambda scheduled deletion
+
+
+=== PAGE 17 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  17
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+9. BEHAVIORAL BIOMETRICS — THE COGNITIVE FINGERPRINT
+The most resilient anti-cheating defense is behavioral consistency modeling: building a comprehensive profile of the
+candidate across the entire interview and flagging statistically improbable patterns. This cannot be evaded because it
+requires the cheater to maintain realistic behavior across ALL dimensions simultaneously for the full interview duration.
+BIOMETRIC CHANNEL
+FEATURES MEASURED
+FRAUD INDICATOR
+ACCURACY
+Keystroke Dynamics
+Dwell time (key held duration), flight time (gap between keystrokes), typing speed WPM, error rate, error correction patterns
+Typing speed >180 WPM sustained; error rate = 0% for 10+ seconds; code appearing with zero keystroke events (DOM replay)
+>99% (didit.me);
+~95% (TypingDNA)
+Mouse Dynamics
+Cursor speed, movement fluidity (Bezier curve analysis), scroll patterns, click pressure, acceleration profiles
+Unnaturally straight mouse trajectories; robotic constant-velocity movement; clicks at mathematically perfect intervals
+~95% (TypingDNA)
+Response Latency
+Distribution
+Time from question end to response start, variance across questions, correlation with question complexity
+'Flatline' response timing: identical 3-4 second delay regardless of question complexity = AI processing delay signature
+~82% (Fabric)
+Content Coherence
+(NLP)
+Vocabulary complexity score per answer, topic coherence vs. resume baseline, grammar perfection score, LLM-typical phrasing patterns ('There are three key points...')
+Vocabulary jump from 40th to 95th percentile between questions; textbook-perfect structure during casual conversation
+~82% (Fabric)
+Application Navigation
+Flow
+Window focus events, DOM mutation rate, WebSocket connection patterns during interview, browser extension fingerprints
+WebSocket connection to external LLM during interview; DOM mutations during candidate silence; known cheating tool extension signatures
+~88% (qodequay.com)
+CNN-LSTM-Attention
+(Session-Long Auth)
+Combines keystroke + mouse + scroll into temporal sequence; CNN for local features; Bi-LSTM for forward-backward context; Attention for discriminative segment identification
+Impostor substitution mid-session: behavioral fingerprint changes outside candidate's natural variance envelope
+99.85% accuracy;
+<0.5% EER (Univ. Twente)
+
+
+=== PAGE 18 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  18
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+10. WHAT EXISTING SYSTEMS MISS — THE 5 UNSOLVED PROBLEMS
+This section identifies the five critical gaps in current commercial and academic proctoring systems. These are the areas
+where the arms race is actively being lost — and where novel research contributions can establish genuine advancement
+over the state of the art.
+GAP 1
+Compositor-Level Overlay Detection
+PROBLEM:
+Cluely and similar tools render below the WebRTC capture layer at the OS compositor level. No current
+webcam-based, browser-based, or screen-capture-based system can detect these overlays directly. The only
+indirect signal is whitespace fixation — candidates using overlays fixate on UI whitespace where no content
+exists. This signal has never been implemented in a published proctoring pipeline.
+SOLUTION:
+Whitespace fixation detection via UI content zone mapping + gaze density KDE analysis. Candidate's eyes
+should never concentrate on blank margins. This is the ONLY webcam-detectable Cluely signal available today.
+GAP 2
+Per-Candidate Statistical Gaze Modeling vs. Universal Thresholds
+PROBLEM:
+Every commercial system uses universal thresholds: angle > 25 degrees for 3 frames = flag. This produces high
+false-positive rates for candidates with naturally wandering eyes, medical conditions, or cultural differences in
+eye contact norms. The result is either high false positives or under-sensitivity.
+SOLUTION:
+KS-test based per-candidate baseline deviation. Build candidate's gaze distribution in first 90 seconds. Flag only
+when active window distribution significantly deviates from personal baseline (p < 0.05). Zero published
+implementations exist.
+GAP 3
+Combined PLR + rPPG Single Liveness Check
+PROBLEM:
+Commercial systems use PLR OR rPPG, never both in a single integrated check. CAST achieves 99.49% AUC
+on known deepfake datasets but drops 25 points on unseen data. The fundamental problem is that detection
+systems are reactive — they recognize known deepfake styles. Physiological signals (PLR + rPPG) are proactive
+— they detect the absence of biology.
+SOLUTION:
+10-second combined check: screen flash triggers PLR while continuous rPPG monitors heartbeat. Both signals
+must be present and physiologically consistent. No published paper demonstrates this combination in a single
+RGB webcam check.
+GAP 4
+Cross-Dataset Deepfake Generalization
+PROBLEM:
+CAST drops from 99.49% (FF++) to 74.92% (Celeb-DF). The generalization gap means that new deepfake styles
+— particularly those using novel backbone architectures or trained on different data distributions — evade current
+detectors entirely until training data catches up. This is a fundamental limitation of pixel-artifact detection
+approaches.
+SOLUTION:
+Challenge-response (Gotcha system) is the most promising direction: making deepfake generation fail rather
+than detecting its output. FaceGraphNet's geometric constraint approach (facial geometry proportions that
+deepfakes violate) shows better generalization than pixel-based methods.
+GAP 5
+Five-Channel Behavioral Consistency Fusion
+PROBLEM:
+Individual channels (gaze, gesture, audio, keystroke, content) each have 15-25% false negative rates when used
+alone. Commercial systems stack independent checks without statistical fusion — a candidate just needs to
+evade one channel. The fusion layer that requires 3+ simultaneous channel deviations with statistical significance
+is described in academic literature but not implemented in any open-source pipeline.
+
+
+=== PAGE 19 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  19
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+SOLUTION:
+Late fusion architecture: each modality produces independent embeddings, concatenated and fed to final MLP
+classifier. Fusion layer sets N=3 minimum concurrent channel deviation threshold before raising integrity event.
+Makes evasion exponentially harder: cheater must simultaneously maintain believable gaze, gesture, audio,
+keystroke, and content patterns.
+
+
+=== PAGE 20 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  20
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+11. THE AEGIS FRAMEWORK — NEXT-GENERATION BLUEPRINT
+11.1 Full System Architecture — Edge-Cloud Hybrid
+COMPONENT
+TECHNOLOGY
+FUNCTION
+DATA POLICY
+Edge: CV Engine
+(Client Device)
+TensorFlow.js / ONNX Runtime Web via WebAssembly + WebGPU; MediaPipe FaceMesh + Iris + BlazePose + Hands
+Real-time inference at 30+ FPS; gaze estimation; skeletal tracking; liveness checks; all biometric processing stays on device
+Raw biometric data NEVER leaves device. Only anonymized telemetry transmitted.
+Edge: PLR + rPPG
+Liveness Module
+JavaScript screen brightness API + FaceMesh pupil measurement + RGB skin color frame analysis + FFT
+10-second combined liveness check on session start + randomized periodic re-checks every 5-10 minutes
+Results: boolean liveness_confirmed + confidence_score. No raw video sent.
+Edge: Whitespace
+Fixation Detector
+UI layout coordinate extraction + gaze vector coordinate transform + KDE density estimation on content vs. whitespace zones
+Continuously maps gaze to screen regions; flags anomalous whitespace concentration (the only Cluely detection signal)
+Only spatial gaze distribution summary transmitted, not raw coordinates.
+Transport Layer
+WebSocket (telemetry) + WebRTC (media stream for interviewer); Protobuf / MessagePack serialization; TLS 1.3 encryption
+Streams: [timestamp, gaze_vector, head_pose_euler, gesture_confidence, whitespace_ratio, liveness_score] at <50 KB/s per session
+All in transit: TLS 1.3. Biometric payload: anonymized telemetry only.
+Cloud: Message
+Ingestion
+Apache Kafka cluster; auto-scaling consumer groups; Kubernetes deployment; GPU nodes for fallback inference
+Ingests high-throughput telemetry from thousands of concurrent sessions; decouples producers from consumers; no data loss under peak load
+Kafka topics partitioned by session_id. 7-day retention max before archive.
+Cloud: Analytics
+Microservices
+FastAPI Python services; KS-test statistical engine; five-channel fusion MLP; anomaly detection workers
+Per-candidate baseline building; KS-test gaze deviation; five-channel fusion scoring; integrity event generation
+Processes anonymized telemetry. No raw biometric data in cloud workers.
+Storage: Relational
+(PostgreSQL)
+PostgreSQL with PII encryption at application layer; facial_embedding_hash only (not raw vector); AES-256
+User profiles, session metadata, risk events (JSONB), integrity scores
+facial_embedding_hash: cryptographic hash only. Raw vector: vector DB only.
+Storage: Time-Series
+(TimescaleDB)
+TimescaleDB hypertable partitioned by time; optimized for 30-60 FPS write throughput; per-session indexing
+High-frequency telemetry: gaze_pitch, gaze_yaw, head_roll, whitespace_ratio, gesture_flags at full frame rate
+Auto-purge after 90 days via AWS Lambda cron. GDPR/BIPA compliant.
+Storage: Vector DB
+(Pinecone/Milvus)
+High-dimensional face embedding vectors; k-NN search for identity verification; morphing attack detection
+Continuous face recognition; candidate baseline embedding; k-NN comparison on each session for identity drift detection
+Separate from main DB. AES-256 at rest. Access via IAM roles only.
+Storage: Object
+(AWS S3 + SSE-KMS)
+Private S3 buckets; SSE-KMS server-side encryption; pre-signed URLs with 15-min expiry
+Video recordings for human review; generated reports; audit artifacts
+Never public. Pre-signed URL access only. Immutable audit log via Merkle Tree pipeline.
+11.4 Five-Channel Behavioral Consistency Fusion
+CHANNEL
+MODEL
+FEATURES
+ANOMALY THRESHOLD
+WEIGHT IN FUSION
+Visual-Face
+(Gaze)
+MediaPipe Iris + L2CS-Net + Kalman; KS-test baseline modeling
+Gaze vector, whitespace ratio, fixation entropy, off-screen duration
+KS-test p < 0.05 vs. personal baseline; whitespace ratio > 0.4
+25% — high specificity
+Visual-Body
+(Gesture)
+BlazePose 33kp + MediaPipe Hands 21kp; velocity/trajectory analysis
+Wrist position, hand-to-ear distance, shoulder asymmetry, multi-person flag
+Wrist beyond 80% frame boundary (3 frames); ear distance < 80px (60 frames)
+20% — high precision
+Audio
+(Forensics)
+GMM-UBM speaker verification + MAR lip-sync correlation + beamforming
+Secondary voice, MAR mismatch, flatline response latency, breathing artifacts
+Secondary voice confidence > 0.7; MAR-audio correlation < 0.6
+20% — catches earpiece/voice clone
+Keystroke
+(Dynamics)
+DOM session replay + typing pattern ML; CNN-LSTM-Attention for session auth
+WPM, dwell/flight time, error rate, code appearance without keystrokes
+WPM > 180 sustained 10s; error rate = 0% for 10s; code appears without keystroke events
+20% — near-definitive for injection
+Content
+(NLP / Semantic)
+BERT/RoBERTa vocabulary analysis + LLM-phrasing detector + response timing
+Vocabulary percentile per answer, topic coherence, timing variance, LLM structural patterns
+Vocabulary jump > 40 percentile points; timing variance < 0.5s (flatline)
+15% — contextual validation
+FUSION RULE: Integrity event raised ONLY when N >= 3 channels simultaneously exceed their individual
+thresholds within the same 10-second analysis window. Severity: N=2 (LOW, logged only), N=3 (MEDIUM, yellow
+flag), N=4 (HIGH, amber flag + human review), N=5 (CRITICAL, red flag + session pause + mandatory human
+review before continuation).
+
+
+=== PAGE 21 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  21
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+12. LEGAL AND ETHICAL LANDSCAPE — 8 GLOBAL FRAMEWORKS
+FRAMEWORK
+JURISDICTION
+KEY REQUIREMENT
+MAX PENALTY
+2026 STATUS
+PROCTORING IMPACT
+EU AI Act
+(Reg. 2024/1689)
+EU 27 members +
+extraterritorial
+FRIA, human oversight, candidate notice, bias testing, logging. PROHIBITS emotion recognition in hiring (Article 5(1)(f)) since Feb 2025.
+35M EUR or
+7% global turnover
+High-risk rules:
+Aug 2026
+Removes ALL emotion scoring, facial expression analysis, voice stress detection from platforms
+NYC Local Law 144
+(Int. 1894-A)
+New York City, USA
+Annual independent bias audit, 10-day written notice to candidates, summary published, alternative process on request.
+$500-1,500/day
+Active since
+July 2023
+First operational AI-HR law. Established precedent for all US state laws that followed.
+Colorado AI Act
+(SB 24-205)
+Colorado, USA
+Reasonable care to avoid algorithmic discrimination in high-risk employment decisions.
+$20,000/violation
+Active since
+Feb 2026
+First comprehensive US state AI law. Covers automated candidate ranking and rejection.
+Illinois HB 3773
+Illinois, USA
+AI discrimination coverage through expanded Illinois Human Rights Act. Enforcement via IHRDC.
+IHRA enforcement
+Active
+Particularly relevant given BIPA (Biometric Info Privacy Act) also applies in Illinois.
+UK ICO + DPDI
+United Kingdom
+AI auditing, bias testing requirements, UK GDPR compliance. Equality Act 2010 applies to AI outputs.
+UK GDPR / EA 2010
+Active
+Post-Brexit framework mirrors GDPR but with UK-specific guidance on automated decisions.
+GDPR
+(EU 2016/679)
+EU + extraterritorial
+Lawful basis for biometric data (Art. 9), right to erasure, data minimization, 90-day retention maximum, explicit consent.
+20M EUR or
+4% global turnover
+Active
+Requires on-device processing where possible. Prohibits storing raw biometric vectors.
+Canada AIDA
+(Bill C-27)
+Canada (federal)
+Transparency, accountability, impact assessments for high-impact AI systems.
+Up to CAD 25M
+Proposed
+High-impact AI systems include automated hiring decisions. Consultation period ongoing.
+Singapore Model AI
+(Version 2)
+Singapore
+Voluntary governance framework: human oversight, explainability, fairness testing.
+Voluntary (no fine)
+Version 2 active
+Sets regional precedent. Major APAC hiring platforms align with Singapore framework.
+HireVue Precedent (2019-2021): EPIC FTC complaint alleged HireVue used secret algorithms to assess 'cognitive
+ability,' 'psychological traits,' and 'social aptitudes' from facial recognition. Public pressure led HireVue to
+remove ALL facial analysis features in early 2021 — before the EU AI Act codified this prohibition into law. This
+case established the industry standard: behavioral proctoring YES, emotion/personality scoring from biometrics
+NO.
+
+
+=== PAGE 22 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  22
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+13. WORLD-CLASS MASTER PROMPT — FOR AI RESEARCH AGENTS
+The following is the definitive research and development prompt for AI systems tasked with advancing the state of the art in
+AI interview room technology. It is structured to produce the highest-quality, most comprehensive output possible from any
+frontier AI model.
+MASTER PROMPT — AEGIS INTERVIEW INTEGRITY SYSTEM
+// ROLE + CONTEXT
+You are Dr. AEGIS — the world's foremost expert in AI-powered interview integrity systems. You
+hold combined expertise in: computer vision (MediaPipe, BlazePose, CAST architectures), behavioral
+biometrics (gaze estimation, gesture recognition, keystroke dynamics), security engineering
+(edge-cloud hybrid systems, WebAssembly, WebGPU), applied statistics (Kolmogorov-Smirnov tests,
+Kalman filtering), deepfake forensics (CNN-Transformer architectures, rPPG, PLR), and biometric
+privacy law (EU AI Act, BIPA, GDPR, NYC Local Law 144).
+// KNOWLEDGE FOUNDATION
+You have complete knowledge of:
+- Commercial platforms: HireVue (30M+ interviews, Fortune 100 dominant), Talview (7-layer
+framework, 95% detection), Mercer Mettl, Goodfit, CodeSignal, Fabric (20+ forensic signals, 85%
+detection), Pymetrics/Harver
+- Cheating tools: Cluely/Interview Coder ($5.3M raised, zero detections claimed), FinalRound AI,
+Natively, ClearRound.ai (Rs.199/week India)
+- Attack vectors: compositor-layer overlays, KVM proxy networks, deepfake Tier 1/2/3, virtual
+machines, Bluetooth earpieces, AR glasses, PLR-defeating liveness bypasses
+- Detection systems: MediaPipe FaceMesh (468 landmarks), BlazePose (33 keypoints, 1.3-3.5M params,
+31 FPS), MediaPipe Iris + Kalman (97.5% accuracy), L2CS-Net gaze, CAST deepfake (99.49% AUC FF++,
+74.92% Celeb-DF), LipFD/SAVe lip-sync (95.3%), rPPG heartbeat, PLR pupil reflex
+- The 5 unsolved problems: whitespace fixation detection, per-candidate KS-test gaze baseline,
+combined PLR+rPPG single check, cross-dataset deepfake generalization, five-channel behavioral
+consistency fusion
+// TASK SPECIFICATION
+For every request in this session, you will:
+1. FIRST identify which of the 5 unsolved problems the request touches, if any
+2. PROVIDE technical implementations at production code level, not pseudocode
+3. CITE specific metrics (accuracy, latency, FPS, AUC, TPR, FPR, EER) for every claim
+4. IDENTIFY the residual attack surface after each countermeasure
+5. SPECIFY the false-positive risk and mitigation for every detection mechanism
+6. DISTINGUISH between what commercial systems do vs. what the research frontier requires
+7. NEVER recommend a single-modal defense — always specify the fusion requirement
+8. FLAG legal compliance implications (EU AI Act Article 5(1)(f), BIPA, GDPR) for every biometric
+approach
+// OUTPUT FORMAT RULES
+Structure every response as:
+[TECHNICAL ANALYSIS] — The mechanism, the math, the implementation
+[RESIDUAL ATTACK SURFACE] — What this does NOT catch and why
+[FUSION REQUIREMENT] — Minimum N channels required for this flag
+[FALSE POSITIVE RISK] — Rate and mitigation
+
+
+=== PAGE 23 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  23
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+[NOVEL CONTRIBUTION] — Whether this advances the state of art beyond commercial systems
+[LEGAL COMPLIANCE] — Applicable regulatory constraints
+[CODE SKELETON] — Python/JS implementation skeleton when applicable
+// SPECIFIC RESEARCH DIRECTIVES
+When researching gaze detection:
+- Default to KS-test per-candidate baseline, NOT universal angle thresholds
+- Always include whitespace fixation zone mapping as a parallel signal
+- Specify Kalman filter state dimensions and noise parameters
+When researching liveness detection:
+- ALWAYS combine PLR + rPPG in a single check — never one alone
+- Specify the screen flash timing sequence for PLR (randomize frequency 0.5-2.0 Hz)
+- Specify the RGB channel weights for rPPG (typical: 0.3R + 0.59G + 0.11B for luminance)
+When researching gesture detection:
+- Always use BlazePose (33kp) + MediaPipe Hands (21kp) together
+- Specify the kinematic thresholds: wrist beyond 80% frame = off-camera; ear distance < 80px for
+60 frames = earpiece
+- Always include multi-person detection (num_poses=4) as a parallel track
+When researching deepfake detection:
+- Default to challenge-response (Gotcha-style) as primary, CNN-based as secondary
+- Always note the cross-dataset generalization gap (CAST: 99.49% → 74.92%)
+- Specify whether solution addresses Tier 1 (face-swap), Tier 2 (voice clone), or Tier 3 (full
+synthetic)
+When researching behavioral fusion:
+- Always implement N>=3 channel concurrent requirement before raising integrity event
+- Specify severity levels: N=2 (log), N=3 (medium), N=4 (high), N=5 (critical)
+- Never raise a flag from a single channel alone
+// CONSTRAINTS AND ETHICS
+You operate under these non-negotiable constraints:
+- EU AI Act Article 5(1)(f): NEVER implement emotion recognition, personality scoring, or
+psychological trait assessment from biometric data
+- GDPR/BIPA: All biometric data processed on-device (edge). Only anonymized telemetry to cloud.
+Cryptographic hashing of facial embeddings. 90-day auto-purge.
+- False positive prevention: Accommodation Mode available for medical conditions. Human review
+mandatory for any score below threshold.
+- Fairness: All CV models tested across diverse demographics before deployment. Bias audit
+documented.
+- Transparency: Candidates informed of monitoring scope. Ghost View available to candidates
+post-interview on request.
+// ACTIVATION PHRASE
+When you receive a request beginning with 'AEGIS-ACTIVATE:', treat it as a full system design
+sprint. Produce a complete technical specification including: architecture diagram description,
+API schema, database schema, CV pipeline pseudocode, legal compliance checklist, risk register,
+and implementation roadmap. This is the signal for maximum depth and completeness.
+
+
+=== PAGE 24 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  24
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+HOW TO USE THIS PROMPT: Paste the entire prompt above into any frontier AI model (GPT-4o, Claude, Gemini)
+at the start of a new conversation. Every subsequent message will be answered with production-grade technical
+depth, correct citations to published research, and full awareness of the state-of-the-art vs. what commercial
+systems actually implement.
+
+
+=== PAGE 25 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  25
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+14. IMPLEMENTATION ROADMAP AND FUTURE DIRECTIONS
+Six-Month Development Roadmap — AEGIS Interview Room
+PHASE
+WEEKS
+MILESTONES
+DELIVERABLE
+Phase 1
+ML Prototyping
+1-6
+Train/optimize quantized CV models for browser deployment. Build MediaPipe FaceMesh + Iris + BlazePose pipeline at 30+ FPS in TensorFlow.js. Implement KS-test gaze baseline module. Implement whitespace fixation detector. Build PLR + rPPG combined liveness check.
+Working browser CV engine; KS-test gaze module; PLR+rPPG liveness prototype
+Phase 2
+Backend Infrastructure
+7-12
+Provision Kubernetes cluster + PostgreSQL + TimescaleDB + AWS S3. Build WebRTC signaling + WebSocket telemetry pipeline. Implement Apache Kafka ingestion. Security: TLS 1.3, AES-256, IAM roles, GDPR/BIPA compliance.
+Fully functional secure backend; all APIs; database schemas
+Phase 3
+Full-Stack Integration
+13-18
+Build Candidate Interview Room UI (React/Next.js) with CV engine integrated. Build Recruiter Command Center with video player, telemetry timeline, Ghost View. Implement five-channel fusion Integrity Scoring Engine.
+Alpha version: end-to-end working application with integrity scoring
+Phase 4
+Adversarial Testing
+19-22
+Red Team exercise: external ethical hackers attempt all bypass methods (Cluely simulation, deepfake, VM, earpiece). Bias + Fairness Audit (third-party, diverse demographics). Closed beta with 50 enterprise clients + 500 candidate testers.
+Hardened, audited, beta-tested platform; bias audit report
+Phase 5
+Launch + Scale
+23-24
+Production deployment with auto-scaling. API documentation, SDK, enterprise integrations. Performance monitoring. Continuous model update pipeline.
+Live platform; GA launch; monitoring dashboards
+Future Research Directions — 5-Year Horizon
+DIRECTION
+CURRENT STATE (2026)
+3-YEAR PROJECTION (2029)
+5-YEAR PROJECTION (2031)
+Deepfake
+Detection
+99.49% AUC known datasets; 74.92% cross-dataset. Challenge-response emerging as primary approach.
+Real-time robust deepfake detection (RTDF). 3D face authentication via TOF sensors standard for high-stakes roles.
+Challenge-response standard for all interviews. Quantum-resistant biometric authentication.
+Gaze Tracking
+97.5% accuracy controlled (MediaPipe + Kalman). KS-test statistical modeling is research frontier.
+3D gaze tracking without dedicated hardware. Intent inference from gaze pattern (reading vs. thinking vs. scanning).
+Implicit cognitive load monitoring. Gaze-based knowledge graph construction.
+Behavioral
+Biometrics
+99.85% accuracy session-long auth (CNN-LSTM-Attention). Five-channel fusion theoretical.
+Multi-device behavioral fusion (phone + laptop simultaneously). Agentic AI cheating tools require new behavioral signatures.
+Zero-trust interview architecture: continuous cryptographic attestation of behavioral fingerprint.
+Privacy
+Technology
+Edge processing emerging. Federated learning theoretical for proctoring.
+HFEL (Hierarchical Federated Edge Learning) practical. SMPC for model aggregation without data sharing.
+Homomorphic encryption for biometric matching. Full privacy-preserving proctoring at production scale.
+Legal / Regulatory
+8 active frameworks. EU AI Act high-risk rules active August 2026.
+20+ jurisdictions. Global convergence toward EU model. Mandatory third-party audits for all proctoring vendors.
+International AI hiring treaty. ISO standard for proctoring system certification.
+Resource Requirements for AEGIS Development
+ROLE
+COUNT
+PRIMARY RESPONSIBILITY
+Project Lead / Architect
+1
+System architecture, technical direction, stakeholder management
+CV / ML Engineers (Edge Inference)
+3
+MediaPipe pipeline, ONNX optimization, liveness algorithms, KS-test module
+Backend Engineers (WebRTC + Data)
+2
+WebSocket telemetry, Kafka pipeline, FastAPI microservices, TimescaleDB
+Frontend Engineers (React + WebGL)
+2
+Candidate interview UI, recruiter dashboard, Ghost View, WebGPU integration
+UX / UI Designer
+1
+Minimalist cognitive-load-reduction design; WCAG 2.1 AA compliance
+Security / Compliance Specialist
+0.5
+GDPR/BIPA/EU AI Act compliance; IAM; encryption; audit logging
+QA / Red Team
+2
+Adversarial testing; bypass simulation; bias audit coordination
+
+
+=== PAGE 26 ===
+
+AEGIS RESEARCH  |  AI INTERVIEW ROOM: ANATOMY OF FRAUD & DEFENSE
+CONFIDENTIAL RESEARCH DOCUMENT  //  2026
+PAGE  26
+TUSHAR KAPOOR  |  K.R. MANGALAM UNIVERSITY
+AI / ML SPECIALIZATION  |  B.TECH CSE
+AEGIS RESEARCH INSTITUTE AI Interview Room:
+Anatomy of Fraud & Defense Deep Technical Intelligence
+Report | v3.0 FINAL | June 2026
+Tushar Kapoor B.Tech CSE (AI/ML Specialization) K.R. Mangalam
+ University, Gurugram tusharkapoor052@gmail.com
+ 

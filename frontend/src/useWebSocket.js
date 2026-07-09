@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 const MAX_QUEUE_SIZE = 500;
+const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_DELAY = 1000;
 const MAX_DELAY = 30000;
 const PING_INTERVAL = 30000;
@@ -84,6 +85,10 @@ export function useWebSocket(url, onMessage) {
         pongTimeoutTimer.current = null;
       }
       if (event.code === 4003) return;
+      if (reconnectAttempt.current >= MAX_RECONNECT_ATTEMPTS) {
+        setStatus('failed');
+        return;
+      }
       scheduleReconnect();
     };
 

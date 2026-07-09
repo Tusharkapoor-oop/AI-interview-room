@@ -1,11 +1,12 @@
+import time
 
 from agents.security_engine import (
-    FiveChannelFusionEngine,
     GestureRecognitionEngine,
     HybridGazeTracker,
     KSAnomalyDetector,
     LivenessVerifier,
 )
+from agents.fusion import FusionEngine
 
 
 def test_ks_detector_flags_shifted_distribution():
@@ -46,18 +47,19 @@ def test_gesture_engine_detects_hand_to_ear():
 
 
 def test_fusion_engine_requires_multiple_channels():
-    engine = FiveChannelFusionEngine()
-    engine.add_channel_result("gaze", True, 0.82)
-    engine.add_channel_result("gesture", True, 0.79)
-    engine.add_channel_result("audio", True, 0.74)
-    engine.add_channel_result("keystroke", False, 0.20)
-    engine.add_channel_result("content", False, 0.18)
+    engine = FusionEngine()
+    now = time.time()
+    engine.process_packet("GAZE", now, 0.82, "gaze deviation", True)
+    engine.process_packet("GESTURE", now, 0.79, "gesture anomaly", True)
+    engine.process_packet("AUDIO", now, 0.74, "audio anomaly", True)
+    engine.process_packet("KEYSTROKE", now, 0.20, "", False)
+    engine.process_packet("ENVIRONMENT", now, 0.18, "", False)
 
-    decision = engine.evaluate()
+    decision = engine.process_packet("GAZE", now, 0.82, "gaze deviation", True)
 
     assert decision["channel_deviations"] == 3
-    assert decision["severity"] == "MEDIUM"
-    assert decision["integrity_score"] <= 0.62
+    assert decision["action_level"] == "MEDIUM_FLAG"
+    assert decision["integrity_score"] <= 62.0
 
 
 def test_liveness_verifier_accepts_live_signal():

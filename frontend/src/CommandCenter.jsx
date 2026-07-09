@@ -115,50 +115,62 @@ function VideoWithGhost({ ghostEnabled, telemetry }) {
   );
 }
 
-// ── Scrubable Timeline ───────────────────────────────────────────
+// ── Scrubable Timeline (Phase 3.5) ──────────────────────────────
+const TIMELINE_LAYERS = [
+  { id: 'gaze',      label: 'Gaze',       types: ['GAZE_ANOMALY', 'TAB_SWITCH'] },
+  { id: 'pose',      label: 'Head Pose',  types: ['HEAD_TURN', 'ATTENTION_DRIFT'] },
+  { id: 'hands',     label: 'Hands',      types: ['HAND_ANOMALY', 'SECONDARY_PERSON'] },
+  { id: 'liveness',  label: 'Liveness',   types: ['PLR_FAILURE', 'BLINK_ANOMALY', 'LIGHTING_ANOMALY'] },
+  { id: 'deepfake',  label: 'Deepfake',   types: ['DEEPFAKE_SUSPECTED', 'CHALLENGE_RESPONSE_FAIL', 'LIP_SYNC_FAIL'] },
+  { id: 'digital',   label: 'Digital',    types: ['PASTE_ANOMALY', 'TYPING_ANOMALY', 'DEVTOOLS_OPEN', 'CSS_INJECTION', 'TIMING_ANOMALY'] },
+];
+
 function ForensicTimeline({ events, sessionSeconds, onJump }) {
   const [hoveredEvent, setHoveredEvent] = useState(null);
-  const playheadPct = sessionSeconds > 0 ? Math.min((sessionSeconds / Math.max(sessionSeconds + 60, 300)) * 100, 95) : 0;
+  const totalSec = Math.max(sessionSeconds + 60, 300);
+  const playheadPct = sessionSeconds > 0 ? Math.min((sessionSeconds / totalSec) * 100, 95) : 0;
+
+  const handleTrackClick = (e, layer) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const sec = Math.round(pct * totalSec);
+    onJump?.({ sessionSec: sec, layer: layer.id });
+  };
 
   return (
     <div className="timeline-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div className="timeline-label">Forensic Timeline</div>
         <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-          {events.length} risk events recorded
+          {events.length} events · {Math.round(sessionSeconds / 60)}m
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {['Gaze Track', 'Head Pose', 'Hands/Gesture'].map((layer) => (
-          <div key={layer} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', width: 80, flexShrink: 0, letterSpacing: '0.5px' }}>{layer}</div>
-            <div className="timeline-track" style={{ minHeight: 36 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {TIMELINE_LAYERS.map((layer) => (
+          <div key={layer.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: '0.55rem', color: 'var(--text-3)', width: 60, flexShrink: 0, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{layer.label}</div>
+            <div
+              className="timeline-track"
+              style={{ minHeight: 28, cursor: 'pointer', position: 'relative' }}
+              onClick={(e) => handleTrackClick(e, layer)}
+            >
               <div className="timeline-base" />
-
-              {/* Playhead */}
               <div className="timeline-playhead" style={{ left: `${playheadPct}%` }} />
-
-              {/* Risk markers */}
               {events
-                .filter(ev => {
-                  if (layer === 'Gaze Track')    return ev.type === 'GAZE_ANOMALY';
-                  if (layer === 'Head Pose')     return ev.type === 'HEAD_TURN';
-                  if (layer === 'Hands/Gesture') return ev.type === 'HAND_ANOMALY';
-                  return false;
-                })
+                .filter(ev => layer.types.includes(ev.type))
                 .map(ev => {
-                  const pct = Math.min((ev.sessionSec / Math.max(sessionSeconds + 60, 300)) * 100, 95);
+                  const pct = Math.min((ev.sessionSec / totalSec) * 100, 95);
                   return (
                     <div
                       key={ev.id}
                       className="timeline-marker"
                       style={{ left: `${pct}%` }}
-                      onClick={() => onJump?.(ev)}
+                      onClick={(e) => { e.stopPropagation(); onJump?.(ev); }}
                       onMouseEnter={() => setHoveredEvent(ev)}
                       onMouseLeave={() => setHoveredEvent(null)}
                       role="button"
-                      aria-label={`Risk event at ${ev.ts}: ${ev.desc}`}
+                      aria-label={`${ev.type} at ${ev.ts}: ${ev.desc}`}
                       tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && onJump?.(ev)}
                     >
@@ -171,19 +183,15 @@ function ForensicTimeline({ events, sessionSeconds, onJump }) {
         ))}
       </div>
 
-      {/* Tooltip for hovered event */}
       {hoveredEvent && (
         <div style={{
-          marginTop: 6,
-          padding: '6px 12px',
-          background: 'var(--elevated)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r-sm)',
-          fontSize: '0.72rem',
-          color: 'var(--text-2)',
+          marginTop: 6, padding: '6px 12px',
+          background: 'var(--elevated)', border: '1px solid var(--border)',
+          borderRadius: 'var(--r-sm)', fontSize: '0.72rem', color: 'var(--text-2)',
         }}>
           <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>{hoveredEvent.ts}</span>
-          {' — '}{hoveredEvent.desc}
+          <span style={{ color: hoveredEvent.severity === 'HIGH' || hoveredEvent.severity === 'CRITICAL' ? 'var(--aegis-red)' : 'var(--aegis-amber)', margin: '0 4px' }}>{hoveredEvent.severity}</span>
+          {'— '}{hoveredEvent.desc}
         </div>
       )}
     </div>

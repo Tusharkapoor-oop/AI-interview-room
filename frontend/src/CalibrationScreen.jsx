@@ -8,7 +8,8 @@ import { useSpring, a } from '@react-spring/three';
 import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 import { useSpeakerVerification } from './useSpeakerVerification';
 
-const CALIBRATION_DURATION = 10000;
+const CALIBRATION_DURATION = 90000; // 90s for KS-test gaze baseline per AEGIS §5.6
+const CALIBRATION_SKIP_ENABLED = true;
 
 // 3D Gyroscope Ring Component
 function GyroRing({ radius, speed, axis, locked }) {
@@ -48,12 +49,33 @@ export default function CalibrationScreen() {
   const { setPhase, setCalibrationProgress, setCalibrationDone, showToast } = useAegisStore();
 
   const videoRef   = useRef(null);
+  const wsRef      = useRef(null);
   const [progress, setProgress] = useState(0);
+  const [remaining, setRemaining] = useState(CALIBRATION_DURATION / 1000);
   const [stage, setStage]       = useState('waiting'); // waiting | running | done | voice_enroll | complete
-  const [locks, setLocks]       = useState({ gaze: false, lux: false, mesh: false, tone: false });
+  const [locks, setLocks]       = useState({ gaze: false, lux: false, mesh: false, tone: false, ks_baseline: false });
 
   // Voice enrollment (Paper §Speaker Verification)
   const { startEnrollment, enrollmentState, enrollProgress, isEnrolled } = useSpeakerVerification(true);
+
+  // CV WebSocket for KS-test baseline data streaming during calibration
+  useEffect(() => {
+    if (stage !== 'running') return;
+    const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+    const ws = new WebSocket(`${WS_BASE}/ws/cv`);
+    wsRef.current = ws;
+    ws.onopen = () => showToast('Baseline telemetry stream established.', 'success');
+    ws.onerror = () => showToast('Calibration stream error.', 'error');
+    return () => { ws.close(); wsRef.current = null; };
+  }, [stage]);
+
+  // Send calibration marker once baseline is complete
+  useEffect(() => {
+    if (stage !== 'running' || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (progress >= 100) {
+      wsRef.current.send(JSON.stringify({ type: 'calibration_complete', duration_ms: CALIBRATION_DURATION }));
+    }
+  }, [progress, stage]);
 
   useEffect(() => {
     let mountGuard = true;
@@ -77,13 +99,15 @@ export default function CalibrationScreen() {
       const elapsed = Date.now() - start;
       const pct = Math.min((elapsed / CALIBRATION_DURATION) * 100, 100);
       setProgress(pct);
+      setRemaining(Math.ceil((CALIBRATION_DURATION - elapsed) / 1000));
       setCalibrationProgress(pct);
 
-      // Staggered lock-ins
-      if (pct > 25 && !locks.gaze) setLocks(l => ({ ...l, gaze: true }));
-      if (pct > 50 && !locks.lux)  setLocks(l => ({ ...l, lux: true }));
-      if (pct > 75 && !locks.mesh) setLocks(l => ({ ...l, mesh: true }));
-      if (pct >= 100 && !locks.tone) setLocks(l => ({ ...l, tone: true }));
+      // Staggered lock-ins (KS baseline at 90%)
+      if (pct > 25 && !locks.gaze)       setLocks(l => ({ ...l, gaze: true }));
+      if (pct > 50 && !locks.lux)        setLocks(l => ({ ...l, lux: true }));
+      if (pct > 75 && !locks.mesh)       setLocks(l => ({ ...l, mesh: true }));
+      if (pct >= 90 && !locks.ks_baseline) setLocks(l => ({ ...l, ks_baseline: true }));
+      if (pct >= 100 && !locks.tone)      setLocks(l => ({ ...l, tone: true }));
 
       if (elapsed >= CALIBRATION_DURATION) {
         clearInterval(interval);
@@ -171,6 +195,7 @@ export default function CalibrationScreen() {
             { id: 'gaze', label: 'Gaze Vector', locked: locks.gaze },
             { id: 'lux', label: 'Ambient Lux', locked: locks.lux },
             { id: 'mesh', label: '468pt Mesh', locked: locks.mesh },
+            { id: 'ks_baseline', label: 'KS Baseline (AEGIS §5.6)', locked: locks.ks_baseline },
             { id: 'tone', label: 'Skin Tone DB', locked: locks.tone }
           ].map(item => (
             <div key={item.id} className="premium-check-item" style={{ padding: '12px 16px', background: 'transparent', borderColor: item.locked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.05)' }}>
@@ -199,8 +224,18 @@ export default function CalibrationScreen() {
         )}
 
         {stage === 'running' && (
-          <div style={{ width: 280, height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: 'var(--aegis-cyan)', width: `${progress}%`, transition: 'width 0.1s linear' }} />
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ width: 280, height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden', margin: '0 auto 8px' }}>
+              <div style={{ height: '100%', background: 'var(--aegis-cyan)', width: `${progress}%`, transition: 'width 0.1s linear' }} />
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+              Baseline collection {Math.round(progress)}% ({remaining}s remaining)
+            </div>
+            {CALIBRATION_SKIP_ENABLED && (
+              <button onClick={() => setStage('done')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem', cursor: 'pointer', marginTop: 8, textDecoration: 'underline' }}>
+                Skip baseline — use shorter window
+              </button>
+            )}
           </div>
         )}
 
@@ -296,12 +331,12 @@ export default function CalibrationScreen() {
           </button>
         ) : (
           <div style={{ marginTop: 24, textAlign: 'center' }}>
-            <button
-              onClick={() => setPhase('interview')}
-              style={{ background: 'transparent', border: '1px solid rgba(56,189,248,0.3)', color: 'var(--aegis-cyan)', padding: '10px 20px', borderRadius: 10, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
-            >
-              ⚡ Instant Connect to Live Interview Arena (Override Calibration) →
-            </button>
+          <button
+            onClick={() => setPhase('interview')}
+            style={{ background: 'transparent', border: '1px solid rgba(56,189,248,0.3)', color: 'var(--aegis-cyan)', padding: '10px 20px', borderRadius: 10, fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
+          >
+            Enter Arena Without Calibration
+          </button>
           </div>
         )}
 

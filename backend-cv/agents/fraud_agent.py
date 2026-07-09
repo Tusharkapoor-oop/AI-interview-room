@@ -26,13 +26,19 @@ SIGNAL_WEIGHTS = {
     "DEVTOOLS_OPEN":            0.05,
     "WINDOW_BLUR":              0.03,
     "FACE_CONSISTENCY_FAIL":    0.20,
-    "DEEPFAKE_SUSPECTED":       0.40,  # highest weight
+    "DEEPFAKE_SUSPECTED":       0.40,
     "ENV_SCAN_SKIPPED":         0.05,
     "HEAD_TURN":                0.12,
     "BLINK_ANOMALY":            0.10,
     "ATTENTION_DRIFT":          0.08,
     "LIGHTING_ANOMALY":         0.05,
     "OBJECT_DETECTED":          0.12,
+    "WHITESPACE_FIXATION":      0.25,
+    "BEHAVIORAL_INCONSISTENCY": 0.30,
+    "PLR_FAILURE":              0.20,
+    "LAG_LOOP":                 0.20,
+    "CHALLENGE_RESPONSE_FAIL":  0.30,
+    "OVERLAY_CLUSTER":          0.25,
 }
 
 SEVERITY_MULTIPLIERS = {
@@ -136,7 +142,7 @@ class FraudAgent:
             raw_score += contribution
             top_signals.append({"type": ev_type, "count": len(events), "score": round(contribution, 1)})
 
-            if ev_type == "DEEPFAKE_SUSPECTED":
+            if ev_type in ("DEEPFAKE_SUSPECTED", "CHALLENGE_RESPONSE_FAIL", "BEHAVIORAL_INCONSISTENCY"):
                 deepfake_flag = True
 
         final_score = min(round(raw_score, 1), 100.0)

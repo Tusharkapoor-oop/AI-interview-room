@@ -21,7 +21,12 @@ opentelemetry-sdk>=1.29.0,<2.0.0
 opentelemetry-instrumentation-fastapi>=0.50b0,<1.0.0
 opentelemetry-exporter-otlp>=1.29.0,<2.0.0
 boto3>=1.36.0,<2.0.0
-ruff>=0.8.0,<1.0.0
-pytest>=8.3.0,<9.0.0
-pytest-asyncio>=0.25.0,<1.0.0
-pip-audit>=2.7.0,<3.0.0
+# Dev dependencies — see requirements.dev.txt
+# ruff>=0.8.0,<1.0.0
+# pytest>=8.3.0,<9.0.0
+# pytest-asyncio>=0.25.0,<1.0.0
+# pip-audit>=2.7.0,<3.0.0
+# GenD deepfake detection (optional — heuristic fallback works without these)
+torch>=2.0.0,<4.0.0
+transformers>=4.36.0,<5.0.0
+Pillow>=10.0.0,<12.0.0

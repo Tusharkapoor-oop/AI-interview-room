@@ -1,0 +1,128 @@
+{
+  "totalDecisions": 8,
+  "modelDistribution": {
+    "haiku": 0,
+    "sonnet": 3,
+    "opus": 5,
+    "inherit": 0
+  },
+  "avgComplexity": 0.5585736142520926,
+  "avgConfidence": 0.7195814564535049,
+  "circuitBreakerTrips": 8,
+  "lastUpdated": "2026-07-08T19:38:11.080Z",
+  "learningHistory": [
+    {
+      "task": "Analyze the AI Interview Platform architecture: backend-cv/main.py (FastAPI with 3 WebSocket endpoin",
+      "model": "opus",
+      "complexity": 0.6246483516483516,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:10.947Z"
+    },
+    {
+      "task": "Analyze security vulnerabilities in the AI Interview Platform. Focus on Phase 0 CRITICAL issues from",
+      "model": "opus",
+      "complexity": 0.687764705882353,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:10.967Z"
+    },
+    {
+      "task": "Analyze the FastAPI backend (backend-cv/main.py, 1653 lines) and agent pipeline. Focus on: WebSocket",
+      "model": "opus",
+      "complexity": 0.6666541353383459,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:10.982Z"
+    },
+    {
+      "task": "Analyze the React frontend: frontend/src/App.jsx (308 lines, phase router with 10+ phases), frontend",
+      "model": "sonnet",
+      "complexity": 0.6438235294117647,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:11.003Z"
+    },
+    {
+      "task": "Analyze test coverage and gaps in the AI Interview Platform. Check: backend-cv/tests/ (test_aegis_bl",
+      "model": "sonnet",
+      "complexity": 0.5732993197278912,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:11.021Z"
+    },
+    {
+      "task": "Analyze performance characteristics: WebSocket message throughput (3 endpoints, event batching), Med",
+      "model": "sonnet",
+      "complexity": 0.5845735607675906,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:11.040Z"
+    },
+    {
+      "task": "Analyze documentation completeness: IMPLEMENTATION_PLAN.md (1227 lines, 92 issues across 8 phases, 2",
+      "model": "opus",
+      "complexity": 0.6923809523809524,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:11.059Z"
+    },
+    {
+      "task": "Synthesize findings from all 7 parallel analyses into a consolidated prioritized implementation plan",
+      "model": "opus",
+      "complexity": 0.8135714285714286,
+      "outcome": "failure",
+      "timestamp": "2026-07-08T19:38:11.080Z"
+    }
+  ],
+  "version": 2,
+  "priors": {
+    "low": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    },
+    "med": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 4
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 5
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    },
+    "high": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 2
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    }
+  }
+}

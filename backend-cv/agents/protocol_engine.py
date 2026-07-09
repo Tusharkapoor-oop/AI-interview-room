@@ -24,6 +24,7 @@ import hashlib
 import json
 import math
 import os
+import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -94,11 +95,12 @@ class InvitationCodeValidator:
             return False, "Invalid invitation code.", {}
 
         session_hash = hashlib.sha256(f"{candidate_name}:{normalized_role}:{effective_code}".encode()).hexdigest()[:16]
+        secure_rand = secrets.token_hex(16)
         return True, "Invitation validated successfully.", {
             "candidate_name": candidate_name.strip(),
             "role": normalized_role,
             "invitation_code": effective_code,
-            "session_token": f"AEGIS-SESSION-{session_hash}"
+            "session_token": f"AEGIS-SESSION-{session_hash}-{secure_rand}"
         }
 
 

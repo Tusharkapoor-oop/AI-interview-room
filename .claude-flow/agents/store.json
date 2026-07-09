@@ -1,0 +1,101 @@
+{
+  "agents": {
+    "agent-1783539343160-akmzzd": {
+      "agentId": "agent-1783539343160-akmzzd",
+      "agentType": "architect",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:50.787Z",
+      "model": "opus",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351252-5apuo7": {
+      "agentId": "agent-1783539351252-5apuo7",
+      "agentType": "security-reviewer",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.291Z",
+      "model": "opus",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351300-as8pll": {
+      "agentId": "agent-1783539351300-as8pll",
+      "agentType": "backend-dev",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.335Z",
+      "model": "opus",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351349-rv5oho": {
+      "agentId": "agent-1783539351349-rv5oho",
+      "agentType": "frontend-dev",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.384Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351403-rjx27x": {
+      "agentId": "agent-1783539351403-rjx27x",
+      "agentType": "tester",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.439Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351448-cgpxng": {
+      "agentId": "agent-1783539351448-cgpxng",
+      "agentType": "performance-engineer",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.515Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351524-ch2ms7": {
+      "agentId": "agent-1783539351524-ch2ms7",
+      "agentType": "doc-updater",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.543Z",
+      "model": "opus",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    },
+    "agent-1783539351557-igng0f": {
+      "agentId": "agent-1783539351557-igng0f",
+      "agentType": "planner",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {},
+      "createdAt": "2026-07-08T19:35:51.630Z",
+      "model": "opus",
+      "modelRoutedBy": "router",
+      "provider": "anthropic"
+    }
+  },
+  "version": "3.0.0"
+}

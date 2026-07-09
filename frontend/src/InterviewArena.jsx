@@ -27,18 +27,20 @@ import AppealPanel from './AppealPanel';
 import { useDigitalSecurity } from './useDigitalSecurity';
 import { useContVerification } from './useContVerification';
 import { useKeystrokeDynamics } from './useKeystrokeDynamics';
-import MiniLivenessChallenge from './MiniLivenessChallenge';
+import ChallengeResponseDeepfake from './ChallengeResponseDeepfake';
 import { useRppg } from './useRppg';
 import RppgMonitor from './RppgMonitor';
 import { useSpeakerVerification } from './useSpeakerVerification';
 import SpeakerVerificationPanel from './SpeakerVerificationPanel';
 import { useNuclearLockdown } from './useNuclearLockdown';
 import SecurityIntelPanel from './SecurityIntelPanel';
+import { useOnnxGend } from './useOnnxGend';
 import { useGazeEntropy } from './useGazeEntropy';          // Research Module 1 v3.0
 import { useResponseTiming } from './useResponseTiming';    // Research Module 2 v3.0
 import { useLlmPhraseDetector } from './useLlmPhraseDetector'; // Research Module 3 v3.0
 import { useAudioForensics } from './useAudioForensics';    // Research Module NEW — audio forensics
 import { useApplicationLockdown } from './useApplicationLockdown'; // Layer 5+ Ultra-Strict Digital Lockdown
+import TransparencyNotice from './TransparencyNotice';
 
 
 const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
@@ -150,6 +152,8 @@ const InterviewArena = React.memo(function InterviewArena() {
   const [showAppeal, setShowAppeal] = useState(false);
 
   const [showReChallenge, setShowReChallenge] = useState(false);
+  const [showDeepfakeChallenge, setShowDeepfakeChallenge] = useState(false);
+  const [showTransparency, setShowTransparency] = useState(true);
 
   // ── Layer 5: Digital Security ──────────────────────────────────────
   useDigitalSecurity(true, (ev) => {
@@ -177,6 +181,11 @@ const InterviewArena = React.memo(function InterviewArena() {
   // ── Research Module 4: Audio Forensics NEW ─────────────────────────
   // Whisper detection + TTS pitch stability + acoustic fingerprint + SFM
   useAudioForensics();
+
+  // ── Layer 4.2: Client-side GenD (ONNX heuristic) ──────────────
+  // Runs spectral-based deepfake detection in-browser; sends only the score.
+  const gendRef = useRef({ gend_score: 0.5, confidence: 0 });
+  const { computeScore, extractEmbedding } = useOnnxGend();
 
   // ── Layer 2: Continuous Verification ──────────────────────────
   useContVerification(videoRef, (features) => {
@@ -393,17 +402,39 @@ const InterviewArena = React.memo(function InterviewArena() {
     }
   }, [riskEvents, intStatus, sendMsg]);
 
-  // ── Frame capture ───────────────────────────────────────
+  // ── Frame capture + client-side GenD (Phase 4.2) ─────────
+  // Runs ONNX heuristic on every Nth frame to compute gend_score
+  // in-browser. Only the score is transmitted — never raw embeddings.
+  const gendFrameCounter = useRef(0);
   useEffect(() => {
     const id = setInterval(() => {
       if (!videoRef.current || !canvasRef.current || cvStatus !== 'connected') return;
       const ctx = canvasRef.current.getContext('2d');
       if (!ctx) return;
       ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-      sendFrame(canvasRef.current.toDataURL('image/jpeg', 0.80));
+
+      // Periodically run client-side GenD heuristic (every ~5 frames)
+      gendFrameCounter.current += 1;
+      if (gendFrameCounter.current % 5 === 0) {
+        try {
+          const imageData = ctx.getImageData(0, 0, 224, 224);
+          const embedding = extractEmbedding(imageData);
+          const result = computeScore(embedding);
+          gendRef.current = { gend_score: result.gend_score, confidence: result.confidence };
+        } catch {
+          // Silently skip — heuristic is best-effort
+        }
+      }
+
+      sendFrame({
+        type: 'frame',
+        data: canvasRef.current.toDataURL('image/jpeg', 0.80),
+        gend_score: gendRef.current.gend_score,
+        gend_confidence: gendRef.current.confidence,
+      });
     }, 150);
     return () => clearInterval(id);
-  }, [cvStatus, sendFrame]);
+  }, [cvStatus, sendFrame, computeScore, extractEmbedding]);
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -425,6 +456,10 @@ const InterviewArena = React.memo(function InterviewArena() {
 
   const sessionTime = `${String(Math.floor(sessionSeconds / 60)).padStart(2,'0')}:${String(sessionSeconds % 60).padStart(2,'0')}`;
   const difficulty  = DIFFICULTY_COLORS[currentQuestionDifficulty];
+
+  if (showTransparency) {
+    return <TransparencyNotice onAcknowledge={() => setShowTransparency(false)} />;
+  }
 
   return (
     <div className="arena-layout">
@@ -664,9 +699,22 @@ const InterviewArena = React.memo(function InterviewArena() {
 
       {/* Layer 2 — Active liveness re-challenge */}
       {showReChallenge && (
-        <MiniLivenessChallenge onComplete={(passed) => {
+        <ChallengeResponseDeepfake onComplete={(result) => {
           setShowReChallenge(false);
-          sendMsg({ type: 'telemetry_event', event: { type: 'PERIODIC_LIVENESS_COMPLETE', desc: 'Completed periodic active liveness gaze tracking.', severity: 'LOW', confidence: 1.0 } });
+          if (result && !result.passed) {
+            sendMsg({ type: 'telemetry_event', event: { 
+              type: 'CHALLENGE_RESPONSE_FAIL', 
+              severity: 'HIGH', 
+              desc: `Deepfake challenge-response failed: ${result.failedChallenges?.join(', ') || 'unknown'}`, 
+              confidence: 0.85 
+            }});
+          }
+          sendMsg({ type: 'telemetry_event', event: { 
+            type: 'DEEPFAKE_CHALLENGE_COMPLETE', 
+            desc: 'Completed deepfake challenge-response verification.', 
+            severity: 'LOW', 
+            confidence: 1.0 
+          }});
         }} />
       )}
     </div>

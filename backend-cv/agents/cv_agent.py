@@ -285,7 +285,7 @@ class CVAgent:
         # Track eye gaze coordinates for saccades & entropy analysis
         eye_gaze = inference.get("eye_gaze", {"h": 0.0, "v": 0.0})
         gaze_h = eye_gaze.get("h", 0.0)
-        gaze_v = eye_gaze.get("v", 0.0)
+        _gaze_v = eye_gaze.get("v", 0.0)
         self._gaze_h_history.append(gaze_h)
         if len(self._gaze_h_history) > 120:
             self._gaze_h_history.pop(0)

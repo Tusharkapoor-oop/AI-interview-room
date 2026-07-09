@@ -1,3 +1,4 @@
+
 """Production-grade security engine for interview integrity monitoring.
 
 This module implements a compact, dependency-light core for the requested
@@ -7,18 +8,15 @@ behavioral security stack:
 - PLR/rPPG-inspired liveness verification
 - KS-test based anomaly detection
 - five-channel fusion with severity mapping
-
-The implementation is intentionally self-contained so it can be imported in
-backend services without requiring heavy CV runtime dependencies.
 """
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from statistics import mean
 from typing import Dict, List, Optional, Tuple
-import time
 
 
 @dataclass
@@ -58,7 +56,7 @@ class KSAnomalyDetector:
         i = 0
         j = 0
         while i < n1 and j < n2:
-            if self.baseline[i] <= sample_sorted[j]:
+            if self.baseline[i] < sample_sorted[j]:
                 i += 1
             else:
                 j += 1
@@ -73,9 +71,16 @@ class KSAnomalyDetector:
         if not sample:
             return False
         statistic = self._ks_statistic(sample)
-        # Configurable threshold approximating p-value rejection.
-        # KS distance > ks_threshold ≈ significant distribution shift.
-        return statistic > self.ks_threshold
+        n1 = len(self.baseline)
+        n2 = len(sample)
+        en = math.sqrt(n1 * n2 / (n1 + n2)) if (n1 + n2) > 0 else 0.0
+        if en == 0 or statistic == 0:
+            return False
+        lam = (en + 0.12 + 0.11 / en) * statistic
+        if lam < 0:
+            return False
+        p_val = 2.0 * math.exp(-2.0 * (lam ** 2))
+        return p_val < self.p_threshold or statistic > self.ks_threshold
 
 
 class HybridGazeTracker:
@@ -239,82 +244,3 @@ class LivenessVerifier:
         }
 
 
-class FiveChannelFusionEngine:
-    """
-    Five-channel fusion engine with per-channel windowing.
-
-    Enforces N >= 3 concurrent channel deviations within a time window.
-    Channels: GAZE, GESTURE, AUDIO, KEYSTROKE, ENVIRONMENT
-    """
-
-    CHANNEL_NAMES = ["GAZE", "GESTURE", "AUDIO", "KEYSTROKE", "ENVIRONMENT"]
-    CHANNEL_WEIGHTS = {"GAZE": 0.25, "GESTURE": 0.20, "AUDIO": 0.20, "KEYSTROKE": 0.20, "ENVIRONMENT": 0.15}
-
-    def __init__(self, window_duration_sec: float = 10.0) -> None:
-        self.window_duration = window_duration_sec
-        self._channels = {
-            ch: deque(maxlen=100) for ch in self.CHANNEL_NAMES
-        }
-        self._last_cleanup: float = 0.0
-        self._last_evaluate_time: float = 0.0
-
-    def add_channel_result(self, channel: str, anomalous: bool, confidence: float) -> None:
-        if confidence < 0.0 or confidence > 1.0:
-            raise ValueError("confidence must be within [0, 1]")
-        key = channel.upper()
-        if key not in self._channels:
-            key = "ENVIRONMENT"
-        self._channels[key].append((time.time(), bool(anomalous), float(confidence)))
-
-    def _prune_old(self, now: float) -> None:
-        for ch in self._channels.values():
-            while ch and now - ch[0][0] > self.window_duration * 2:
-                ch.popleft()
-
-    def evaluate(self) -> Dict[str, object]:
-        now = time.time()
-
-        # Periodic cleanup
-        if now - self._last_cleanup > 5.0:
-            self._prune_old(now)
-            self._last_cleanup = now
-
-        # Count triggered channels within window
-        triggered_channels = []
-        for name in self.CHANNEL_NAMES:
-            recent = [r for r in self._channels[name] if now - r[0] <= self.window_duration]
-            triggered = any(anomalous for _, anomalous, _ in recent)
-            if triggered:
-                max_conf = max(c for _, _, c in recent) if recent else 0.0
-                triggered_channels.append({"channel": name, "confidence": max_conf})
-
-        n_active = len(triggered_channels)
-
-        # Integrity score: weighted by channel confidence
-        if n_active == 0:
-            integrity_score = 0.95
-        else:
-            total_conf = sum(ch["confidence"] for ch in triggered_channels)
-            integrity_score = max(0.0, 1.0 - (n_active * 0.12) - (total_conf * 0.05))
-
-        # Decision matrix: N >= 3 triggers escalation
-        if n_active >= 5:
-            severity = "CRITICAL"
-        elif n_active >= 4:
-            severity = "HIGH"
-        elif n_active >= 3:
-            severity = "MEDIUM"
-        elif n_active >= 2:
-            severity = "LOW"
-        else:
-            severity = "NORMAL"
-
-        return {
-            "channel_deviations": n_active,
-            "integrity_score": round(integrity_score, 4),
-            "severity": severity,
-            "channels": [
-                {"channel": t["channel"], "anomalous": True, "confidence": round(t["confidence"], 4)}
-                for t in triggered_channels
-            ],
-        }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 import { useWebSocket } from './useWebSocket';
+import PlrChallenge from './PlrChallenge';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
 const CV_WS  = `${WS_BASE}/ws/cv`;
@@ -478,6 +479,14 @@ export default function LivenessChallenge() {
               }} />
             ))}
           </div>
+        )}
+
+        {!gotchaActive && !passed && !failed && (
+          <PlrChallenge
+            videoRef={videoRef}
+            onComplete={handlePlrComplete}
+            onBrightnessChange={handlePlrBrightness}
+          />
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>

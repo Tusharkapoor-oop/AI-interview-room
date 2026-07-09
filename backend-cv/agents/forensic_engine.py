@@ -11,52 +11,14 @@ Implements paper §4, §6 & specification Modules 6, 6B, 7 & 8:
 
 import hashlib
 import logging
-import math
 import time
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
 import numpy as np
 
+from .ks_test import kolmogorov_smirnov_2samp
+
 log = logging.getLogger("aegis.forensic_engine")
-
-
-def _compute_ks_2samp(data1: List[float], data2: List[float]) -> Tuple[float, float]:
-    """
-    Pure numpy implementation of Two-Sample Kolmogorov-Smirnov test.
-    Returns (ks_statistic, p_value).
-    """
-    n1 = len(data1)
-    n2 = len(data2)
-    if n1 == 0 or n2 == 0:
-        return 0.0, 1.0
-
-    d1_sorted = np.sort(data1)
-    d2_sorted = np.sort(data2)
-    all_vals = np.concatenate([d1_sorted, d2_sorted])
-
-    # Compute ECDFs at all concatenated points
-    cdf1 = np.searchsorted(d1_sorted, all_vals, side='right') / n1
-    cdf2 = np.searchsorted(d2_sorted, all_vals, side='right') / n2
-
-    ks_stat = float(np.max(np.abs(cdf1 - cdf2)))
-
-    # Compute asymptotic p-value using Kolmogorov survival function
-    ne = (n1 * n2) / (n1 + n2)
-    lam = (math.sqrt(ne) + 0.12 + 0.11 / math.sqrt(ne)) * ks_stat
-
-    if lam < 0.2:
-        p_val = 1.0
-    else:
-        # 2 * sum_{j=1}^{10} (-1)^(j-1) * exp(-2 * j^2 * lam^2)
-        p_val = 0.0
-        for j in range(1, 15):
-            term = 2.0 * ((-1.0)**(j - 1)) * math.exp(-2.0 * (j**2) * (lam**2))
-            p_val += term
-            if abs(term) < 1e-8:
-                break
-        p_val = max(0.0, min(1.0, p_val))
-
-    return ks_stat, p_val
 
 
 # ─── DATA CONTRACTS ─────────────────────────────────────────────────────────────
@@ -148,7 +110,7 @@ class KSTestBaselineEngine:
 
         # 4. Perform Two-Sample Kolmogorov-Smirnov Test
         # H0: active window and personal baseline come from identical continuous distributions
-        ks_stat, p_value = _compute_ks_2samp(self.baseline_deviations, active_deviations)
+        ks_stat, p_value = kolmogorov_smirnov_2samp(self.baseline_deviations, active_deviations)
 
         # 5. Evaluate Rejection Criterion (p < 0.05)
         if p_value < 0.05:
@@ -268,6 +230,12 @@ class PLRrPPGLivenessEngine:
         # Evaluate only when full 10-second window accumulated (~300 frames at 30 FPS)
         if len(self.buffer) < 250:
             return None
+
+        # Check if actual stimulus was provided (not just ambient frame brightness)
+        brightness_values = [item[1] for item in self.buffer]
+        brightness_range = max(brightness_values) - min(brightness_values)
+        if brightness_range < 0.3:
+            return None  # No screen flash stimulus detected — skip PLR check
 
         # ── 1. Evaluate PLR (Pupillary Light Reflex) ──
         # Find dark -> bright transitions

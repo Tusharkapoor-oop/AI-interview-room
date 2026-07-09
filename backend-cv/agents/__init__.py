@@ -13,7 +13,6 @@ from .audio_agent import AudioAgent
 from .fraud_agent import FraudAgent
 from .continuous_verifier import ContinuousVerifier
 from .security_engine import (
-    FiveChannelFusionEngine,
     GestureRecognitionEngine,
     HybridGazeTracker,
     KSAnomalyDetector,
@@ -21,14 +20,14 @@ from .security_engine import (
 )
 
 from .forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, PLRrPPGLivenessEngine, KinematicGazeLivenessEngine, ForensicObservation
-from .fusion_engine import KinematicGestureEngine, ChannelPacket
+
 from .gaze_agent import GazeAgentEvaluator
 from .baseline_agent import BaselineAgentEvaluator
 from .kinematic_agent import KinematicAgentEvaluator
 from .liveness_agent import LivenessAgentEvaluator
 from .deepfake_agent import DeepfakeAgentEvaluator
 from .fusion_agent import FusionAgentEvaluator
-from .ks_test import evaluate_baseline_divergence as ks_test, kolmogorov_smirnov_test
+from .ks_test import evaluate_baseline_divergence
 from .fusion import FusionEngine, CANONICAL_FUSION_WEIGHTS
 
 __all__ = [
@@ -41,7 +40,6 @@ __all__ = [
     "AudioAgent",
     "FraudAgent",
     "ContinuousVerifier",
-    "FiveChannelFusionEngine",
     "GestureRecognitionEngine",
     "HybridGazeTracker",
     "KSAnomalyDetector",
@@ -51,16 +49,13 @@ __all__ = [
     "PLRrPPGLivenessEngine",
     "KinematicGazeLivenessEngine",
     "ForensicObservation",
-    "KinematicGestureEngine",
-    "ChannelPacket",
     "GazeAgentEvaluator",
     "BaselineAgentEvaluator",
     "KinematicAgentEvaluator",
     "LivenessAgentEvaluator",
     "DeepfakeAgentEvaluator",
     "FusionAgentEvaluator",
-    "ks_test",
-    "kolmogorov_smirnov_test",
+    "evaluate_baseline_divergence",
     "FusionEngine",
     "CANONICAL_FUSION_WEIGHTS",
 ]

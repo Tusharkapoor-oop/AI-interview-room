@@ -16,7 +16,7 @@ Paper 3 §"Multi-Modal Fraud Detection":
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 log = logging.getLogger("aegis.audio_agent")
 
@@ -59,6 +59,7 @@ class AudioAgent:
         self._speech_segments: list[dict] = []
         self._silence_start: Optional[float] = None
         self._coaching_gaps: list[float] = []
+        self._coaching_gaps_timed: list[Tuple[float, float]] = []
         self._events_emitted: list[AudioEvent] = []
         self._speaker_count_history: list[int] = []
 
@@ -112,21 +113,28 @@ class AudioAgent:
         if len(self._speech_segments) > 0:
             prev_ts = self._speech_segments[-1].get("segment_start_ts", ts)
             gap = ts - prev_ts
-            self._coaching_gaps.append(gap)
-            if not (COACHING_GAP_S * 0.7 <= gap <= COACHING_GAP_S * 1.4):
-                self._coaching_gaps.pop()
+            if COACHING_GAP_S * 0.7 <= gap <= COACHING_GAP_S * 1.4:
+                self._coaching_gaps_timed.append((ts, gap))
+
+            # Expire gaps older than 3 minutes (180s) instead of popping on outlier
+            self._coaching_gaps_timed = [
+                (t, g) for t, g in self._coaching_gaps_timed if ts - t <= 180.0
+            ]
+            self._coaching_gaps = [g for _, g in self._coaching_gaps_timed]
 
             if len(self._coaching_gaps) >= 5:
+                avg_gap = sum(self._coaching_gaps) / len(self._coaching_gaps)
                 ev = AudioEvent(
                     session_id   = self.session_id,
                     event_type   = "COACHING_PATTERN",
                     severity     = "HIGH",
-                    description  = f"Regular speech-pause cadence detected ({len(self._coaching_gaps)} occurrences, avg gap {sum(self._coaching_gaps)/len(self._coaching_gaps):.1f}s). Consistent with coached earpiece assistance.",
+                    description  = f"Regular speech-pause cadence detected ({len(self._coaching_gaps)} occurrences, avg gap {avg_gap:.1f}s). Consistent with coached earpiece assistance.",
                     confidence   = min(len(self._coaching_gaps) / 8, 1.0),
                     fraud_signal = True,
-                    audio_feature = {"gap_count": len(self._coaching_gaps), "avg_gap": sum(self._coaching_gaps)/len(self._coaching_gaps)},
+                    audio_feature = {"gap_count": len(self._coaching_gaps), "avg_gap": avg_gap},
                 )
                 events.append(ev)
+                self._coaching_gaps_timed = []
                 self._coaching_gaps = []
 
         self._speech_segments.append(audio_features)

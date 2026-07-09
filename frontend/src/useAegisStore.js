@@ -5,11 +5,16 @@
 import { create } from 'zustand';
 
 export const useAegisStore = create((set, get) => ({
-  // ── STRICTEST PROTOCOL IN THE WORLD (Mandatory Lockdown) ──
+  // ── Mandatory Lockdown (SERVER-AUTHORITATIVE ONLY) ──
   strictMandatoryLockdown: false,
   mandatoryLockdownReason: '',
   _lockdownFired: false,
-  triggerMandatoryLockdown: (reason) => set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason, _lockdownFired: true }),
+  triggerMandatoryLockdown: (reason) => {
+    // C-4: Lockdown is server-authoritative only. This path is called
+    // exclusively by setServerIntegrityScore() when the server sends
+    // a score < 40%. Never call from client-side code.
+    set({ strictMandatoryLockdown: true, mandatoryLockdownReason: reason, _lockdownFired: true });
+  },
   resetMandatoryLockdown: () => set({ strictMandatoryLockdown: false, mandatoryLockdownReason: '', _lockdownFired: false }),
 
   // ── Phase Management ─────────────────────────────────
@@ -94,18 +99,13 @@ export const useAegisStore = create((set, get) => ({
   // ── Integrity Score (Server Authoritative) ──────────
   integrityScore: 100,
   setServerIntegrityScore: (score) => {
-    const { strictMandatoryLockdown, _lockdownFired } = get();
-    if (_lockdownFired) return;
+    // C-4: Server-authoritative only — never trigger lockdown from client logic
     const clamped = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
-    if (clamped < 40 && !strictMandatoryLockdown) {
-      set({
-        integrityScore: clamped,
-        _lockdownFired: true,
-        strictMandatoryLockdown: true,
-        mandatoryLockdownReason: `INTEGRITY COMPROMISE (Server Authoritative Score ${clamped}% < 40% strict threshold).`
-      });
-    } else {
-      set({ integrityScore: clamped });
+    set({ integrityScore: clamped });
+    if (clamped < 40) {
+      get().triggerMandatoryLockdown(
+        `INTEGRITY COMPROMISE (Server Authoritative Score ${clamped}% < 40% strict threshold).`
+      );
     }
   },
   updateIntegrityScore: () => {
@@ -202,9 +202,12 @@ export const useAegisStore = create((set, get) => ({
   deepfakeFlag: false,
   setDeepfakeFlag: (v) => set({ deepfakeFlag: v }),
 
-  // ── Emotion heuristics (derived, not biometric) ───────────
-  emotionState: 'neutral', // neutral | confident | anxious | focused
-  setEmotionState: (e) => set({ emotionState: e }),
+  // ── Emotion security classifier (EU AI Act Art. 5(1)(f) safety exception) ──
+  // Used ONLY for intrusion/deepfake detection — never for candidate evaluation
+  emotionState: 'NEUTRAL',
+  emotionConfidence: 0.0,
+  emotionCI: [0.0, 0.0],
+  setEmotionState: (e) => set({ emotionState: e.state, emotionConfidence: e.confidence, emotionCI: e.confidence_95_ci }),
 
   // ── Hand Gesture Metrics ──────────────────────────────────
   gestureMetrics: { hand_anomaly_type: null, hands_visible: 0 },

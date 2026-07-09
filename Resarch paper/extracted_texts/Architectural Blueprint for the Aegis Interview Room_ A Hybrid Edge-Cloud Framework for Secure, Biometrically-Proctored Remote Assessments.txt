@@ -1,0 +1,1193 @@
+
+
+=== PAGE 1 ===
+
+Architectural Blueprint for the Aegis
+Interview Room: A Hybrid Edge-Cloud
+Framework for Secure, Biometrically-
+Proctored Remote Assessments
+Product Requirements Document (PRD)
+This document defines the vision, scope, objectives, and detailed requirements for the
+Aegis Interview Room, an advanced AI-powered platform designed to provide a secure,
+frictionless, and scientifically validated remote interviewing experience. The primary goal
+is to create an environment that is effectively impervious to cheating while ensuring a
+positive and fair experience for all candidates. The system leverages a suite of multi-
+modal behavioral biometrics, including real-time eye tracking, advanced gesture
+recognition, and sophisticated anti-spoofing techniques, to achieve this objective .
+The PRD serves as the foundational blueprint for product management, engineering, and
+design teams, establishing a clear and unambiguous target for development. It outlines
+the system's core capabilities, its operational constraints, and the success metrics against
+which it will be evaluated.
+The central vision of the Aegis Interview Room is to establish the industry standard for
+secure remote assessment by completely neutralizing common cheating vectors, including
+impersonation, ghostwriting, unauthorized assistance, and the use of hidden materials 
+. This is achieved not through invasive or punitive measures, but through a seamless
+integration of intelligent proctoring that respects candidate privacy and maintains a
+professional atmosphere . The system's design is predicated on the principle of
+transparency; candidates must understand what is being monitored and why, fostering
+trust and cooperation rather than suspicion . The ultimate objective is to shift the focus
+from manual supervision to intelligent, automated oversight, providing recruiters with
+actionable insights that augment their judgment rather than replacing it .
+The primary business and technical objectives of the Aegis platform are quantifiable and
+ambitious. First, the system must achieve a spoofing attack detection rate of greater than
+98%. This includes defeating a range of threats from simple photo attacks to46
+47
+48
+59
+100
+
+=== PAGE 2 ===
+
+sophisticated 2D masks, 3D masks, and video replay attempts . Second, the platform aims
+to maintain a false-positive cheating flag rate below 2% through the use of multi-modal
+data fusion and contextual AI analysis, ensuring that genuine candidate behavior is not
+unfairly penalized . Third, to make the system's output accessible and useful, the platform
+must provide recruiters with an intuitive, actionable "Integrity Score" that distills complex
+telemetry into a single, understandable metric, supplemented by timestamped risk flags
+for deeper investigation . Finally, and most critically, the system must operate within a
+strict legal and ethical framework, achieving 100% compliance with global biometric
+privacy laws, including the General Data Protection Regulation (GDPR), the Illinois
+Biometric Information Privacy Act (BIPA), and the California Consumer Privacy Act
+(CCPA) . These objectives form the core pillars upon which all subsequent
+requirements are built.
+The scope of the initial release of the Aegis Interview Room is defined as web-based. The
+platform will consist of a candidate-facing interview portal, a real-time computer vision
+proctoring engine, a recruiter-facing analytics dashboard, and a secure backend for
+storing video artifacts and session data . The system will focus exclusively on integrity
+and proctoring; it will not include an automated scoring mechanism for the content of
+the candidate's answers. This decision allows the team to concentrate on building a
+robust and reliable proctoring engine before extending into the more complex domain of
+answer evaluation. The out-of-scope items for this phase explicitly exclude native mobile
+applications. While mobile access is desirable, a web-only approach is prioritized to
+maintain tighter control over the browser environment, ensuring that the necessary
+technologies like WebRTC and WebGPU are consistently available and behave predictably
+across different devices . Other future enhancements, such as automated scoring of
+interview responses, are acknowledged as potential Phase 2 features but are not part of
+the current development plan .
+The functional requirements detail the specific behaviors the system must exhibit to fulfill
+its purpose. FR1 mandates Active Liveness Detection, where the system prompts the
+candidate to follow randomized on-screen trajectories. This action validates pupillary
+response and other micro-movements to definitively distinguish a live person from a
+static image or a pre-recorded video . FR2 requires Continuous Passive Eye Tracking,
+which involves monitoring gaze vectors, fixation duration, and saccades throughout the
+interview. The system will automatically flag prolonged off-screen gazes (e.g., exceeding
+three seconds) or erratic pupil dilation patterns that may suggest the candidate is reading
+from hidden notes or another device . FR3 specifies Advanced Gesture & Pose
+Recognition, utilizing skeletal tracking algorithms like MediaPipe OpenPose to detect
+secondary persons entering the frame, hand-to-ear gestures indicative of hidden
+earpieces, or any manipulation of unauthorized objects visible to the camera . FR4 is115
+95
+
+=== PAGE 3 ===
+
+Environmental & Device Scanning, which uses object detection models to identify the
+presence of secondary monitors, mobile phones, or other suspicious devices in the
+candidate's physical environment . FR5 covers Audio Forensics, involving the detection
+of secondary voices, keyboard typing that doesn't align with speech cadence, or
+anomalies in the audio stream that could indicate playback . Finally, FR6 dictates the
+Integrity Scoring Engine, which aggregates all telemetry from the aforementioned
+functions into a single 0-100 "Integrity Score" and generates a detailed timeline of risk
+events for the recruiter's review .
+Non-functional requirements define the quality attributes and operational constraints of
+the system. NFR1 establishes a strict latency requirement for the client-side CV inference
+engine, mandating that it operates with less than 200 milliseconds of latency to prevent
+noticeable desynchronization between the candidate's actions and the on-screen
+interface . NFR2 sets high accuracy targets: facial recognition for identity verification
+must exceed 99.5%, and activity recognition models must achieve over 92% accuracy .
+NFR3 addresses the paramount concerns of privacy and security. All biometric data must
+be encrypted using AES-256 at rest and TLS 1.3 in transit. Personally Identifiable
+Information (PII) must be masked within analytics dashboards, and data retention
+policies must be strictly enforced, with all raw session data auto-purging after 90 days
+unless legally required to be retained . NFR4 focuses on accessibility, requiring the
+user interface to comply with WCAG 2.1 Level AA standards. Furthermore, the system
+must provide alternative interaction flows for candidates with documented motor or
+visual impairments, such as the ability to disable strict gaze tracking if medically
+justified .
+The following table details the user stories and their corresponding acceptance criteria,
+translating functional requirements into concrete scenarios from the perspective of the
+primary users.20
+22
+
+=== PAGE 4 ===
+
+ID User Story Acceptance Criteria
+US-01 As a candidate, I want to verify my
+camera and lighting before the interview
+starts so that the AI can calibrate
+properly.The system runs a 10-second calibration sequence that checks ambient lighting levels
+(lux), verifies the visibility of facial landmarks, and confirms proper camera focus
+before enabling the "Start" button.
+US-02 As a candidate, I want clear instructions if
+my face leaves the frame so I can correct
+it without being unfairly flagged.If the candidate's face exits the designated tracking area, a gentle, non-punitive UI
+overlay appears with text prompting them to "Please center your face." Only after a
+second warning or a prolonged absence is a formal event logged.
+US-03 As a recruiter, I want to see a timeline of
+"Risk Events" during the interview so I
+can quickly review suspicious moments.The recruiter dashboard displays a scrub-able video timeline with red markers
+indicating high-risk events (e.g., "Off-screen gaze > 5s", "Secondary voice detected").
+Clicking a marker instantly navigates the video player to that timestamp.
+US-04 As a system admin, I want the system to
+automatically reject video-replay attacks.The system employs multiple techniques to detect replay, including analyzing for
+Moiré patterns caused by screen pixel refresh rates and performing pixel-level noise
+analysis to identify inconsistencies present in pre-recorded video feeds but absent in
+live streams.
+US-05 As a candidate with a disability, I need an
+accommodation to allow me to
+participate in the interview.During account setup, the candidate can request accommodations. The recruiter is
+then given a "Relaxed Proctoring" toggle in the command center, which disables
+biometric tracking (gaze, micro-expressions) while retaining identity and
+environmental checks.
+US-06 As a recruiter, I want to see exactly what
+the AI saw when it flagged an event.When reviewing a flagged event on the timeline, the recruiter can activate a "Ghost
+View" mode. This overlays the live video feed with the AI's perception data, such as
+the MediaPipe skeletal wireframe and gaze vectors, allowing direct correlation
+between the flag and the visual evidence.
+These documents collectively form the authoritative source for the Aegis Interview Room
+project, providing a complete and unambiguous definition of what the system is, what it
+must do, and how its success will be measured.
+Technical Requirements Document (TRD)
+The Technical Requirements Document (TRD) provides a deep dive into the architectural
+decisions, technology stack, and performance specifications required to build the Aegis
+Interview Room. This document is intended for the engineering and infrastructure teams,
+serving as the definitive guide for implementation. It details the system's logical and
+physical structure, the APIs that enable communication between components, and the
+rigorous standards governing performance, security, and compliance. The architecture is
+deliberately designed to balance the competing demands of low-latency real-time
+processing, massive scalability, and stringent data privacy, forming the technical
+foundation upon which the entire platform rests.
+
+=== PAGE 5 ===
+
+The cornerstone of the Aegis architecture is a Hybrid Edge-Cloud Model . This design
+choice is critical to meeting the system's demanding low-latency requirements for real-
+time computer vision tasks . Heavy, latency-sensitive inference operations—such as
+facial landmark detection, gaze estimation, and gesture recognition—are executed locally
+on the candidate's client device within the browser environment. This client-side
+processing is made possible through the use of WebAssembly (Wasm) and WebGPU,
+ensuring that computationally intensive tasks do not rely on slow round-trip
+communications to a distant server . By processing data at the edge, the system
+minimizes network latency, preventing stream desync and providing a responsive user
+experience . In contrast, the cloud backend is responsible for orchestrating sessions,
+ingesting the high-throughput stream of anonymized telemetry data, performing heavy-
+duty analytics and long-term storage, and powering the recruiter's analytics dashboard 
+. This division of labor optimizes both performance and cost, leveraging the
+computational power of the client device for immediate tasks and the vast scalability of
+the cloud for aggregate analysis and archival . The architecture is inherently modular
+and forward-compatible, allowing for the independent upgrade of ML models on either
+the edge or cloud side without disrupting the entire system .
+The client-side, or Edge AI, component is the first line of defense and intelligence. It
+relies on several key technologies. WebRTC  is used for capturing high-fidelity, low-
+latency audio and video streams directly from the candidate's webcam and microphone 
+. For the inference engine, TensorFlow.js  or ONNX Runtime Web  will be
+employed to run quantized machine learning models optimized for browser environments
+. These models include: a lightweight CNN for Gaze Estimation , based on frameworks
+like MPIIGaze or approaches described in recent literature, designed for real-time
+performance ; a Pose Estimation  model like MoveNet or MediaPipe Pose to track
+body posture ; and a specialized Liveness  model that analyzes pupillary light reflex
+changes in response to screen brightness shifts to counter spoofing . The use of ONNX
+Runtime is particularly strategic, as it provides a vendor-agnostic, high-performance
+inference engine capable of running on various backends, including WebGPU for GPU
+acceleration, and supports model formats from multiple training frameworks .
+The server-side, or Cloud Backend, is a scalable, containerized environment built on 
+Kubernetes  to manage a cluster of microservices . Communication with the backend is
+managed through a GraphQL API for flexible data fetching in the frontend application
+and RESTful webhooks for event notifications. High-volume, real-time telemetry data
+streamed from clients is ingested via an Apache Kafka  cluster, which decouples the data
+producers (clients) from the consumers (processing workers) and ensures no data loss
+even under peak load . This data is then processed by Python/FastAPI microservices7491
+75
+103
+93
+94
+277
+50
+2324
+105107
+
+=== PAGE 6 ===
+
+running on GPU-enabled nodes (e.g., NVIDIA A10G) for tasks that require more
+computational power, such as complex anomaly detection algorithms or forensic analysis
+of flagged sessions . Video recordings and other large artifacts are securely stored in AWS
+S3 buckets, which are configured for private access only, with file access granted
+temporarily via short-lived, pre-signed URLs . This architecture ensures high availability
+(targeting 99.99% uptime) and fault tolerance, critical for a service used in high-stakes
+assessments .
+The hardware and software requirements are specified for both the client and server
+sides. On the client side, candidates must have a minimum of a 720p webcam, a dual-
+core CPU equivalent to an Intel i5 or AMD Ryzen 5, and 8GB of RAM to ensure smooth
+operation of the local CV engine . The software environment requires a modern
+evergreen browser (Chrome, Edge, Safari) with support for WebGPU/WebGL and a stable
+internet connection with a minimum upload speed of 5 Mbps and jitter below 100ms .
+Server-side requirements include a Kubernetes cluster provisioned in a major cloud
+provider, with auto-scaling groups to dynamically adjust compute resources based on
+demand. GPU nodes are reserved for the processing workers to handle fallback inference
+or intensive post-session analysis . Storage is handled by AWS S3 for media and a
+combination of PostgreSQL for relational data and TimescaleDB for time-series
+telemetry .
+The API design is centered around WebSocket for real-time communication. The /api/
+v1/session/init  endpoint is responsible for generating secure, time-limited tokens
+for WebRTC connections and initializing the CV models on the client side. The most
+critical endpoint is /ws/v1/telemetry , a dedicated WebSocket channel where the
+client continuously streams compressed JSON payloads containing biometric data points
+such as [timestamp, gaze_vector, head_pose_euler,
+gesture_confidence]  . To manage bandwidth, these payloads must be serialized
+using a compact format like MessagePack or Protobuf, with a target throughput kept
+under 50 KB/s per session . Finally, the /api/v1/integrity/report  endpoint
+aggregates all session data from the database and generates the final, human-readable
+report for the recruiter .
+Performance benchmarks are non-negotiable. The CV models must process video at a
+minimum of 30 frames per second (FPS). If the FPS drops below 15, the client-side
+application must alert the user to close background applications to free up resources .
+The backend's Apache Kafka pipeline must be able to handle the aggregate telemetry load
+from thousands of concurrent interviews without data loss. The cloud API gateway must
+maintain 99.99% uptime to ensure the service is always available .
+
+=== PAGE 7 ===
+
+Security and compliance are woven into every layer of the technical design. The system
+must adhere to the strictest standards for biometric data protection, including GDPR,
+BIPA, and CCPA . All biometric data, including facial geometry templates derived from
+embeddings, must be hashed before being stored in the relational database, with only the
+hash value retained to prevent reverse-engineering . Raw biometric data is never stored
+in plain text. All data transmission is secured with TLS 1.3, and all video files are
+encrypted at rest using AWS S3's server-side encryption with KMS-managed keys (SSE-
+KMS) . The system must implement robust anti-spoofing measures, including detecting
+Moiré patterns and audio-visual sync drift to thwart video replay attacks, and analyzing
+micro-expressions and blood flow via remote photoplethysmography (rPPG) to validate
+the presence of a live heartbeat, thereby countering deepfake videos . Access control is
+managed through fine-grained IAM roles, and all administrative actions should be logged
+in an immutable audit trail to ensure accountability .
+Application Flow
+The Application Flow delineates the complete, end-to-end journey of a candidate
+participating in an Aegis Interview Room session, from initial onboarding to the final
+delivery of the integrity report to the recruiter. This flowchart is meticulously designed to
+integrate the platform's advanced proctoring capabilities seamlessly into the user
+experience, ensuring maximum security without introducing undue friction. The process
+is divided into three distinct phases: Pre-Interview Onboarding & Environment
+Calibration, Interview Execution & Continuous Monitoring, and Post-Interview &
+Reporting. Each phase contains a series of logical steps and checkpoints, with a particular
+emphasis on the moments where the AI-driven anti-cheating features are activated and
+validated.
+Phase 1: Pre-Interview Onboarding & Environment Calibration
+This initial phase is critical for setting the stage for a secure and successful interview. Its
+primary goals are to authenticate the candidate, verify their equipment, scan their
+environment for potential threats, and calibrate the AI models for their specific physical
+context.
+Authentication:  The process begins when a candidate receives a secure, time-
+limited magic link via email. They log in using a Single Sign-On (SSO) provider or a115
+71
+111
+1. 
+
+=== PAGE 8 ===
+
+secure one-time password (OTP) sent to their registered email address. This step
+ensures that only authorized individuals can access the system .
+Hardware Check:  Upon logging in, the system immediately initiates a hardware
+check. It requests permission to access the candidate's webcam and microphone,
+and simultaneously runs a background test to measure the available internet upload
+speed and network jitter. The system will display warnings if the hardware or
+network conditions fall below the minimum requirements (e.g., upload speed < 5
+Mbps), giving the candidate an opportunity to resolve the issue before proceeding .
+Environment Scan (360°):  To ensure the candidate is alone in a controlled
+environment, the system instructs them to slowly pan their camera around the
+room. Using a real-time object detection model like YOLOv8, the system scans the
+video feed for the presence of secondary monitors, mobile phones, or other
+unauthorized persons . If an object of concern is detected, the system pauses and
+highlights the item in the candidate's view, asking them to confirm its legitimacy or
+remove it from the environment.
+Active Liveness Challenge:  Before the main calibration, the system executes an
+active liveness check to definitively prove the candidate is a live person. The screen
+displays a small, randomly moving dot. The candidate is instructed to follow the
+dot with their eyes only, without moving their head. The system analyzes the
+resulting eye movements, pupillary response, and subtle 3D depth mapping to
+differentiate between a live human and a flat photo, mask, or video replay . This
+checkpoint is a crucial defense against spoofing attacks.
+Baseline Calibration:  Once liveness is confirmed, the system performs a final
+baseline calibration. The candidate is asked to stare straight at the camera for five
+seconds. During this period, the system records baseline metrics such as ambient
+lighting levels, skin tone characteristics, resting pupil diameter, and the candidate's
+natural gaze point relative to the camera lens. This baseline data is later used to
+normalize and interpret deviations during the actual interview, improving the
+accuracy of anomaly detection .
+Phase 2: Interview Execution & Continuous Monitoring
+With the candidate successfully onboarded and calibrated, the interview commences.
+This phase is characterized by the continuous, passive operation of the AI proctoring
+engine, which runs in parallel with the interview itself.
+Question Delivery:  The interviewer, who can be a human recruiter or an AI avatar,
+delivers the first question. This can be done via a live video feed or by displaying a
+text prompt on the screen . The candidate's own Picture-in-Picture (PiP) feed of2. 
+3. 
+20
+4. 
+5. 
+1. 
+
+=== PAGE 9 ===
+
+themselves is displayed in the bottom-right corner of the screen, a standard feature
+to help them feel more comfortable .
+Passive Telemetry Streaming (Continuous):  Throughout the interview, the client-
+side CV engine continuously streams high-frequency telemetry data to the cloud
+backend via a WebSocket connection . This data forms the basis for all real-time
+analysis:
+Eye Tracking:  The system constantly monitors gaze vectors, fixation points, and
+saccades. A checkpoint  is triggered if the candidate's gaze remains in the top-right
+portion of their screen for more than three seconds—a common location for hidden
+notes or a second monitor. This raises a low-level flag for the integrity engine .
+Head Pose:  Head pose is tracked in 3D (Yaw, Pitch, Roll). A checkpoint  is triggered
+if the head turns away from the primary camera by more than 45 degrees. In
+response, the system may mute the candidate's microphone and display a gentle
+warning overlay, prompting them to face the camera .
+Gesture Tracking:  The MediaPipe Hands model tracks the position of the
+candidate's hands. A checkpoint  is raised if the hands leave the field of view or
+approach the ears, signaling a potential hidden earpiece .
+Randomized Active Checks:  To prevent deepfake or video injection attacks, the
+system performs randomized active checks every 5 to 10 minutes. These can be
+subtle, such as briefly flashing the screen with a specific color pattern, or
+interactive, asking the candidate to perform a quick micro-action like "blink twice"
+or "nod once" . These checks re-verify the candidate's liveness and ensure the
+stream has not been replaced.
+Audio Forensics:  Simultaneously, a background process analyzes the audio stream.
+A checkpoint  is triggered if the system detects keyboard typing sounds that are not
+synchronized with the candidate's speech rhythm, or if it identifies whispers or
+speech from a secondary, unidentified voice source .
+Phase 3: Post-Interview & Reporting
+Once the interview concludes, the system enters a final phase focused on data
+aggregation, analysis, and report generation.
+Session Termination & Log Finalization:  When the candidate ends the session,
+the live video stream is terminated. The client-side CV engine finalizes the local
+telemetry log, compresses it, and uploads the summary data packet to the cloud
+backend for processing .
+Data Aggregation & Analysis:  On the cloud side, a processing worker takes the
+raw telemetry data (gaze, head pose, etc.) and the recorded video. It applies the2. 
+• 
+29
+• 
+• 
+11
+1. 
+2. 
+1. 
+2. 
+
+=== PAGE 10 ===
+
+"Integrity Scoring Algorithm," which cross-references timestamps from the video
+with the telemetry data to identify and score all risk events that occurred during the
+session .
+Recruiter Dashboard Generation:  The results are compiled into a comprehensive
+report and loaded into the recruiter's Command Center dashboard. The video is
+indexed and overlaid with telemetry visualizations, including a gaze heatmap
+showing where the candidate looked most often and a timeline of all detected risk
+events . The final Integrity Score is calculated and displayed prominently .
+Recruiter Review:  The recruiter can now review the session. They watch the
+indexed video and can click on any red-flagged event on the timeline. This action
+instantly jumps the video player to that exact moment and pauses it, bringing up a
+detailed panel that shows the precise CV data that triggered the flag (e.g., "Gaze
+vector detected looking at secondary screen for 4.2 seconds") . This allows the
+recruiter to make a contextual, informed judgment about the candidate's conduct,
+acting as the ultimate arbiter in the process .
+This structured application flow ensures that every aspect of the interview is monitored
+and analyzed by the Aegis system, creating a robust and defensible record of the
+candidate's behavior while maintaining a logical and transparent process for all parties
+involved.
+UI & UX Design Flow
+The User Interface (UI) and User Experience (UX) design for the Aegis Interview Room is
+guided by a core philosophy centered on minimalist cognitive load reduction  and 
+transparent proctoring . The design choices are deliberate and rooted in psychological
+principles aimed at mitigating two primary risks: triggering false positives in the AI
+systems due to candidate anxiety and nervousness, and creating a negative candidate
+experience that could damage the employer's brand . Every element of the interface,
+from the placement of controls to the style of feedback messages, is crafted to be
+unobtrusive, intuitive, and supportive, ensuring that the proctoring technology works in
+harmony with, rather than against, the human participants.
+For the Candidate Interface (The Interview Room) , the design is intentionally sparse
+and clean. The visual environment is curated to minimize distractions and reduce the
+candidate's cognitive burden, which helps produce more natural and authentic behavior
+for the AI to analyze . The screen layout is carefully composed: the primary content3. 
+31
+4. 
+100
+129130
+130131
+
+=== PAGE 11 ===
+
+—the interviewer's video feed or the question text—is placed centrally, commanding the
+user's full attention. In the bottom-right corner, a small Picture-in-Picture (PiP) window
+displays the candidate's own webcam feed, providing a sense of presence and helping
+them monitor their own on-camera appearance without needing to look away . The top
+bar of the interface contains only essential, non-distracting information: a minimalist
+timer, an indicator for internet connection strength, and a subtle badge informing the
+candidate that their session is being recorded and proctored . During the initial
+calibration phase, a faint, semi-transparent oval guide appears to gently nudge the
+candidate into the optimal head position, but this guide fades away entirely once the
+interview begins to avoid constant visual clutter .
+The UX micro-interactions are designed to be empathetic and non-punitive. The system's
+warning mechanisms are a prime example. Instead of a jarring, red-alert-style pop-up
+that would startle the candidate and cause erratic movements, the system uses a soft,
+glowing amber border around the screen, accompanied by calm text: "Please keep your
+face within the frame."  This provides clear guidance without inducing panic . Similarly,
+when an active liveness check is triggered, a smooth, non-intrusive modal slides in from
+the side, stating, "For security, please follow the dot with your eyes,"  framing the request as
+a necessary step for the interview process, not a punitive action . This gentle feedback
+loop is crucial for maintaining a positive candidate experience, which is a key factor in
+attracting top talent .
+On the other side of the proctoring equation is the Recruiter / Proctor Interface (The
+Command Center) . This dashboard is designed for efficiency and deep analytical insight.
+Its layout is divided into two main panels: a large left panel for the video player and a
+right panel for analytics . The video player displays the recorded interview, but it is
+enhanced with powerful analytical tools. The right panel features a large, circular gauge
+prominently displaying the candidate's final "Integrity Score" (e.g., 94/100 - "High
+Integrity"), providing an immediate, at-a-glance assessment . Below the score is a multi-
+layered telemetry timeline that overlays analytical data onto the video . This timeline
+might include layers for Gaze Heatmap (showing areas of visual focus), Head Pose Graph
+(visualizing head movements), and Audio Anomalies (highlighting spikes in background
+noise or typing) . At the bottom of the screen, an AI-generated transcript of the
+interview is displayed, with keywords potentially highlighted to draw the recruiter's
+attention to specific topics .
+Several key UX features empower the recruiter to investigate flagged events effectively.
+The "Ghost View" is perhaps the most important. By toggling this mode, the recruiter can
+superimpose the AI's perception data directly onto the video feed. This means they can
+see the MediaPipe skeletal wireframe drawn over the candidate's body and the precise33
+31
+61
+
+=== PAGE 12 ===
+
+gaze vectors emanating from their eyes, allowing them to visually correlate the AI's
+algorithmic findings with the actual video footage . Another critical feature is "Quick
+Jump." When a recruiter clicks on a red flag icon on the telemetry timeline, the video
+player instantly navigates to that exact timestamp and pauses, presenting the detailed
+telemetry data that prompted the flag in a side-panel . This transforms the review process
+from a tedious, frame-by-frame search into a targeted investigation of specific events.
+Finally, the design is fully committed to Accessibility and Usability . The entire candidate
+interface must be navigable using only a keyboard ( Tab for focus, Enter to select),
+catering to users who cannot operate a mouse . Screen reader support is provided
+through appropriate ARIA labels for all dynamic status updates related to the proctoring
+system . Most importantly, the system includes an "Accommodation Mode." If a candidate
+discloses a medical condition, such as a tremor, ADHD, or a disability that affects eye
+contact, the recruiter can activate this mode. This toggles a setting that disables the more
+sensitive biometric tracking modules (like gaze and micro-expression analysis), relying
+instead on a more basic suite of checks focused on identity verification and
+environmental scanning. This ensures the platform is inclusive and compliant with
+accessibility standards, treating all candidates fairly while still upholding the core security
+objectives .
+Backend Schema & Data Architecture
+The backend data architecture for the Aegis Interview Room is designed for scale,
+performance, and security, employing a polyglot persistence  strategy. This approach
+recognizes that different types of data generated by the system have vastly different
+characteristics and access patterns, making a single database technology suboptimal.
+Relational databases are used for structured metadata, time-series databases for high-
+frequency telemetry, object storage for large binary blobs like video, and vector databases
+for similarity searches on biometric data . This specialization ensures that each data type
+is stored in the most efficient and effective manner possible, supporting the platform's
+demanding real-time and analytical workloads while adhering to strict privacy and
+compliance requirements.
+The relational data, which includes user profiles, session metadata, permissions, and
+billing information, is managed by a PostgreSQL  database . The core schema for this
+relational store is designed to be normalized yet efficient. The users table stores
+candidate, recruiter, and admin profiles, with a crucial column for 
+
+=== PAGE 13 ===
+
+facial_embedding_hash . This column stores a cryptographic hash of the candidate's
+facial embedding vector, not the vector itself, providing a strong layer of security that
+prevents the reconstruction of the original biometric template from the database . The 
+sessions  table links candidates to recruiters, tracks the status and timing of each
+interview, and stores the final aggregated integrity_score  . To log individual risk
+events, a risk_events  table is created. This table is linked to a session and contains a 
+timestamp_ms , the event_type  (e.g., 'gaze_offscreen', 'phone_detected'), a 
+severity  level, a confidence_score , and a metadata  field in JSONB format. The
+JSONB column is ideal for storing the diverse and nested telemetry data associated with
+each specific event, such as the exact gaze vector coordinates or the bounding box of a
+detected object .
+For the high-frequency, time-series data generated by the CV engine—such as gaze pitch/
+yaw, head pose, and pupil diameter sampled at 30-60fps per session—the architecture
+utilizes a Time-Series Database  like TimescaleDB (an extension for PostgreSQL) or
+InfluxDB . This specialized database is optimized for rapid writes and efficient querying
+of time-stamped data. The biometric_telemetry  table is configured as a hypertable,
+which automatically partitions the data into chunks based on time. This partitioning
+dramatically improves query performance when analyzing telemetry for a specific session
+or time window, as the database engine can operate on a much smaller subset of the data
+rather than scanning the entire table . The schema for this table is straightforward, with a
+time column as the primary index, a session_id  foreign key, and columns for each
+biometric measurement (e.g., gaze_pitch , head_roll ) . This structure is perfectly
+suited for the massive write throughput required during an interview and for the
+analytical queries needed to generate heatmaps and other temporal visualizations post-
+interview .
+Large, unstructured binary data, primarily the recorded video and audio files from
+interviews, are stored in a highly durable and scalable Object Storage  system, such as 
+AWS S3  . This approach separates the data from the application logic, allowing for easy
+backup, versioning, and distribution. Crucially, these S3 buckets are configured to be
+private by default. Access to any video file is granted not through direct links but via pre-
+signed URLs generated by the backend. These URLs are configured with a very short
+expiration time (e.g., 15 minutes), ensuring that even if leaked, they cannot be used to
+gain long-term access to sensitive interview recordings . Furthermore, all data written to
+S3 is encrypted at rest using server-side encryption with keys managed by AWS Key
+Management Service (S3 SSE-KMS), providing an additional layer of security .
+To support advanced identity verification and anti-spoofing techniques, the architecture
+incorporates a Vector Database , such as Pinecone or Milvus . The facial recognition82
+
+=== PAGE 14 ===
+
+system generates a high-dimensional vector representation (embedding) of the
+candidate's face during the initial liveness check. This vector captures the unique
+geometric features of their face. Instead of storing these vectors in a traditional RDBMS,
+they are stored in the vector database, which is optimized for performing fast k-nearest
+neighbor (k-NN) searches. When a candidate logs in, their live facial embedding is
+compared against the stored baseline embedding to verify their identity. This same vector
+database can also be used to detect morphing attacks by comparing the statistical
+properties of a live face against known morphed-face patterns .
+The data security and encryption strategy is comprehensive and multi-layered. PII
+Masking  is applied at the application layer; for instance, candidate names and emails are
+encrypted before being inserted into the PostgreSQL database . The principle of Privacy
+by Design  is embedded in the architecture, with a strong emphasis on data
+minimization . By deploying a hybrid edge-cloud model, the system processes and
+analyzes the majority of biometric data locally on the candidate's device. Raw,
+identifiable video streams are not uploaded to the cloud; only anonymized telemetry
+packets are transmitted, significantly reducing the privacy risk . The data retention
+policy is automated and rigorously enforced. Cron jobs or AWS Lambda functions are
+scheduled to periodically scan the database and object storage. After a session's data has
+served its purpose for review and analytics (typically 90 days), the corresponding entries
+in the biometric_telemetry  table, the video files in S3, and the records in the 
+risk_events  table are permanently deleted . This automated purging is a key
+requirement for demonstrating compliance with regulations like GDPR, which mandate
+that personal data should not be kept longer than necessary . For critical
+administrative actions, such as a recruiter viewing a flagged session, an immutable audit
+log is maintained, potentially using a Merkle Tree pipeline to ensure the integrity of the
+log itself .
+Implementation Plan & Risk Management
+The implementation of the Aegis Interview Room is structured as a six-month, five-phase
+roadmap leading to General Availability (GA). This plan outlines a systematic progression
+from initial discovery and prototyping to full-scale deployment, incorporating key
+milestones, resource allocation, and a proactive approach to risk management. The
+methodology emphasizes iterative development, continuous testing, and early
+engagement with legal and security experts to mitigate potential pitfalls.89
+92116
+22
+81
+99111
+
+=== PAGE 15 ===
+
+Phase 1: Discovery & Core ML Prototyping (Weeks 1-6)  The initial phase is dedicated
+to solidifying the product and technical foundations. The primary milestone is the
+approval of the final PRD and TRD, along with the completion of all UI/UX wireframes
+and mockups . Concurrently, the core Machine Learning (ML) engineers will focus on
+training and optimizing the lightweight CV models for deployment in a browser
+environment. This involves quantizing models like MediaPipe Face Mesh and gaze
+estimation CNNs for TensorFlow.js or ONNX Runtime Web . A significant technical
+challenge is developing the Active Liveness algorithm, which must reliably detect
+pupillary light reflexes and other micro-movements in response to randomized screen
+stimuli . The expected deliverable for this phase is a working local prototype of the CV
+engine, capable of running in a browser at over 30 FPS and correctly identifying facial
+landmarks and basic gaze directions.
+Phase 2: Backend & Infrastructure Setup (Weeks 7-12)  With the front-end concepts
+proven, Phase 2 shifts to building the scalable and secure backend infrastructure. The
+first milestone is the provisioning of the cloud environment, including the Kubernetes
+cluster, PostgreSQL and TimescaleDB instances, and AWS S3 buckets . The next critical
+task is developing the WebRTC signaling servers to facilitate low-latency, peer-to-peer
+video streaming between the candidate and the recruiter/dashboard . Following this,
+the team will construct the high-throughput WebSocket telemetry ingestion pipeline,
+using Apache Kafka to buffer incoming data from clients before it is processed and
+written to the time-series database . A parallel and equally critical milestone is the
+implementation of all security protocols, including end-to-end encryption, IAM role
+configurations, and the initial setup for GDPR/BIPA compliance, likely involving
+consultation with the dedicated Security/Compliance Specialist . The deliverable for
+this phase is a fully functional, secure, and isolated backend environment with all core
+APIs and database schemas in place.
+Phase 3: Full-Stack Integration & UI Development (Weeks 13-18)  This phase focuses
+on integrating the separate frontend and backend components into a cohesive, end-to-
+end application. The first milestone is the development of the Candidate Interview Room
+UI using a modern framework like React or Next.js, with the local CV engine successfully
+integrated and streaming data to the backend . Simultaneously, the Recruiter Command
+Center dashboard is built, featuring the video player, telemetry timeline, and integrity
+score visualization . A key milestone is the implementation of the Integrity Scoring
+Algorithm, which will consume the time-series telemetry data and generate the final
+score and risk event log for each session . The final deliverable of this phase is an Alpha
+version of the complete application, ready for internal testing and refinement.2
+77
+115
+
+=== PAGE 16 ===
+
+Phase 4: Adversarial Testing & Beta (Weeks 19-22)  Before public release, the platform
+undergoes rigorous adversarial testing and a closed beta program. The first milestone is a
+comprehensive Red Teaming  exercise, where external ethical hackers are hired to
+attempt to bypass all anti-cheating features. Their goal is to defeat liveness detection
+using 3D masks, replay attacks, deepfakes, and other methods. The results of these tests
+are used to tune and harden the CV models . The second milestone is a Bias & Fairness
+Audit , conducted by a third party to evaluate the performance of the CV models across
+diverse demographics, including different skin tones, genders, and ages, to ensure there
+is no algorithmic bias . The final milestone is a closed beta program involving 50
+friendly enterprise clients and approximately 500 candidate testers. Feedback on
+usability, stability, and fairness is gathered to make final adjustments. The deliverable is a
+hardened, audited, and beta-tested platform, considered ready for GA.
+Phase 5: Launch & Scaling (Weeks 23-24)  The final phase culminates in the production
+launch. The first milestone is the deployment to a production environment with auto-
+scaling enabled to handle anticipated traffic . This is followed by the finalization of all
+documentation, API keys, and SDKs to facilitate enterprise integrations. The project
+concludes with the General Availability (GA) Launch , marking the official public release
+of the Aegis Interview Room. The final deliverable is the live, fully supported platform.
+Resource allocation for this six-month effort is substantial. The team consists of a Project
+Lead/Arcitect, three Computer Vision/ML Engineers specializing in edge inference, two
+Backend Engineers focused on WebRTC and data pipelines, two Frontend Engineers
+skilled in React and complex UIs, one UX/UI Designer, a part-time Security/Compliance
+Specialist, and two QA/Red Team members .
+A proactive risk management plan is integral to the project's success. The following table
+outlines the key risks, their assessed impact and probability, and the specific mitigation
+strategies in place.101127
+
+=== PAGE 17 ===
+
+Risk Impact Probability Mitigation Strategy
+High False Positive Rate High Medium Implement a "grace period" and contextual AI. If a candidate looks away, prompt
+them before flagging. Require mandatory human review for any score below 80 to
+override automated flags .
+Client Hardware
+LimitationsHigh High The CV engine must have a graceful degradation "fallback mode." If WebGPU fails or
+FPS drops below 15, the system switches to a less intensive processing mode or
+relaxes the strictness of certain proctoring rules .
+Privacy Backlash / Legal
+ChallengesCritical Low Engage legal counsel specializing in biometric privacy (GDPR, BIPA) from day one.
+Prioritize privacy by design, processing data locally on-device as much as possible to
+minimize data sent to the cloud .
+Evolving Spoofing
+Threats (Deepfakes)Critical Medium Treat this as an ongoing arms race. Allocate 15% of post-launch sprint capacity to
+research and develop new anti-spoofing techniques, such as improved rPPG
+(heartbeat detection) and Moiré pattern analysis .
+Scalability Failure Under
+LoadHigh Medium Use a Kubernetes cluster with auto-scaling for all stateless microservices. Employ a
+message queue (Kafka) to buffer telemetry data, decoupling clients from the
+processing backend and preventing overload .
+Algorithmic Bias
+Leading to
+DiscriminationCritical Medium Conduct a rigorous, third-party Bias & Fairness Audit during the beta phase using
+diverse demographic datasets. The "Accommodation Mode" provides a legal and
+ethical escape hatch for affected candidates .
+This comprehensive plan and risk assessment provide a clear path to delivering a
+technologically advanced, ethically sound, and commercially viable AI proctoring
+platform.
+Reference
+(PDF) A MediaPipe and CNN-Based Framework for Real-Time Sign ... https://
+www.researchgate.net/publication/400449778_A_MediaPipe_and_CNN-
+Based_Framework_for_Real-Time_Sign_Language_Recognition_and_Translation
+Google MediaPipe and WebRTC – How AI & ML can transform Live ... https://
+bigsteptech.com/blog/google-mediapipe-and-webrtc
+How to use non camera YUV stream as input to google mediapipe ... https://
+stackoverflow.com/questions/60464554/how-to-use-non-camera-yuv-stream-as-input-
+to-google-mediapipe-execution-pipline
+Cheating Detection in Browser-based Online Exams through Eye ... https://
+www.researchgate.net/publication/357598466_Cheating_Detection_in_Browser-
+based_Online_Exams_through_Eye_Gaze_Tracking100
+116133
+71
+127
+1. 
+2. 
+3. 
+4. 
+
+=== PAGE 18 ===
+
+Boosting Safety Protocol Compliance with Eye-Tracking in Chemical ... https://
+www.mdpi.com/2076-3417/15/10/5368
+[PDF] AI Based Anti-Cheating Surveillance System - Atlantis Press https://
+www.atlantis-press.com/article/126021240.pdf
+Exploiting the Uncoordinated Privacy Protections of Eye Tracking ... https://arxiv.org/
+html/2411.12766v1
+The Gesture Recognition Improvement of Mediapipe Model Based ... https://
+dl.acm.org/doi/10.1145/3703187.3703295
+MediaPipe Hands: On-device Real-time Hand Tracking https://www.researchgate.net/
+publication/342302340_MediaPipe_Hands_On-device_Real-time_Hand_Tracking
+MP-GestLSTM: real time gesture detection using MediaPipe and LSTM https://
+www.tandfonline.com/doi/full/10.1080/21642583.2025.2587853
+MediaPipe Hands - Read the Docs https://mediapipe.readthedocs.io/en/latest/
+solutions/hands.html
+[2006.10214] MediaPipe Hands: On-device Real-time Hand Tracking https://
+arxiv.org/abs/2006.10214
+MediaPipe Hands: On-device Real-time Hand Tracking https://
+www.semanticscholar.org/paper/MediaPipe-Hands%3A-On-device-Real-time-Hand-
+Tracking-Zhang-Bazarevsky/84b19524609ad75f309be7f87bcea783e6ecd337
+Task-Oriented Communication for Human Action Understanding via ... https://
+arxiv.org/abs/2605.07354
+Cloud-Native Workload Orchestration at the Edge: A Deployment ... https://
+www.mdpi.com/1424-8220/23/4/2215
+Build Next-Gen Physical AI with Edge‑First LLMs for Autonomous ... https://
+developer.nvidia.com/blog/build-next-gen-physical-ai-with-edge%E2%80%91first-
+llms-for-autonomous-vehicles-and-robotics/
+Knowledge-Reusing Adaptation for Fast Rollout of Evolving LLM ... https://arxiv.org/
+html/2606.02606v1
+[PDF] A4A: Adapter for Adapter Transfer via All-for-All Mapping for Cross ... https://
+openaccess.thecvf.com/content/CVPR2025/papers/
+Tu_A4A_Adapter_for_Adapter_Transfer_via_All-for-All_Mapping_for_Cross-
+Architecture_CVPR_2025_paper.pdf
+Strategies for Effective Model Upgrades in Azure OpenAI https://
+techcommunity.microsoft.com/blog/fasttrackforazureblog/future-proofing-ai-
+strategies-for-effective-model-upgrades-in-azure-openai/4029077
+Introducing an Effective Online Exam Proctoring Model using YOLO https://
+www.sciencedirect.com/science/article/pii/S187705092400807X/pdf?5. 
+6. 
+7. 
+8. 
+9. 
+10. 
+11. 
+12. 
+13. 
+14. 
+15. 
+16. 
+17. 
+18. 
+19. 
+20. 
+
+=== PAGE 19 ===
+
+md5=d18be5d4b69d474e74890608b2698ae4&pid=1-s2.0-S187705092400807X-
+main.pdf
+Design Principle of an Automatic Engagement Estimation System in ... https://
+ieeexplore.ieee.org/iel7/6287639/10380310/10438447.pdf
+GDPR Compliance for Remote Proctoring: 7 Tips | Proctor360 https://
+proctor360.com/blog/gdpr-compliance-remote-proctoring-essentials
+Real-Time Gaze Estimation Using Webcam-Based CNN Models for ... https://
+www.mdpi.com/2073-431X/14/2/57
+\webeyetrack: Scalable Eye-Tracking for the Browser via On-Device ... https://
+arxiv.org/html/2508.19544v1
+[PDF] MediaPipe Iris and Kalman Filter for Robust Eye Gaze Tracking https://
+www.atlantis-press.com/article/126011300.pdf
+Real-Time Eye Gaze Estimation for Dynamic Head Movement https://
+www.linkedin.com/posts/amirmahdi-abootalebi_real-time-eye-gaze-estimation-for-
+dynamic-activity-7307381175130456064-enWc
+Real-time Gaze Estimation via Face Mesh and Machine Learning https://
+www.researchgate.net/publication/399173912_Real-
+time_Gaze_Estimation_via_Face_Mesh_and_Machine_Learning_A_Case_Study
+Enterprise AI Architecture: A Comprehensive Framework for Secure ... https://
+www.linkedin.com/posts/aiforexecutives-official_enterprise-ai-architecture-
+%F0%9D%97%95%F0%9D%97%B2%F0%9D%97%B0%F0%9D%97%BC%F0%9D%9
+7%BA%F0%9D%97%B2-activity-7441166739842879488-5kxx
+Artificial Intelligence-Enhanced Interview Success: Leveraging Eye ... https://
+www.mdpi.com/2227-7102/15/2/165
+(PDF) Eye-Tracking and Biometric Feedback in UX Research https://
+www.researchgate.net/publication/392167638_Eye-
+Tracking_and_Biometric_Feedback_in_UX_Research_Measuring_User_Engagement_an
+d_Cognitive_Load
+[2409.06628] Advanced Gaze Analytics Dashboard - arXiv https://arxiv.org/abs/
+2409.06628
+User Perception and Eye Movement on A Pandemic Data ... - PMC https://
+pmc.ncbi.nlm.nih.gov/articles/PMC9874901/
+How to Improve Candidate Experience with AI - IBM https://www.ibm.com/think/
+insights/improve-candidate-experience-with-ai
+I'm seeing a striking shift in UI/UX design interviews lately. - LinkedIn https://
+www.linkedin.com/posts/pankitgami_designinterviews-uiux-aidesign-
+activity-7359102098635927552-jUDX21. 
+22. 
+23. 
+24. 
+25. 
+26. 
+27. 
+28. 
+29. 
+30. 
+31. 
+32. 
+33. 
+34. 
+
+=== PAGE 20 ===
+
+Evaluation of Benchmark Datasets and Deep Learning Models with ... https://
+www.mdpi.com/2076-3417/15/11/6045
+A multi-stage convolutional and self-attention architecture for high ... https://
+link.springer.com/article/10.1007/s11227-026-08481-x
+A hand sign recognition based signal system for mute people using ... https://
+www.sciencedirect.com/science/article/pii/S221501612500514X
+Topics - Pub.dev https://pub.dev/topics
+Engineering Projects at Manipal Institute | PDF | Electric Motor - Scribd https://
+www.scribd.com/document/800262649/MIT-Projects
+Human Micro-Expressions in Multimodal Social Behavioral Biometrics https://
+pmc.ncbi.nlm.nih.gov/articles/PMC10575284/
+Behavioral Biometrics in VR: Changing Sensor Signal Modalities https://
+www.mdpi.com/1424-8220/25/18/5899
+Biometric Security Trends 2025: Fusion Models and Behavioral https://
+ideas.repec.org/a/cvr/ijisrt/202512ijisrt25dec1561.html
+(PDF) Behavioral Biometrics: Past, Present and Future - ResearchGate https://
+www.researchgate.net/publication/
+359225445_Behavioral_Biometrics_Past_Present_and_Future
+Behavioral Biometrics Market Size & Share Report, 2030 https://
+www.grandviewresearch.com/industry-analysis/behavioral-biometrics-market
+Finite state machine based flow analysis for WebRTC applications https://
+www.semanticscholar.org/paper/Finite-state-machine-based-flow-analysis-for-
+WebRTC-Alekseev-Harscher/d1db1857aed6da2637d4ffda226f095270c10c0f
+Enhancing LLM Task-Solving through State-Driven Workflows - arXiv https://
+arxiv.org/html/2403.11322v1
+Automated proctoring | European Data Protection Supervisor https://
+www.edps.europa.eu/data-protection/technology-monitoring/techsonar/automated-
+proctoring
+Good Proctor or “Big Brother”? Ethics of Online Exam Supervision ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC8407138/
+Modern Threat Detection for Online Exam Integrity https://integrityadvocate.com/
+resource-center/blog/modern-threat-detection-for-online-exam-integrity/
+Architecture Overview — NVIDIA TensorRT https://docs.nvidia.com/deeplearning/
+tensorrt/latest/architecture/architecture-overview.html
+Reference Architecture for Generative AI Based on Large Language ... https://
+lenovopress.lenovo.com/lp1798-reference-architecture-for-generative-ai-based-on-
+large-language-models35. 
+36. 
+37. 
+38. 
+39. 
+40. 
+41. 
+42. 
+43. 
+44. 
+45. 
+46. 
+47. 
+48. 
+49. 
+50. 
+51. 
+
+=== PAGE 21 ===
+
+Signal Driven Decision Routing for Mixture-of-Modality Models - arXiv https://
+arxiv.org/html/2603.04444v4
+ML Model Storage Formats. Pickle to GGUF. What Actually Lives ... https://
+www.linkedin.com/pulse/ml-model-storage-formats-pickle-gguf-what-actually-lives-
+kasif-ali-y28gc
+[PDF] national conference on engineering innovations in emerging ... https://
+ijsrst.com/paper/v12i15.pdf
+A Real-Time Gesture-Based Control Framework - arXiv https://arxiv.org/html/
+2504.19460v1
+A Hybrid RTSP-WebRTC Architecture with YOLOv11 - MDPI https://www.mdpi.com/
+2073-431X/15/1/62
+Talview Video Interviewing - Microsoft Marketplace https://
+marketplace.microsoft.com/en-us/product/web-apps/talview.tv_interviewing?
+tab=overview
+EU AI Act & GDPR: Impact on Online Proctoring - Integrity Advocate https://
+integrityadvocate.com/resource-center/blog/the-eu-ai-act-gdpr-and-what-they-mean-
+for-online-proctoring-and-assessment-security/
+Privacy Patterns and Designer Perspectives in UI/UX Practice - arXiv https://arxiv.org/
+html/2601.13342v1
+New UX Patterns for AI Design - LinkedIn https://www.linkedin.com/top-content/
+innovation/ai-trends-and-innovations/new-ux-patterns-for-ai-design/
+Heatmap Explorer: an interactive gaze data visualization tool for the ... https://
+www.researchgate.net/publication/
+308741797_Heatmap_Explorer_an_interactive_gaze_data_visualization_tool_for_the_
+evaluation_of_computer_interfaces
+[PDF] Eye-Tracking and Biometric Feedback in UX Research - arXiv https://arxiv.org/
+pdf/2505.21982
+Artificial Intelligence - arXiv https://arxiv.org/list/cs.AI/new
+MediaPipe with LSTM Architecture for Real-Time Hand Gesture ... https://
+www.researchgate.net/publication/
+381937056_MediaPipe_with_LSTM_Architecture_for_Real-
+Time_Hand_Gesture_Recognization
+Real-Time Hand Gesture Monitoring Model Based on MediaPipe's ... https://
+www.mdpi.com/1424-8220/24/19/6262
+[PDF] On-Device Real-Time Custom Hand Gesture Recognition https://
+openaccess.thecvf.com/content/ICCV2023W/CV4Metaverse/papers/Uboweja_On-
+Device_Real-Time_Custom_Hand_Gesture_Recognition_ICCVW_2023_paper.pdf52. 
+53. 
+54. 
+55. 
+56. 
+57. 
+58. 
+59. 
+60. 
+61. 
+62. 
+63. 
+64. 
+65. 
+66. 
+
+=== PAGE 22 ===
+
+(PDF) Eye-Controlled Human-Computer Interaction System Using ... https://
+www.researchgate.net/publication/392883530_Eye-Controlled_Human-
+Computer_Interaction_System_Using_MediaPipe_and_Computer_Vision
+Talview Interview Proctoring - Microsoft Marketplace https://
+marketplace.microsoft.com/en-us/product/saas/
+talview.talview_interview_proctoring?tab=overview
+DriveWorks SDK Reference: Integrating with Custom Sensors https://
+developer.nvidia.com/docs/drive/drive-os/6.0.7/public/driveworks-nvsdk/
+sensorplugins_mainsection.html
+Behavioral Biometrics in VR: Changing Sensor Signal Modalities https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12473712/
+Anonymization Techniques for Behavioral Biometric Data: A Survey https://
+dl.acm.org/doi/10.1145/3729418
+Architecture, biometrics, and virtual environments triangulation https://
+www.tandfonline.com/doi/full/10.1080/00038628.2021.2008300
+NVIDIA DriveWorks SDK - NVIDIA Developer https://developer.nvidia.com/drive/
+driveworks
+edge-to-cloud ai integration: hybrid architectures for real-time ... https://
+www.researchgate.net/publication/390701542_EDGE-TO-
+CLOUD_AI_INTEGRATION_HYBRID_ARCHITECTURES_FOR_REAL-
+TIME_INFERENCE_AND_DATA_PROCESSING_IN_IOT_APPLICATIONS
+CE-CoLLM: Efficient and Adaptive Large Language Models Through ... https://
+arxiv.org/html/2411.02829v1
+Google's MediaPipe Hands: Real-Time Gesture Recognition ... https://
+eureka.patsnap.com/article/googles-mediapipe-hands-real-time-gesture-recognition-
+breakthroughs
+sequence diagram for typical webrtc use cases (like text, video, audio ) https://
+stackoverflow.com/questions/33813096/sequence-diagram-for-typical-webrtc-use-
+cases-like-text-video-audio
+WebRTC Sequence Diagram - Creately https://creately.com/diagram/example/
+hwvpoqkc1/webrtc-sequence-diagram
+and Event-Driven Frameworks for State Machine Modeling ... - arXiv https://
+arxiv.org/html/2604.00275v1
+Basic WebRTC call flow | Download Scientific Diagram https://
+www.researchgate.net/figure/Basic-WebRTC-call-flow_fig4_290058753
+(PDF) Neuromarketing and Eye-Tracking Technologies Under the ... https://
+www.researchgate.net/publication/377723190_Neuromarketing_and_Eye-67. 
+68. 
+69. 
+70. 
+71. 
+72. 
+73. 
+74. 
+75. 
+76. 
+77. 
+78. 
+79. 
+80. 
+81. 
+
+=== PAGE 23 ===
+
+Tracking_Technologies_Under_the_European_Framework_Towards_the_GDPR_and_B
+eyond
+Anomaly detection jobs from visualizations | Elastic Docs https://www.elastic.co/
+docs/explore-analyze/machine-learning/anomaly-detection/ml-jobs-from-lens
+Eye-tracking study: 5 key learnings for data designers everywhere https://
+www.tableau.com/blog/eye-tracking-study-5-key-learnings-data-designers-
+everywhere-72395
+Real-Time Face Tracking in the Browser with MediaPipe https://dev.to/kenzic/real-
+time-face-tracking-in-the-browser-with-mediapipe-22c9
+[PDF] Low-cost Geometry-based Eye Gaze Detection using Facial ... - arXiv https://
+arxiv.org/pdf/2401.00406
+Review A review on deep learning for vision-based hand detection ... https://
+www.sciencedirect.com/science/article/pii/S0736584525001644
+ACS - SOAP https://soapubs.com/index.php/AIDT/citationstylelanguage/get/acs-
+nano?submissionId=1435&publicationId=1440&issueId=108
+A Framework for the Security and Privacy of Biometric System ... - arXiv https://
+arxiv.org/html/2411.17321v1
+[PDF] Privacy-Friendly Synthetic Data for the Development of Face ... https://
+openaccess.thecvf.com/content/CVPR2022W/Biometrics/papers/Damer_Privacy-
+Friendly_Synthetic_Data_for_the_Development_of_Face_Morphing_Attack_CVPRW_2
+022_paper.pdf
+UML State Machine Diagram - AI Chatbot - Visual Paradigm https://chat.visual-
+paradigm.com/diagram/uml-state-machine-diagram/
+edge-to-cloud ai integration: hybrid architectures for real-time ... https://
+www.researchgate.net/publication/390349135_EDGE-TO-
+CLOUD_AI_INTEGRATION_HYBRID_ARCHITECTURES_FOR_REAL-
+TIME_INFERENCE_AND_DATA_PROCESSING_IN_IOT_APPLICATIONS
+[PDF] Privacy-Aware Routing for Adaptive Cloud–Edge LLM Inference via ... https://
+ojs.aaai.org/index.php/AAAI/article/view/40041/44002
+Researching the CNN Collaborative Inference Mechanism for ... https://
+www.mdpi.com/1424-8220/24/13/4176
+A Mutual Evolution Framework for Edge-Cloud Model Collaboration https://
+openreview.net/forum?id=TYCtNfOlfg
+MediaPipe Holistic Model for Real-Time Face and Hand Tracking https://
+www.linkedin.com/posts/amit-kumar-mishra-bb03355a_opencv-computervision-
+objecttracking-activity-7439025364812660736-ZjOB
+MediaPipe Holistic API. a Hand. b Pose - ResearchGate https://www.researchgate.net/
+figure/MediaPipe-Holistic-API-a-Hand-b-Pose_fig2_37010214082. 
+83. 
+84. 
+85. 
+86. 
+87. 
+88. 
+89. 
+90. 
+91. 
+92. 
+93. 
+94. 
+95. 
+96. 
+
+=== PAGE 24 ===
+
+An integrated mediapipe-optimized GRU model for Indian sign ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC9279358/
+Experts for Nodejs-Mobile-React-Native Plugins Readme - Linknovate https://
+www.linknovate.com/search/?query=nodejs-mobile-react-
+native%20plugins%20readme
+Blockchain-enabled immutable, distributed, and highly available ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC10198529/
+TechDispatch #2/2025 - Human Oversight of Automated Decision ... https://
+www.edps.europa.eu/data-protection/our-work/publications/techdispatch/
+2025-09-23-techdispatch-22025-human-oversight-automated-making
+(PDF) Challenges and Enablers for GDPR Compliance: Systematic ... https://
+www.researchgate.net/publication/
+380953195_Challenges_and_enablers_for_GDPR_compliance_systematic_literature_re
+view_and_future_research_directions
+Revision History for Hybrid SLM and LLM for Edge-Cloud... https://openreview.net/
+revisions?id=YEcDQRsvPF
+(PDF) A Hybrid Edge-Cloud Architecture for Reducing On-Demand ... https://
+www.researchgate.net/publication/275110409_A_Hybrid_Edge-
+Cloud_Architecture_for_Reducing_On-Demand_Gaming_Latency
+Cloud–Edge–End Collaborative Federated Learning - MDPI https://www.mdpi.com/
+1424-8220/24/24/8028
+ONNX Runtime: a one-stop shop for machine learning inferencing https://
+opensource.microsoft.com/blog/2019/05/22/onnx-runtime-machine-learning-
+inferencing-0-4-release/
+ONNX Runtime and Models - Azure Machine Learning https://docs.azure.cn/en-us/
+machine-learning/concept-onnx?view=azureml-api-2
+Deploy High-Performance AI Models in Windows Applications on ... https://
+developer.nvidia.com/blog/deploy-ai-models-faster-with-windows-ml-on-rtx-pcs/
+A Comprehensive Framework for Eye Tracking: Methods, Tools ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12564957/
+Eye Gaze Tracking With a Web Camera in a Desktop Environment https://
+www.researchgate.net/publication/
+276664121_Eye_Gaze_Tracking_With_a_Web_Camera_in_a_Desktop_Environment
+Webcam-based gaze estimation for computer screen interaction https://
+www.frontiersin.org/journals/robotics-and-ai/articles/10.3389/frobt.2024.1369566/
+full
+[PDF] A Merkle Tree Pipeline with Adaptive Chunking - arXiv https://arxiv.org/pdf/
+2605.0006597. 
+98. 
+99. 
+100. 
+101. 
+102. 
+103. 
+104. 
+105. 
+106. 
+107. 
+108. 
+109. 
+110. 
+111. 
+
+=== PAGE 25 ===
+
+MediaPipe Hands: On-device Real-time Hand Tracking 论文阅读笔记 https://
+blog.csdn.net/chenpy/article/details/121203844
+Google MediaPipe Real-Time Hand Tracking on Nano https://
+forums.developer.nvidia.com/t/google-mediapipe-real-time-hand-tracking-on-nano/
+80281
+The Complete Handbook For Touch Heatmap Analytics - 知乎 https://
+zhuanlan.zhihu.com/p/56323050
+Compliance - FaiceTech https://www.faicetech.com/home-page/compliance/
+[PDF] Privacy by Design: Aligning GDPR and Software Engineering ... - arXiv https://
+arxiv.org/pdf/2510.21591
+[PDF] A Modular Multimodal Architecture for Gaze Target Prediction https://
+openaccess.thecvf.com/content/CVPR2022W/GAZE/papers/
+Gupta_A_Modular_Multimodal_Architecture_for_Gaze_Target_Prediction_Application
+_to_CVPRW_2022_paper.pdf
+Eye Gaze Detection Using a Hybrid Multimodal Deep Learning ... https://
+www.mdpi.com/2076-3417/16/2/986
+[PDF] GPA-DESWG-RESOLUTION-ON-SURVEILLANCE ... https://
+globalprivacyassembly.com/wp-content/uploads/2025/02/GPA-DESWG-
+RESOLUTION-ON-SURVEILLANCE-TECHNOLOGIES-FV.pdf
+(PDF) Advancing Multi-Modal Behavioral Biometric Authentication https://
+www.researchgate.net/publication/396667668_Advancing_Multi-
+Modal_Behavioral_Biometric_Authentication_A_Deep_Learning_Approach_with_Synth
+etic_Data_Generation
+(PDF) Gaze Tracking With Multi-Modal Neural Network In Desktop ... https://
+www.researchgate.net/publication/376032404_Gaze_Tracking_With_Multi-
+Modal_Neural_Network_In_Desktop_Environments_Using_Generic_Web_Camera
+[PDF] Characterizing Face Recognition for Resource Efficient Deployment ... https://
+openaccess.thecvf.com/content/ICCV2023W/RCV/papers/
+Biswas_Characterizing_Face_Recognition_for_Resource_Efficient_Deployment_on_Edg
+e_ICCVW_2023_paper.pdf
+Enhancing AI System Privacy: An Automatic Tool for Achieving ... https://
+www.sciopen.com/article/10.32604/cmc.2024.052310
+gdpr compliant methods of data protection - ResearchGate https://
+www.researchgate.net/publication/
+339242645_GDPR_COMPLIANT_METHODS_OF_DATA_PROTECTION
+ASL recognition mediapipe 3 - Kaggle https://www.kaggle.com/code/vnefedov/asl-
+recognition-mediapipe-3112. 
+113. 
+114. 
+115. 
+116. 
+117. 
+118. 
+119. 
+120. 
+121. 
+122. 
+123. 
+124. 
+125. 
+
+=== PAGE 26 ===
+
+FEAD: Figma-Enhanced App Design Framework for Improving UI ... https://arxiv.org/
+html/2412.06793v1
+A Systematic Review on AI-based Proctoring Systems: Past, Present ... https://
+www.researchgate.net/publication/352702952_A_Systematic_Review_on_AI-
+based_Proctoring_Systems_Past_Present_and_Future
+Publications | Borui LI 李博睿 https://www.liborui.cn/publication/
+Minimalism and Cognitive Load Reduction in UI Layout https://imprimaenlinea.com/
+minimalism-and-cognitive-load-reduction-in-ui-layout/?
+srsltid=AfmBOorWsk_YA6RxQLNHnnS4KEONhgoDT4KO8yNWglrz1GzyEYaPpCPD
+Reducing Cognitive Load in UI Design - ResearchGate https://www.researchgate.net/
+publication/390339108_Reducing_Cognitive_Load_in_UI_Design
+Reduce Cognitive Load in Design with Proven Methods - LinkedIn https://
+www.linkedin.com/videos/zanderwhitehurst_ux-ui-design-
+activity-7468299922228932610-LRZb
+html - arXiv https://arxiv.org/html/2510.03035v1
+Onfido US Biometric Privacy Laws notices and consent (US) https://
+documentation.identity.entrust.com/guide/onfido-privacy-notices-and-consent
+[PDF] Heatmap Explorer: an interactive gaze data visualization tool ... https://
+www.semanticscholar.org/paper/Heatmap-Explorer%3A-an-interactive-gaze-data-
+tool-for-Tula-Kurauchi/532c93d1462bff6025292245f2a7d5ee991dc47c
+One heat map example of the eye-tracking experiment. https://
+www.researchgate.net/figure/One-heat-map-example-of-the-eye-tracking-
+experiment_fig3_362261280
+[PDF] Guidelines 3/2019 on processing of personal data through video ... https://
+www.edpb.europa.eu/sites/default/files/files/file1/
+edpb_guidelines_201903_video_devices_en_0.pdf
+Edge Computing Approach to AI-Based Gesture for Human–Robot ... https://
+www.mdpi.com/2073-431X/15/4/241
+Cross-Platform Edge AI Made Easy with ONNX Runtime https://
+techcommunity.microsoft.com/blog/azure-ai-foundry-blog/cross-platform-edge-ai-
+made-easy-with-onnx-runtime/4303521
+Accepted Papers - ACM ETRA https://etra.acm.org/2024/acceptedpapers.html
+(PDF) AI-Driven UX/UI Design: Empirical Research and Applications ... https://
+www.researchgate.net/publication/382956602_AI-
+Driven_UXUI_Design_Empirical_Research_and_Applications_in_FinTech
+Journal of Computer Research and Development 2026 Vol. 63 No. 6 https://
+crad.ict.ac.cn/en/article/current126. 
+127. 
+128. 
+129. 
+130. 
+131. 
+132. 
+133. 
+134. 
+135. 
+136. 
+137. 
+138. 
+139. 
+140. 
+141. 
+
+=== PAGE 27 ===
+
+The impact of minimalist design on sustainable consumption behavior https://
+journal.psych.ac.cn/xlkxjz/EN/10.3724/SP.J.1042.2025.1541
+A Scanner Deeply: Predicting Gaze Heatmaps On Visualizations ... https://
+www.researchgate.net/publication/
+363911904_A_Scanner_Deeply_Predicting_Gaze_Heatmaps_On_Visualizations_Using_
+Crowdsourced_Eye_Movement_Data142. 
+143. 

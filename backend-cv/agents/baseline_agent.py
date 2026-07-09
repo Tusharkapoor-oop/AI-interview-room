@@ -1,102 +1,69 @@
-"""
-AEGIS Research Institute — Next-Generation Backend AI Evaluation Blueprint
-Module: Baseline Agent (Kolmogorov-Smirnov Non-Parametric Distribution Evaluator)
-Strict Rule Compliance: [ZERO-COMPROMISE-1] — Pure backend statistical evaluation engine.
-
-Compares enrollment / calibration telemetry distributions against live interview windows
-using the two-sample Kolmogorov-Smirnov (KS) test to detect identity substitution or
-artificial posture enforcement.
-"""
-
 import math
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
+from .ks_test import kolmogorov_smirnov_2samp
+
+
+MIN_ENROLLMENT_SAMPLES = 30
+MAX_ENROLLMENT_SAMPLES = 300
+BASE_D_THRESHOLD = 0.35
 
 
 class BaselineAgentEvaluator:
-    """
-    Implements Section 11.2: KS-Test Statistical Baseline Gaze & Pose Modeling.
-    """
 
     def __init__(self, significance_alpha: float = 0.005, critical_d_threshold: float = 0.35):
-        """
-        :param significance_alpha: p-value threshold below which distribution shifts are flagged.
-        :param critical_d_threshold: KS D-statistic threshold representing maximum tolerable distribution divergence.
-        """
         self.significance_alpha = significance_alpha
         self.critical_d_threshold = critical_d_threshold
 
-    @staticmethod
-    def compute_ks_2samp(sample1: List[float], sample2: List[float]) -> Tuple[float, float]:
+    def assess_enrollment_quality(self, baseline_profile: Dict[str, List[float]]) -> Dict[str, Any]:
         """
-        Computes the two-sample Kolmogorov-Smirnov D-statistic and approximate p-value
-        purely algebraically without external heavy dependency bottlenecks.
+        Evaluates the quality of enrollment data.
+        Short or low-variance enrollment yields wider acceptance thresholds.
         """
-        n1 = len(sample1)
-        n2 = len(sample2)
-        if n1 == 0 or n2 == 0:
-            return 0.0, 1.0
+        metric_counts = {}
+        low_quality_metrics = []
 
-        s1_sorted = sorted(sample1)
-        s2_sorted = sorted(sample2)
+        for metric_name, data in baseline_profile.items():
+            n = len(data)
+            metric_counts[metric_name] = n
+            if n < MIN_ENROLLMENT_SAMPLES:
+                low_quality_metrics.append(metric_name)
 
-        # Merge sorted arrays while tracking empirical CDF differences
-        i = 0
-        j = 0
-        d_max = 0.0
+            if n >= 2:
+                mean_val = sum(data) / n
+                variance = sum((x - mean_val) ** 2 for x in data) / n
+                std_val = math.sqrt(variance)
+                if std_val < 1e-6:
+                    low_quality_metrics.append(f"{metric_name}(low_variance)")
 
-        while i < n1 and j < n2:
-            val1 = s1_sorted[i]
-            val2 = s2_sorted[j]
-            if val1 < val2:
-                i += 1
-            elif val2 < val1:
-                j += 1
-            else:
-                i += 1
-                j += 1
-            cdf1 = i / n1
-            cdf2 = j / n2
-            d = abs(cdf1 - cdf2)
-            if d > d_max:
-                d_max = d
+        total_samples = sum(metric_counts.values())
+        avg_samples = total_samples / max(1, len(metric_counts))
+        quality_score = min(1.0, avg_samples / MIN_ENROLLMENT_SAMPLES)
+        enrollment_adequate = len(low_quality_metrics) == 0
 
-        # Handle remaining tails
-        while i < n1:
-            i += 1
-            d = abs((i / n1) - 1.0)
-            if d > d_max:
-                d_max = d
-        while j < n2:
-            j += 1
-            d = abs(1.0 - (j / n2))
-            if d > d_max:
-                d_max = d
-
-        # Approximate asymptotic p-value using Smirnov's formula
-        en = math.sqrt((n1 * n2) / (n1 + n2))
-        lmbd = (en + 0.12 + 0.11 / en) * d_max
-        if lmbd == 0.0:
-            p_val = 1.0
-        else:
-            # Kolmogorov asymptotic series approximation
-            p_val = 0.0
-            for k in range(1, 101):
-                term = 2.0 * ((-1) ** (k - 1)) * math.exp(-2.0 * (k * lmbd) ** 2)
-                p_val += term
-                if abs(term) < 1e-10:
-                    break
-            p_val = max(0.0, min(1.0, p_val))
-
-        return round(d_max, 6), round(p_val, 6)
+        return {
+            "total_samples": total_samples,
+            "average_samples_per_metric": round(avg_samples, 1),
+            "quality_score": round(quality_score, 4),
+            "low_quality_metrics": low_quality_metrics,
+            "enrollment_adequate": enrollment_adequate,
+            "adaptive_d_threshold": round(
+                self.critical_d_threshold * (1.0 + 0.5 * (1.0 - quality_score)),
+                4,
+            ),
+            "explanation": (
+                "Enrollment quality adequate for statistical baseline comparison."
+                if enrollment_adequate
+                else f"Insufficient enrollment data for {len(low_quality_metrics)} metric(s): {', '.join(low_quality_metrics[:3])}. Thresholds widened."
+            ),
+        }
 
     def evaluate_metric_divergence(
-        self, metric_name: str, baseline_samples: List[float], live_samples: List[float]
+        self, metric_name: str, baseline_samples: List[float], live_samples: List[float],
+        adaptive_threshold: float = None,
     ) -> Dict[str, Any]:
-        """
-        Evaluates distribution shift for a specific biometric feature (e.g., yaw_angle, saccade_velocity).
-        """
-        d_stat, p_value = self.compute_ks_2samp(baseline_samples, live_samples)
-        is_divergent = (d_stat >= self.critical_d_threshold) and (p_value <= self.significance_alpha)
+        d_stat, p_value = kolmogorov_smirnov_2samp(baseline_samples, live_samples)
+        threshold = adaptive_threshold if adaptive_threshold is not None else self.critical_d_threshold
+        is_divergent = (d_stat >= threshold) and (p_value <= self.significance_alpha)
 
         return {
             "metric": metric_name,
@@ -104,6 +71,7 @@ class BaselineAgentEvaluator:
             "live_sample_count": len(live_samples),
             "ks_d_statistic": d_stat,
             "p_value": p_value,
+            "threshold_used": threshold,
             "divergence_detected": is_divergent,
         }
 
@@ -112,9 +80,9 @@ class BaselineAgentEvaluator:
         baseline_profile: Dict[str, List[float]],
         live_profile: Dict[str, List[float]],
     ) -> Dict[str, Any]:
-        """
-        Evaluates a complete multi-metric session profile against enrollment baselines.
-        """
+        enrollment_quality = self.assess_enrollment_quality(baseline_profile)
+        adaptive_threshold = enrollment_quality["adaptive_d_threshold"]
+
         results = {}
         divergent_count = 0
         total_metrics = 0
@@ -122,7 +90,8 @@ class BaselineAgentEvaluator:
         for metric_name, baseline_data in baseline_profile.items():
             if metric_name in live_profile:
                 eval_res = self.evaluate_metric_divergence(
-                    metric_name, baseline_data, live_profile[metric_name]
+                    metric_name, baseline_data, live_profile[metric_name],
+                    adaptive_threshold=adaptive_threshold,
                 )
                 results[metric_name] = eval_res
                 total_metrics += 1
@@ -135,14 +104,16 @@ class BaselineAgentEvaluator:
         risk_score = round(divergent_count / max(1, total_metrics), 4)
 
         return {
+            "enrollment_quality": enrollment_quality,
             "total_metrics_evaluated": total_metrics,
             "divergent_metrics_count": divergent_count,
             "metric_results": results,
             "overall_risk_score": risk_score,
+            "adaptive_d_threshold": adaptive_threshold,
             "violation_flagged": overall_violation,
             "explanation": (
                 f"Flagged statistically significant distribution shift in {divergent_count}/{total_metrics} metrics "
-                f"(KS D-stat >= {self.critical_d_threshold}, p <= {self.significance_alpha})."
+                f"(KS D >= {adaptive_threshold:.2f}, p <= {self.significance_alpha})."
                 if overall_violation
                 else "Live session telemetry matches baseline distribution within statistical bounds."
             ),

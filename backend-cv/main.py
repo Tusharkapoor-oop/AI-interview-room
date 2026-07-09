@@ -11,14 +11,17 @@ Changes from v3.0:
   - OpenTelemetry + Prometheus monitoring
   - Secret validation on startup (fail-fast)
 """
+# ruff: noqa: E402
 import asyncio
 import base64
 import json
 import logging
 import os
 import re
+import concurrent.futures
 import threading
 import time
+import typing
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -39,11 +42,11 @@ from fastapi.security import HTTPBearer
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, InterviewSession, AgentArtifact, TelemetryEvent, User, Candidate
+from database import SessionLocal, InterviewSession, AgentArtifact, TelemetryEvent, User, Candidate, SessionInvitation
 from agents import AegisHub
 from agents.hub import _detect_injection
 from agents.utils import compute_integrity_score
-from agents.cv_agent import CVAgent
+from agents.cv_agent import CVAgent, RiskEvent
 from mcp.client import MCPClient
 from mcp.sqlite_server import _build_sqlite_server
 from mcp.github_server import _build_github_server
@@ -51,6 +54,7 @@ from memory.manager import MemoryManager
 from agents.forensic_engine import KSTestBaselineEngine, WhitespaceFixationDetector, KinematicGazeLivenessEngine, ForensicObservation
 from agents.protocol_engine import Protocol12LayerEngine
 from agents.fusion_engine import FiveChannelFusionEngine, ChannelPacket
+from utils.frame_skipper import FrameSkipper
 from auth import (
     create_access_token, create_refresh_token, decode_token,
     hash_password, verify_password, get_current_user_from_ws, validate_origin,
@@ -62,7 +66,7 @@ from event_batcher import EventBatcher
 from schemas import LoginRequest, RefreshRequest, UserCreate, TokenResponse, WS_MESSAGE_MODELS
 from monitoring import (
     setup_observability, tracer, WS_MESSAGES_TOTAL, WS_LATENCY, SESSIONS_ACTIVE,
-    RISK_EVENTS_TOTAL, metrics_endpoint, tag_span_with_session,
+    RISK_EVENTS_TOTAL, metrics_endpoint,
 )
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
@@ -122,7 +126,7 @@ def _prune_lockouts(now: float | None = None):
 
 # ─── WebSocket Message Size Limits (C-11) ────────────────────────────────────
 WS_MAX_TEXT_SIZE = 512 * 1024  # 512KB per message
-WS_MAX_FRAME_SIZE = 10 * 1024 * 1024  # 10MB per base64 frame (larger for CV data)
+WS_MAX_FRAME_SIZE = 5 * 1024 * 1024  # 5MB per base64 frame (C-11: 5MB limit)
 
 # ─── Global DB Event Batcher ─────────────────────────────────────────────────
 event_batcher = EventBatcher(db_session_factory=SessionLocal)
@@ -206,17 +210,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Parse allowed hosts (defaults to '*' so cloud load balancers and health checks pass)
-# Include Render's internal hostnames for health checks
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h.strip()]
-# Add common cloud load balancer hostnames that may appear in Host header
-if "*" not in ALLOWED_HOSTS:
+# Parse allowed hosts (defaults to empty - require explicit ALLOWED_HOSTS configuration)
+# SEV-08 FIX: Default to empty list to prevent Host header injection. Cloud load balancers
+# and health checks must be explicitly configured via ALLOWED_HOSTS env var.
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
+# Add local development hosts (only used when not in production with explicit config)
+if os.getenv("ENVIRONMENT", "development") == "development" and "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.extend([
         "localhost",
         "127.0.0.1",
-        ".onrender.com",  # Render's default domain
-        ".render.com",    # Alternative Render domain
     ])
+# Production hosts must be explicitly configured via ALLOWED_HOSTS env var
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=ALLOWED_HOSTS,
@@ -228,9 +232,9 @@ async def add_security_headers(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), display-capture=(self)"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), display-capture=(self), battery=(), serial=(), usb=()"
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws:; font-src 'self'; object-src 'none'; frame-ancestors 'none'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; font-src 'self'; object-src 'none'; frame-ancestors 'none'"
     return response
 
 # ─── Content-Type Enforcement (H-14) ─────────────────────────────────────────
@@ -302,7 +306,6 @@ async def csrf_middleware(request: Request, call_next):
     return await call_next(request)
 
 # ─── MediaPipe Setup ──────────────────────────────────────────────────────────
-import threading
 import urllib.request
 import math
 
@@ -366,7 +369,9 @@ except Exception as e:
 
 face_landmarker = None
 hand_landmarker = None
-cv_pool_size = max(1, os.cpu_count() or 2)
+# To prevent Out-of-Memory (OOM) errors on 512MB RAM cloud tiers (e.g. Render/Heroku)
+# where os.cpu_count() reports host cores (16+), default pool size to 1 unless overridden.
+cv_pool_size = max(1, int(os.getenv("CV_POOL_SIZE", "1")))
 cv_pool_index = 0
 cv_pool_lock = threading.Lock()
 
@@ -722,14 +727,14 @@ def _infer_frame(b64_frame: str, pose_smoother: KalmanPoseSmoother, gaze_smoothe
         pupil_diameter_est = round((iris_w / w) * 120.0 * 0.3, 2)
 
     mouth_open = False
-    if face_detected and lms and len(lms) >= 478:
-        upper_lip = lms[13]  # inner upper lip center (MediaPipe 478-point face mesh)
-        lower_lip = lms[14]  # inner lower lip center (MediaPipe 478-point face mesh)
+    if face_detected and lms and len(lms) >= 468:
+        upper_lip = lms[13]  # inner upper lip center (MediaPipe 468/478-point face mesh)
+        lower_lip = lms[14]  # inner lower lip center (MediaPipe 468/478-point face mesh)
         lip_dist = abs(upper_lip.y - lower_lip.y) * h
-        eye_h_px = abs(lms[159].y - lms[145].y) * h if len(lms) >= 478 else h * 0.02
+        eye_h_px = abs(lms[159].y - lms[145].y) * h if len(lms) >= 468 else h * 0.02
         mouth_open = lip_dist > eye_h_px * 1.5 if eye_h_px > 0 else False
 
-    eye_open = (ear_left + ear_right) / 2.0 > 0.2 if face_detected else False
+    eye_open = ((ear_left or 0.3) + (ear_right or 0.3)) / 2.0 > 0.2 if face_detected else False
     avg_brightness_val = round(frame_brightness, 4)
 
     return {
@@ -762,9 +767,13 @@ def validate_session_id(session_id: typing.Any) -> bool:
     return bool(UUID_REGEX.match(session_id))
 
 
+# P-2: Bounded ThreadPoolExecutor for CV inference (max_workers=4)
+_cv_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="cv_infer")
+
+
 async def infer_async(b64_frame: str, pose_smoother: KalmanPoseSmoother, gaze_smoother: KalmanGazeSmoother) -> dict:
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _infer_frame, b64_frame, pose_smoother, gaze_smoother)
+    return await loop.run_in_executor(_cv_executor, _infer_frame, b64_frame, pose_smoother, gaze_smoother)
 
 
 # ─── WebSocket: CV Proctoring ─────────────────────────────────────────────────
@@ -778,9 +787,7 @@ async def ws_cv(websocket: WebSocket):
         await websocket.close(code=4003, reason="Authentication failed")
         return
 
-    await websocket.accept()
-
-    # ── Rate Limit ──────────────────────────────────────────────────────────
+    # ── Rate Limit BEFORE accept ────────────────────────────────────────────
     if not await ws_rate_limiter.check_websocket(websocket):
         await websocket.close(code=4003, reason="Rate limit exceeded")
         return
@@ -797,11 +804,16 @@ async def ws_cv(websocket: WebSocket):
             if not existing:
                 await websocket.close(code=4004, reason="Invalid session_id")
                 return
+            if user.get("role") != "ADMIN" and existing.candidate_id and existing.candidate_id != user.get("sub"):
+                await websocket.close(code=4003, reason="Access denied to this session")
+                return
             session_id = candidate_session_id
         else:
             session_id = str(uuid.uuid4())
     finally:
         db_check.close()
+
+    await websocket.accept()
     active_ws_connections[f"cv:{session_id}"] = websocket
     cv_agent = CVAgent(session_id=session_id)
 
@@ -819,6 +831,7 @@ async def ws_cv(websocket: WebSocket):
 
     db: Session = SessionLocal()
     try:
+        frame_skipper = FrameSkipper(target_fps=10.0)
         while True:
             # ── Rate limit per-message ─────────────────────────────────────
             if not await ws_rate_limiter.check_websocket(websocket):
@@ -826,6 +839,10 @@ async def ws_cv(websocket: WebSocket):
                 continue
 
             raw = await websocket.receive_text()
+
+            # P-2: Frame skipping — target 10 FPS processing
+            if not frame_skipper.should_process():
+                continue
             if len(raw) > WS_MAX_FRAME_SIZE:
                 log.warning("[ws/cv] Frame too large: %d bytes", len(raw))
                 await websocket.send_json({"status": "error", "msg": "frame_too_large"})
@@ -833,14 +850,40 @@ async def ws_cv(websocket: WebSocket):
 
             # Handle JSON messages — frame envelope or ping
             stimulus_brightness = None
+            expected_dot_x = None
+            expected_dot_y = None
+            gotcha_prompt = None
             try:
                 msg = json.loads(raw)
                 if isinstance(msg, dict):
                     if msg.get("type") == "ping":
                         await websocket.send_json({"type": "pong", "timestamp": time.time()})
                         continue
+                    if msg.get("type") in ("skip", "skip_event"):
+                        db_event = TelemetryEvent(
+                            session_id=session_id,
+                            event_type="CREDENTIAL_WEAKNESS",
+                            severity="HIGH",
+                            confidence=0.9,
+                            description="Candidate skipped biometric verification phase. Operating in degraded trust mode."
+                        )
+                        await event_batcher.add(db_event)
+                        RISK_EVENTS_TOTAL.labels(severity="HIGH").inc()
+                        hub = SESSION_HUBS.get(session_id)
+                        if hub:
+                            hub._flag_security_event(RiskEvent(
+                                session_id=session_id,
+                                event_type="CREDENTIAL_WEAKNESS",
+                                severity="HIGH",
+                                description="Biometric verification skipped"
+                            ))
+                        await websocket.send_json({"status": "ok", "msg": "skip_event_logged"})
+                        continue
                     if msg.get("type") == "frame" and "data" in msg:
                         stimulus_brightness = msg.get("stimulus_brightness")
+                        expected_dot_x = msg.get("expected_dot_x")
+                        expected_dot_y = msg.get("expected_dot_y")
+                        gotcha_prompt = msg.get("gotcha_prompt")
                         raw = msg["data"]
                     else:
                         continue
@@ -852,6 +895,27 @@ async def ws_cv(websocket: WebSocket):
             result = await infer_async(raw, pose_smoother, gaze_smoother)
             if stimulus_brightness is not None:
                 result["stimulus_brightness"] = stimulus_brightness
+            if expected_dot_x is not None and expected_dot_y is not None:
+                try:
+                    ex = float(expected_dot_x)
+                    ey = float(expected_dot_y)
+                    gh = float(result.get("eye_gaze", {}).get("h", 0.0))
+                    gv = float(result.get("eye_gaze", {}).get("v", 0.0))
+                    result["expected_dot_x"] = ex
+                    result["expected_dot_y"] = ey
+                    result["gaze_target_error"] = round(math.hypot(gh - ex, gv - ey), 4)
+                except (ValueError, TypeError):
+                    pass
+            if gotcha_prompt is not None:
+                result["gotcha_prompt"] = gotcha_prompt
+                gotcha_passed = False
+                if "hand slowly across your face" in gotcha_prompt or "hand" in gotcha_prompt.lower():
+                    gotcha_passed = result.get("hand_anomaly", False) or (result.get("face_detected", False) and result.get("hand_anomaly_desc", "") != "")
+                elif "head 45°" in gotcha_prompt or "turn your head" in gotcha_prompt.lower():
+                    gotcha_passed = abs(float(result.get("pose", {}).get("yaw", 0.0))) > 35.0
+                elif "finger over your lips" in gotcha_prompt or "lips" in gotcha_prompt.lower():
+                    gotcha_passed = result.get("hand_anomaly", False)
+                result["v4_gotcha"] = {"prompt": gotcha_prompt, "passed": gotcha_passed}
 
             event = cv_agent.process(result)
 
@@ -923,7 +987,19 @@ async def ws_cv(websocket: WebSocket):
                 hub = SESSION_HUBS.get(session_id)
                 if hub:
                     try:
-                        hub.ingest_security_features(result)
+                        hub_security = await hub.ingest_security_features(result)
+                        if hub_security and "error" not in hub_security:
+                            result["v4_security"] = hub_security
+                            if hub_security.get("emotion_analysis"):
+                                result["emotion_analysis"] = hub_security["emotion_analysis"]
+                            if hub_security.get("liveness"):
+                                result["v4_liveness"] = hub_security["liveness"]
+                            if hub_security.get("fusion"):
+                                result["v4_fusion"] = hub_security["fusion"]
+                            if hub_security.get("deepfake"):
+                                result["deepfake_risk"] = hub_security["deepfake"]
+                            if hub_security.get("kinematic"):
+                                result["kinematic_risk"] = hub_security["kinematic"]
                     except Exception as hub_err:
                         log.warning("[ws/cv] hub.ingest_security_features failed: %s", hub_err)
 
@@ -998,7 +1074,8 @@ async def ws_interview(websocket: WebSocket):
 
     db: Session = SessionLocal()
     try:
-        db_record = InterviewSession(id=session_id, status="IN_PROGRESS")
+        cand_sub = user.get("sub") if user.get("role") == "CANDIDATE" else candidate_id
+        db_record = InterviewSession(id=session_id, status="IN_PROGRESS", candidate_id=cand_sub)
         db.add(db_record)
         db.commit()
     except Exception:
@@ -1196,9 +1273,7 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
         await websocket.close(code=4004, reason="Invalid session_id format")
         return
 
-    await websocket.accept()
-
-    # ── Validate session exists ─────────────────────────────────────────────
+    # ── Validate session exists BEFORE accept ───────────────────────────────
     db: Session = SessionLocal()
     try:
         session_record = db.query(InterviewSession).filter_by(id=session_id).first()
@@ -1214,6 +1289,8 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
     if not await ws_rate_limiter.check_websocket(websocket):
         await websocket.close(code=4003, reason="Rate limit exceeded")
         return
+
+    await websocket.accept()
 
     # H-14: Prevent recruiter socket hijacking — close existing connection
     existing_ws = recruiter_sockets.get(session_id)
@@ -1283,6 +1360,23 @@ async def ws_recruiter(websocket: WebSocket, session_id: str):
             elif action == "IGNORE":
                 log.info("[ws/recruiter] IGNORE issued for session %s (audit_id=%s)", session_id, audit_id)
 
+            # Phase 3.6: Persist HITL decision to DB for audit trail
+            try:
+                from database import HITLDecision
+                audit_db: Session = SessionLocal()
+                db_hitl = HITLDecision(
+                    session_id=session_id,
+                    audit_id=audit_id,
+                    recruiter_id=user.get("sub", "unknown"),
+                    decision=action,
+                    escalation_type="SECURITY",
+                )
+                audit_db.add(db_hitl)
+                audit_db.commit()
+                audit_db.close()
+            except Exception as e:
+                log.warning("[ws/recruiter] Failed to persist HITL decision: %s", e)
+
             # H-16: Include audit_id in acknowledgment
             await websocket.send_json({"status": "ok", "action": action, "audit_id": audit_id})
 
@@ -1318,6 +1412,157 @@ def metrics(authorization: str = Header("")):
         if not expected or token != expected:
             raise HTTPException(status_code=403, detail="Invalid metrics token")
     return metrics_endpoint()
+
+
+# ─── GenD Deepfake Detection ────────────────────────────────────────────────
+_gend_service_instance = None
+
+def _get_gend():
+    global _gend_service_instance
+    if _gend_service_instance is None:
+        from agents.gend_service import GenDService
+        _gend_service_instance = GenDService(force_heuristic=True)
+    return _gend_service_instance
+
+
+class GendInferRequest(BaseModel):
+    clip_embedding: list[float] = Field(..., min_length=64, max_length=4096)
+    model: str = "heuristic"
+
+
+class GendInferResponse(BaseModel):
+    model: str
+    gend_score: float
+    deepfake_flagged: bool
+    explanation: str
+
+
+@app.post("/api/v1/gend/infer", tags=["GenD"])
+async def gend_infer(body: GendInferRequest, user: dict = Depends(require_auth)):
+    """Run GenD deepfake inference on a CLIP embedding.
+    
+    Accepts a CLIP embedding vector and returns a deepfake probability score.
+    Uses heuristic fallback when PyTorch model is not loaded.
+    """
+    gend = _get_gend()
+    result = gend.infer_from_embedding(body.clip_embedding)
+    return GendInferResponse(
+        model=result.get("model", "heuristic"),
+        gend_score=result.get("gend_score", 0.5),
+        deepfake_flagged=result.get("deepfake_flagged", False),
+        explanation=result.get("explanation", ""),
+    )
+
+
+# ─── Invitation Endpoints (Phase 6.7) ──────────────────────────────────────
+class InvitationCreateRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, pattern=r'^[a-zA-Z0-9-]+$')
+    expires_hours: int = Field(default=24, ge=1, le=168)
+
+
+class InvitationCreateResponse(BaseModel):
+    invitation_id: str
+    token: str
+    join_url: str
+    expires_at: str
+
+
+class InvitationJoinRequest(BaseModel):
+    token: str = Field(..., min_length=8, max_length=64)
+
+
+class InvitationJoinResponse(BaseModel):
+    session_id: str
+    access_token: str
+    expires_in: int
+
+
+@app.post("/api/v1/invitations/create", tags=["Invitations"])
+def create_invitation(body: InvitationCreateRequest, user: dict = Depends(require_auth)):
+    """Generate a CSPRNG invitation token for a session (recruiter/admin only)."""
+    if user.get("role") not in ("RECRUITER", "ADMIN"):
+        raise HTTPException(status_code=403, detail="Only recruiters and admins can create invitations")
+
+    import secrets
+    import hashlib
+    from datetime import timedelta
+
+    db = SessionLocal()
+    try:
+        session = db.query(InterviewSession).filter_by(id=body.session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        existing = db.query(SessionInvitation).filter_by(session_id=body.session_id).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Invitation already exists for this session")
+
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        token_prefix = token[:8]
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=body.expires_hours)
+
+        invitation = SessionInvitation(
+            session_id=body.session_id,
+            recruiter_id=user.get("sub"),
+            token_hash=token_hash,
+            token_prefix=token_prefix,
+            expires_at=expires_at,
+        )
+        db.add(invitation)
+        db.commit()
+
+        return InvitationCreateResponse(
+            invitation_id=invitation.id,
+            token=token,
+            join_url=f"/join?token={token}",
+            expires_at=expires_at.isoformat(),
+        )
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/invitation/join", tags=["Invitations"])
+def join_via_invitation(body: InvitationJoinRequest):
+    """Join a session via invitation token — no auth required."""
+    import hashlib
+
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+
+    db = SessionLocal()
+    try:
+        invitation = db.query(SessionInvitation).filter_by(token_hash=token_hash).first()
+        if not invitation:
+            raise HTTPException(status_code=404, detail="Invalid invitation token")
+
+        if invitation.status == "USED":
+            raise HTTPException(status_code=410, detail="Invitation already used")
+
+        if invitation.status == "EXPIRED":
+            raise HTTPException(status_code=410, detail="Invitation expired")
+
+        if datetime.now(timezone.utc) > invitation.expires_at:
+            invitation.status = "EXPIRED"
+            db.commit()
+            raise HTTPException(status_code=410, detail="Invitation expired")
+
+        invitation.used_at = datetime.now(timezone.utc)
+        invitation.status = "USED"
+
+        session = db.query(InterviewSession).filter_by(id=invitation.session_id).first()
+        if session:
+            session.status = "IN_PROGRESS"
+
+        access_token = create_access_token({"sub": invitation.session_id, "role": "CANDIDATE", "email": f"invited-{invitation.session_id[:8]}@aegis-platform.com"})
+        db.commit()
+
+        return InvitationJoinResponse(
+            session_id=invitation.session_id,
+            access_token=access_token,
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+    finally:
+        db.close()
 
 
 # ─── Auth Endpoints ──────────────────────────────────────────────────────────
@@ -1575,7 +1820,7 @@ async def get_integrity_report(session_id: str, user: dict = Depends(require_ses
 
 # ─── Serve Frontend SPA in Production (H-17) ──────────────────────────────────
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 dist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
 if os.path.exists(dist_path):

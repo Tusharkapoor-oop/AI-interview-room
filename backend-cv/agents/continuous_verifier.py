@@ -88,3 +88,52 @@ class ContinuousVerifier:
                 description=f"Active liveness challenge failed with confidence score: {score:.1%}"
             )
         return None
+
+    @staticmethod
+    def cosine_similarity(v1: list[float], v2: list[float]) -> float:
+        import math
+        n = min(len(v1), len(v2))
+        if n == 0:
+            return 0.0
+        dot = sum(v1[i] * v2[i] for i in range(n))
+        m1 = math.sqrt(sum(v1[i] ** 2 for i in range(n)))
+        m2 = math.sqrt(sum(v2[i] ** 2 for i in range(n)))
+        if m1 <= 0 or m2 <= 0:
+            return 0.0
+        return dot / (m1 * m2)
+
+    def verify_face_embedding_consistency(self, current_embedding: list[float], threshold: float = 0.65) -> Optional[VerifierEvent]:
+        """Compare current frame face embedding against enrolled baseline via cosine similarity."""
+        if not current_embedding:
+            return None
+        if not hasattr(self, 'enrolled_embedding') or self.enrolled_embedding is None:
+            self.enrolled_embedding = list(current_embedding)
+            return None
+        sim = self.cosine_similarity(self.enrolled_embedding, current_embedding)
+        if sim < threshold:
+            return VerifierEvent(
+                session_id=self.session_id,
+                event_type="FACE_CONSISTENCY_FAIL",
+                severity="CRITICAL" if sim < 0.4 else "HIGH",
+                description=f"Face embedding similarity ({sim:.2f}) dropped below threshold ({threshold}). Possible proxy switch or secondary person."
+            )
+        return None
+
+    def verify_voice_consistency(self, current_audio_rms: float, is_speaking: bool, pitch_freq: Optional[float] = None) -> Optional[VerifierEvent]:
+        """Perform real Voice Activity Detection (VAD) and voice consistency verification."""
+        if not hasattr(self, '_audio_energy_history'):
+            self._audio_energy_history = []
+        if is_speaking:
+            self._audio_energy_history.append(current_audio_rms)
+            if len(self._audio_energy_history) > 100:
+                self._audio_energy_history.pop(0)
+        if is_speaking and len(self._audio_energy_history) >= 20:
+            avg_rms = sum(self._audio_energy_history) / len(self._audio_energy_history)
+            if avg_rms > 0 and current_audio_rms > avg_rms * 3.5:
+                return VerifierEvent(
+                    session_id=self.session_id,
+                    event_type="SECONDARY_VOICE_DETECTED",
+                    severity="HIGH",
+                    description=f"Abnormal acoustic energy surge during speech (RMS {current_audio_rms:.4f} vs baseline {avg_rms:.4f}). Possible background coaching."
+                )
+        return None

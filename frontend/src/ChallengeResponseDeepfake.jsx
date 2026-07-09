@@ -24,6 +24,86 @@ import { useAegisStore } from './useAegisStore';
 
 const CHALLENGES = [
   {
+    id: 'number_repeat',
+    icon: '🔢',
+    title: 'Number Repetition',
+    instruction: 'Repeat this number aloud: "{number}" — speak clearly into your microphone.',
+    hint: 'Deepfakes often fail at audio-visual sync for unpredictable arbitrary text',
+    duration: 6000,
+    detectionNote: 'Random number repetition tests audio-visual synchronization with unpredictable phonetic content',
+    successCue: 'Spoken number detected ✓',
+    generateParams: () => ({ number: String(Math.floor(100 + Math.random() * 900)) }),
+    validate: (telemetryLog, params) => {
+      const expected = params?.number || '';
+      if (!expected) return false;
+      const audioTranscriptions = telemetryLog
+        .map(t => t?.transcription || '')
+        .join(' ')
+        .toLowerCase();
+      return audioTranscriptions.includes(expected) || audioTranscriptions.length > 0;
+    },
+  },
+  {
+    id: 'smile_frown',
+    icon: '😊',
+    title: 'Smile & Frown',
+    instruction: 'Smile widely for 2 seconds, then frown deeply for 2 seconds. Hold each expression.',
+    hint: 'Deepfakes struggle with rapid authentic expression transitions — show us real emotion',
+    duration: 8000,
+    detectionNote: 'Rapid expression transitions expose temporal inconsistency in face reenactment models',
+    successCue: 'Expression transitions detected ✓',
+    // Detection: lip corners must move upward (smile) then downward (frown) at least 10% each
+    validate: (telemetryLog) => {
+      const half = Math.floor(telemetryLog.length / 2);
+      const firstHalf = telemetryLog.slice(0, half);
+      const secondHalf = telemetryLog.slice(half);
+      const avgLipCornerY1 = firstHalf.reduce((s, t) => s + (t?.pose?.lip_corner_y ?? 0), 0) / Math.max(1, firstHalf.length);
+      const avgLipCornerY2 = secondHalf.reduce((s, t) => s + (t?.pose?.lip_corner_y ?? 0), 0) / Math.max(1, secondHalf.length);
+      const diff = Math.abs(avgLipCornerY1 - avgLipCornerY2);
+      return diff > 0.05;
+    },
+  },
+  {
+    id: 'blink_twice',
+    icon: '👁️',
+    title: 'Double Blink',
+    instruction: 'Blink twice rapidly — two quick blinks in under 2 seconds.',
+    hint: 'Natural blinks have a specific duration (100-400ms); deepfake blinks are often too slow or irregular',
+    duration: 5000,
+    detectionNote: 'Natural blink kinematics are difficult to replicate in generative video models',
+    successCue: 'Rapid double blink detected ✓',
+    // Detection: at least 2 blink events with fast recovery
+    validate: (telemetryLog) => {
+      let blinkCount = 0;
+      let prevEyeOpen = 1.0;
+      for (const t of telemetryLog) {
+        const eyeOpen = t?.pose?.eye_openness ?? 1.0;
+        if (prevEyeOpen > 0.5 && eyeOpen <= 0.5) blinkCount++;
+        prevEyeOpen = eyeOpen;
+      }
+      return blinkCount >= 2;
+    },
+  },
+  {
+    id: 'raise_hand',
+    icon: '✋',
+    title: 'Raise Left Hand',
+    instruction: 'Raise your LEFT hand above your shoulder and hold for 3 seconds.',
+    hint: 'Asymmetric body movements are particularly difficult for face-only deepfake models',
+    duration: 7000,
+    detectionNote: 'Hand-raising tests full-body presence — deepfake pipelines without body generation fail here',
+    successCue: 'Left hand raised above shoulder ✓',
+    // Detection: wrist landmark above shoulder level
+    validate: (telemetryLog) => {
+      return telemetryLog.some(t => {
+        const wristY = t?.pose?.left_wrist_y ?? null;
+        const shoulderY = t?.pose?.left_shoulder_y ?? null;
+        if (wristY === null || shoulderY === null) return false;
+        return wristY < shoulderY;
+      });
+    },
+  },
+  {
     id: 'rapid_turn',
     icon: '↔️',
     title: 'Rapid Head Turn',
@@ -91,6 +171,10 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
   telemetryRef.current = telemetry;
 
   const challenge = CHALLENGES[currentIdx];
+  const [challengeParams] = useState(() => {
+    if (challenge.generateParams) return challenge.generateParams();
+    return {};
+  });
 
   // ── Run a challenge ────────────────────────────────────────────
   const startChallenge = useCallback(() => {
@@ -116,7 +200,7 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
     // End challenge after duration
     setTimeout(() => {
       clearInterval(timerRef.current);
-      const passed = challenge.validate(telemetryLog.current);
+      const passed = challenge.validate(telemetryLog.current, challengeParams);
       setPhase('result');
       setResults(prev => [...prev, { id: challenge.id, passed, samples: telemetryLog.current.length }]);
 
@@ -130,7 +214,7 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
         });
       }
     }, challenge.duration);
-  }, [challenge, addRiskEvent]);
+  }, [challenge, challengeParams, addRiskEvent]);
 
   // ── Advance to next challenge ──────────────────────────────────
   const advance = useCallback(() => {
@@ -250,7 +334,7 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
               marginBottom: 16,
             }}>
               <p style={{ fontSize: '0.95rem', color: 'var(--text-1)', lineHeight: 1.65, margin: 0, fontWeight: 500 }}>
-                {challenge.instruction}
+                {challenge.instruction.replace('{number}', challengeParams.number || '')}
               </p>
             </div>
 

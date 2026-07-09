@@ -24,7 +24,20 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aegis.db")
 os.environ["DATABASE_URL"] = DATABASE_URL
-engine       = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+# P-1: PostgreSQL connection pooling for production (SQLite fallback for dev)
+_connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
+    _pool_size = 1
+else:
+    _pool_size = int(os.getenv("DB_POOL_SIZE", "10"))
+    _connect_args["pool_size"] = _pool_size
+    _connect_args["max_overflow"] = int(os.getenv("DB_POOL_OVERFLOW", "20"))
+    _connect_args["pool_pre_ping"] = True
+    _connect_args["pool_recycle"] = 3600
+
+engine       = create_engine(DATABASE_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base         = declarative_base()
 
@@ -220,6 +233,26 @@ class AgentArtifact(Base):
     session = relationship("InterviewSession")
 
 
+class SessionInvitation(Base):
+    """
+    Invitation-based session start (Phase 6.7).
+    Recruiter generates a CSPRNG token, stores SHA-256 hash in DB.
+    Candidate enters token to start session — no auth required for entry.
+    """
+    __tablename__ = "session_invitations"
+    id              = Column(String,  primary_key=True, default=_uuid)
+    session_id      = Column(String,  ForeignKey("sessions.id"), nullable=False, index=True, unique=True)
+    recruiter_id    = Column(String,  ForeignKey("users.id"), nullable=False)
+    token_hash      = Column(String,  nullable=False)            # SHA-256 of the plaintext token
+    token_prefix    = Column(String,  nullable=False)            # First 8 chars of plaintext (for recruiter reference)
+    expires_at      = Column(DateTime, nullable=False)
+    used_at         = Column(DateTime, nullable=True)
+    status          = Column(String,  nullable=False, default="PENDING")  # PENDING | USED | EXPIRED
+    created_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    session   = relationship("InterviewSession")
+
+
 class MCPInvocationLog(Base):
     """
     Security audit trail: every MCP tool invocation is recorded.
@@ -232,6 +265,25 @@ class MCPInvocationLog(Base):
     params_keys = Column(String,  nullable=True)     # JSON array of param names (no values — security)
     result_ok   = Column(Boolean, nullable=True)
     invoked_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class HITLDecision(Base):
+    """
+    HITL audit trail: every recruiter decision on a HITL escalation.
+    Persisted for compliance (EU AI Act Art. 14 — human oversight mandate).
+    """
+    __tablename__ = "hitl_decisions"
+    id           = Column(String,  primary_key=True, default=_uuid)
+    session_id   = Column(String,  ForeignKey("sessions.id"), nullable=False, index=True)
+    audit_id     = Column(String,  nullable=False, unique=True)   # Correlation ID from escalation
+    recruiter_id = Column(String,  ForeignKey("users.id"), nullable=True)
+    decision     = Column(String,  nullable=False)               # CONTINUE | WARN_CANDIDATE | TERMINATE
+    score_at_time = Column(Integer, nullable=True)                # Integrity score when decision was made
+    reason       = Column(String,  nullable=True)                 # Recruiter notes
+    escalation_type = Column(String, nullable=False, default="SECURITY")  # SECURITY | BIAS | PLAGIARISM
+    decided_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    session = relationship("InterviewSession")
 
 
 # Create all tables

@@ -21,6 +21,17 @@ class RedisCache:
                 log.warning("REDIS_PASSWORD not set and no password in REDIS_URL — Redis will fail loudly in production")
         self._client: Optional[aioredis.Redis] = None
 
+    async def ensure_connected(self) -> aioredis.Redis:
+        pw = os.getenv("REDIS_PASSWORD", "") or None
+        if self._client is None:
+            self._client = aioredis.from_url(self.url, decode_responses=True, password=pw)
+            log.info("Connected to Redis at %s", self.url.split("@")[-1] if "@" in self.url else self.url)
+        try:
+            await self._client.ping()
+        except Exception:
+            self._client = aioredis.from_url(self.url, decode_responses=True, password=pw)
+        return self._client
+
     async def set_json(self, key: str, data: dict, ttl: int = 3600) -> None:
         client = await self.ensure_connected()
         await client.setex(key, ttl, json.dumps(data))

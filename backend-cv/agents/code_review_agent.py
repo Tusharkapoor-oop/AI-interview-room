@@ -21,9 +21,8 @@ log = logging.getLogger("aegis.code_review_agent")
 # In production: compare embeddings against a vector DB of known solutions
 # TODO: Populate from solution database at startup (e.g., ./scripts/load_solution_hashes.py)
 KNOWN_SOLUTIONS_HASHES: set = set()
-import logging as _logging
 if not KNOWN_SOLUTIONS_HASHES:
-    _logging.getLogger("aegis.code_review_agent").warning(
+    log.warning(
         "KNOWN_SOLUTIONS_HASHES is empty — plagiarism detection is disabled. "
         "Run scripts/load_solution_hashes.py to populate."
     )
@@ -121,7 +120,17 @@ Be honest — do not be overly generous. Assess: correctness, edge cases, comple
                     temperature=0.2,
                     response_format={"type": "json_object"},
                 )
-                data = json.loads(resp.choices[0].message.content)
+                raw_content = resp.choices[0].message.content.strip()
+                if raw_content.startswith("```"):
+                    # Strip markdown code fences (e.g. ```json ... ```)
+                    lines = raw_content.splitlines()
+                    if len(lines) >= 2 and lines[-1].strip().startswith("```"):
+                        raw_content = "\n".join(lines[1:-1])
+                    elif "```" in raw_content[3:]:
+                        raw_content = raw_content[3:].split("```")[0]
+                    if raw_content.strip().startswith("json"):
+                        raw_content = raw_content.strip()[4:].strip()
+                data = json.loads(raw_content)
                 return CodeReviewResult(
                     session_id    = self.session_id,
                     language      = language,
