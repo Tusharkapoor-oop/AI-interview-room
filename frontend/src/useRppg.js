@@ -24,8 +24,6 @@ const WINDOW_SECONDS   = 10;          // rolling buffer length
 const WINDOW_SIZE      = SAMPLE_RATE_HZ * WINDOW_SECONDS; // 300 samples
 const BPM_MIN          = 42;          // 0.7 Hz
 const BPM_MAX          = 210;         // 3.5 Hz
-const FREQ_MIN         = BPM_MIN  / 60;
-const FREQ_MAX         = BPM_MAX  / 60;
 const CAPTURE_INTERVAL = 1000 / SAMPLE_RATE_HZ;  // ms between frames
 
 // ROI: forehead region — top 25% of frame, center 40% horizontally

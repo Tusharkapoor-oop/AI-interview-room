@@ -48,6 +48,7 @@ function GyroRing({ radius, speed, axis, locked }) {
 export default function CalibrationScreen() {
   const { setPhase, setCalibrationProgress, setCalibrationDone, showToast } = useAegisStore();
 
+  const [startTime] = useState(() => Date.now());
   const videoRef   = useRef(null);
   const wsRef      = useRef(null);
   const [progress, setProgress] = useState(0);
@@ -129,13 +130,6 @@ export default function CalibrationScreen() {
       return () => clearTimeout(t);
     }
   }, [stage]);
-
-  // When enrollment finishes, allow entry to interview
-  useEffect(() => {
-    if (enrollmentState === 'done' || enrollmentState === 'error') {
-      setStage('complete');
-    }
-  }, [enrollmentState]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#020508' }}>
@@ -240,7 +234,7 @@ export default function CalibrationScreen() {
         )}
 
         {/* Voice Enrollment Step (Paper §Speaker Verification) */}
-        {(stage === 'voice_enroll' || stage === 'complete') && (
+        {(stage === 'voice_enroll' || enrollmentState === 'done') && (
           <div style={{
             width: 480, padding: '24px', marginTop: -20,
             background: 'rgba(59,130,246,0.05)',
@@ -283,7 +277,7 @@ export default function CalibrationScreen() {
                 {Array.from({ length: 13 }).map((_, i) => (
                   <div key={i} style={{
                     flex: 1,
-                    height: `${20 + Math.sin(Date.now() / 200 + i) * 40 + 40}%`,
+                    height: `${20 + Math.sin(startTime / 200 + i) * 40 + 40}%`,
                     background: `rgba(0,${140 + i * 8},216,0.7)`,
                     borderRadius: '2px 2px 0 0',
                     transition: 'height 0.15s',
@@ -321,7 +315,7 @@ export default function CalibrationScreen() {
           </div>
         )}
 
-        {stage === 'complete' ? (
+        {enrollmentState === 'done' || enrollmentState === 'error' ? (
           <button
             className="btn-premium success"
             onClick={() => setPhase('interview')}

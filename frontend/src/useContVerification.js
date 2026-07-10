@@ -40,7 +40,10 @@ export function useContVerification(videoRef, onAudioFeatures = null) {
   } = useAegisStore();
 
   const onAudioFeaturesRef = useRef(onAudioFeatures);
-  onAudioFeaturesRef.current = onAudioFeatures;
+
+  useEffect(() => {
+    onAudioFeaturesRef.current = onAudioFeatures;
+  }, [onAudioFeatures]);
 
   const faceCheckRef      = useRef(null);
   const voiceCheckRef     = useRef(null);

@@ -11,7 +11,7 @@
  * 
  * All events generate risk events that feed into the FraudScore.
  */
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAegisStore } from './useAegisStore';
 
 const TAB_SWITCH_THRESHOLD = 5;    // After N tab switches → HIGH severity (P2-6)
@@ -26,7 +26,10 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
   } = useAegisStore();
 
   const onRiskEventRef = useRef(onRiskEvent);
-  onRiskEventRef.current = onRiskEvent;
+
+  useEffect(() => {
+    onRiskEventRef.current = onRiskEvent;
+  }, [onRiskEvent]);
 
   const triggerRiskEvent = useCallback((ev) => {
     addRiskEvent(ev);
@@ -35,6 +38,8 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
 
   const tabSwitchCount  = useRef(0);
   const pasteCount      = useRef(0);
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [pasteTotal, setPasteTotal] = useState(0);
   const keystrokeBuffer = useRef([]);
   const devtoolsFlag    = useRef(false);
 
@@ -44,6 +49,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
     if (document.hidden) {
       tabSwitchCount.current += 1;
       const count = tabSwitchCount.current;
+      setTabSwitches(count);
       const severity = count >= TAB_SWITCH_THRESHOLD ? 'HIGH' : 'MEDIUM';
 
       triggerRiskEvent({
@@ -84,6 +90,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
     if (text.length < 10) return; // Short pastes are normal
 
     pasteCount.current += 1;
+    setPasteTotal(pasteCount.current);
     const severity = text.length >= PASTE_CHAR_THRESHOLD ? 'HIGH' : 'MEDIUM';
 
     triggerRiskEvent({
@@ -105,7 +112,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
   }, [enabled, phase, triggerRiskEvent, updateIntegrityScore, showToast, setHitlEvent]);
 
   // ── 4. Keystroke Entropy Analysis ─────────────────────────────
-  const handleKeyDown = useCallback((e) => {
+  const handleKeyDown = useCallback(() => {
     if (!enabled || phase !== 'interview') return;
     const now = Date.now();
     keystrokeBuffer.current.push(now);
@@ -182,9 +189,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
             }
           }
         }
-      } catch (e) {
-        // CORS-blocked stylesheets are normal; skip silently
-      }
+      } catch { /* CORS-blocked stylesheets are normal; skip silently */ }
     }
   }, [enabled, phase, triggerRiskEvent]);
 
@@ -267,6 +272,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
     window.addEventListener('blur',    handleWindowBlur);
     document.addEventListener('paste', handlePaste);
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
 
     const devtoolsInterval = setInterval(checkDevTools, 2000);
     const cssInterval = setInterval(checkCssInjection, 5000);
@@ -278,6 +284,7 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
       window.removeEventListener('blur',    handleWindowBlur);
       document.removeEventListener('paste', handlePaste);
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
       clearInterval(devtoolsInterval);
       clearInterval(cssInterval);
       clearInterval(screenDimInterval);
@@ -287,8 +294,8 @@ export function useDigitalSecurity(enabled = true, onRiskEvent = null) {
 
   // Expose current counters for the sidebar badge
   return {
-    tabSwitchCount:  tabSwitchCount.current,
-    pasteCount:      pasteCount.current,
+    tabSwitchCount:  tabSwitches,
+    pasteCount:      pasteTotal,
     recordResponseTiming,
   };
 }

@@ -29,7 +29,7 @@
  *
  * Research target: Harjai AI 82% → this implementation targets ≥90%.
  */
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useAegisStore } from './useAegisStore';
 
 // ── AI Tool Latency Profiles (seconds) ──────────────────────────────────────
@@ -106,13 +106,17 @@ export function useResponseTiming() {
   const analyserRef    = useRef(null);
   const micStreamRef   = useRef(null);
   const latenciesRef   = useRef([]);       // all latencies in seconds
+  const [latencySnapshot, setLatencySnapshot] = useState([]);
   const questionTsRef  = useRef(null);
   const listeningRef   = useRef(false);
   const speechDtcRef   = useRef(false);
   const flaggedRef     = useRef(false);
   const timerRef       = useRef(null);
   const aiSpeakingRef  = useRef(aiSpeaking);
-  aiSpeakingRef.current = aiSpeaking;
+
+  useEffect(() => {
+    aiSpeakingRef.current = aiSpeaking;
+  }, [aiSpeaking]);
 
   // ── Audio init ────────────────────────────────────────────────
   const initAudio = useCallback(async () => {
@@ -206,6 +210,7 @@ export function useResponseTiming() {
       const latencyS = (Date.now() - questionTsRef.current) / 1000;
       if (latencyS > 0.3 && latencyS < 30) {  // filter out implausible values
         latenciesRef.current.push(latencyS);
+        setLatencySnapshot([...latenciesRef.current]);
         analyzeLatencyPattern(latenciesRef.current);
       }
       listeningRef.current = false;
@@ -231,18 +236,19 @@ export function useResponseTiming() {
       clearInterval(timerRef.current);
       window.removeEventListener('aegis:candidate_answer', handler);
       latenciesRef.current = [];
+    setLatencySnapshot([]);
       flaggedRef.current = false;
       audioCtxRef.current?.close();
       audioCtxRef.current = null;
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
-      try { delete window.__aegisResponseTiming; } catch {}
+      try { delete window.__aegisResponseTiming; } catch { /* not critical */ }
     };
   }, [phase, initAudio, poll, markQuestionDelivered]);
 
   return {
     markQuestionDelivered,
     getTimingReport: () => window.__aegisResponseTiming ?? null,
-    latencies: latenciesRef.current,
+    latencies: latencySnapshot,
   };
 }

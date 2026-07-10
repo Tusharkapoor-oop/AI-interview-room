@@ -133,7 +133,7 @@ const SECURITY_VECTORS = [
 ];
 
 // ── Signal Card ───────────────────────────────────────────────────────────────
-function SignalCard({ label, icon, value, isAlert, alertMsg, desc, accuracy, penalty, minimal }) {
+function SignalCard({ label, icon, value, isAlert, alertMsg, desc, accuracy, minimal }) {
   return (
     <div style={{
       padding: minimal ? '6px 10px' : '8px 12px',

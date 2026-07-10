@@ -8,7 +8,7 @@
  * 4. 10-Vector Zero-Bypass Defense — how each vector stops each threat
  * 5. Penalty Enforcement — real-time scoring, lockout triggers, no-bypass policy
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { EXTENSION_THREAT_CATALOG } from './useNuclearLockdown';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -395,7 +395,7 @@ function SeverityBadge({ level }) {
 }
 
 // Eye / Gesture tracking signal card
-function BiometricCard({ sig, type }) {
+function BiometricCard({ sig }) {
   const [open, setOpen] = useState(false);
   return (
     <div onClick={() => setOpen(o => !o)} style={{
@@ -634,8 +634,6 @@ export default function SecurityDashboard() {
   });
 
   const critCount = EXTENSION_THREAT_CATALOG.filter(t => t.severity === 'CRITICAL').length;
-  const highCount = EXTENSION_THREAT_CATALOG.filter(t => t.severity === 'HIGH').length;
-
   return (
     <div style={{
       minHeight: '100vh',

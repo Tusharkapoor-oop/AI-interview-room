@@ -1,3 +1,5 @@
+import type React from 'react';
+
 export interface PoseData {
   pitch: number;
   yaw: number;
@@ -81,35 +83,6 @@ export type AppPhase =
 export interface AIScreen {
   condition: string;
   content: React.ReactNode;
-}
-
-export interface AegisStoreState {
-  phase: AppPhase;
-  sessionId: string | null;
-  integrityScore: number;
-  riskEvents: RiskEvent[];
-  agentStatuses: Record<string, AgentStatus>;
-  telemetry: CVInferenceResult | null;
-  detectedExtensions: string[];
-  sessionSeconds: number;
-  lockdownTriggered: boolean;
-  appealActive: boolean;
-  userMessage: string;
-  chatHistory: ChatMessage[];
-
-  setPhase: (phase: AppPhase) => void;
-  setSessionId: (id: string) => void;
-  setIntegrityScore: (score: number) => void;
-  addRiskEvent: (event: RiskEvent) => void;
-  updateAgentStatus: (name: string, status: AgentStatus) => void;
-  setTelemetry: (data: CVInferenceResult) => void;
-  addDetectedExtension: (ext: string) => void;
-  incrementSessionSeconds: () => void;
-  triggerLockdown: () => void;
-  setAppealActive: (active: boolean) => void;
-  setUserMessage: (msg: string) => void;
-  addChatMessage: (msg: ChatMessage) => void;
-  resetStore: () => void;
 }
 
 export interface ChatMessage {

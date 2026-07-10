@@ -6,7 +6,7 @@
  * - Confetti burst on all-pass
  * - Step progress indicator
  */
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAegisStore, getGlobalCameraStream } from './useAegisStore';
 
 const ROLES = [
@@ -44,30 +44,33 @@ const CHECKS = [
 
 const STEPS_NAV = ['Setup', 'Diagnostics', 'Ready'];
 
-// CSS-only confetti burst (spawns random colored dots)
-function ConfettiPiece({ i }) {
+function confettiStyle(i) {
   const colors = ['#312e81','#4f46e5','#10b981','#f59e0b','#ef4444','#3b82f6'];
   const color = colors[i % colors.length];
   const x = (Math.random() - 0.5) * 300;
   const y = -(Math.random() * 200 + 50);
   const rot = Math.random() * 720 - 360;
-  return (
-    <div style={{
-      position: 'absolute',
-      left: '50%',
-      top: '50%',
-      width: 8,
-      height: 8,
-      borderRadius: i % 3 === 0 ? '50%' : '2px',
-      background: color,
-      boxShadow: `0 0 6px ${color}`,
-      transform: 'translate(-50%,-50%)',
-      animation: `ob-confetti 1.4s cubic-bezier(0.23, 1, 0.32, 1) ${i * 0.03}s both`,
-      '--cx': `${x}px`,
-      '--cy': `${y}px`,
-      '--cr': `${rot}deg`,
-    }} />
-  );
+  return {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: color,
+    transform: `translate(${x}px, ${y}px) rotate(${rot}deg)`,
+    opacity: 0.8,
+    boxShadow: `0 0 6px ${color}`,
+    animation: `confetti-fall 3s ease-out forwards`,
+    animationDelay: `${(i * 0.03).toFixed(2)}s`,
+  };
+}
+
+// CSS-only confetti burst (spawns random colored dots)
+function ConfettiPiece({ i }) {
+  const [style] = useState(() => confettiStyle(i));
+
+  return <div style={style} />;
 }
 
 export default function OnboardScreen() {

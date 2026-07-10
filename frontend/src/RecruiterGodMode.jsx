@@ -9,7 +9,7 @@
  *   4. Live Merkle Audit Tree Cryptographic Root Verification
  *   5. One-Click Manual Overrides and HITL (Human-in-the-Loop) Challenge Triggers
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAegisStore } from './useAegisStore';
 import GazeHeatmap from './GazeHeatmap';
 import RppgMonitor from './RppgMonitor';
@@ -39,8 +39,7 @@ const BIOMETRIC_LAYERS = [
 
 export default function RecruiterGodMode() {
   const {
-    integrityScore, riskEvents, phase, setPhase,
-    strictMandatoryLockdown, mandatoryLockdownReason,
+    integrityScore, riskEvents, setPhase,
     resetMandatoryLockdown, addRiskEvent, setServerIntegrityScore,
     sessionSeconds
   } = useAegisStore();
@@ -105,7 +104,7 @@ export default function RecruiterGodMode() {
     setMerkleVerified(false);
     setTimeout(() => {
       // Generate deterministic SHA-256 looking hash from session events
-      const hashStr = `0x${Math.abs(Math.sin(sessionSeconds) * 0xFFFFFFFFFFFFFF).toString(16).toUpperCase().padEnd(16, '0')}...E4F2`;
+      const hashStr = `0x${Math.abs(Math.sin(sessionSeconds) * 0xFFFFFFFFFFFFF).toString(16).toUpperCase().padEnd(13, '0')}...E4F2`;
       setMerkleRoot(hashStr);
       setMerkleVerified(true);
       setVerifyingHash(false);

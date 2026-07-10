@@ -49,7 +49,7 @@ function RadarChart({ scores, animated }) {
         ctx.beginPath();
         for (let i = 0; i < n; i++) {
           const p = getPoint(i, ratio);
-          i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+          if (i === 0) { ctx.moveTo(p.x, p.y); } else { ctx.lineTo(p.x, p.y); }
         }
         ctx.closePath();
         ctx.strokeStyle = `rgba(255,255,255,${ratio === 1 ? 0.12 : 0.05})`;
@@ -73,7 +73,7 @@ function RadarChart({ scores, animated }) {
       COMPETENCIES.forEach((c, i) => {
         const val = (scores[c.key] || 0) / 100;
         const p = getPoint(i, val * prog);
-        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+        if (i === 0) { ctx.moveTo(p.x, p.y); } else { ctx.lineTo(p.x, p.y); }
       });
       ctx.closePath();
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);

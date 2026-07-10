@@ -33,9 +33,9 @@ const TYPE_META = {
   CANDIDATE_APPEAL:          { icon: '⚖', color: 'var(--aegis-cyan)', short: 'Appeal' },
 };
 
-const SEVERITY_ORDER = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
 
-function EventDot({ ev, sessionStart, totalDuration, onClick, selected }) {
+
+function EventDot({ ev, totalDuration, onClick, selected }) {
   const pct = totalDuration > 0
     ? Math.min(((ev.relTime || 0) / totalDuration) * 100, 98)
     : 50;
@@ -68,12 +68,12 @@ export default function BehaviorTimeline({ compact = false }) {
   const [selected, setSelected] = useState(null);
   const [filterType, setFilterType] = useState('ALL');
 
-  const sessionStart = useMemo(() => {
+  const [sessionStart] = useState(() => {
     if (riskEvents.length === 0) return Date.now();
     const firstTs = riskEvents[0]?.ts;
     if (!firstTs) return Date.now();
     return new Date(firstTs).getTime();
-  }, [riskEvents]);
+  });
 
   const enriched = useMemo(() => {
     return riskEvents.map(ev => ({
@@ -95,7 +95,7 @@ export default function BehaviorTimeline({ compact = false }) {
   const clusters = useMemo(() => {
     const groups = [];
     let currentGroup = [];
-    filtered.forEach((ev, i) => {
+    filtered.forEach((ev) => {
       if (currentGroup.length === 0) {
         currentGroup.push(ev);
       } else {

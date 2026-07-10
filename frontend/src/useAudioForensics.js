@@ -49,8 +49,6 @@ const WHISPER_HF_RATIO_THRESH    = 2.8;  // High freq / Low freq power ratio
 const WHISPER_CENTROID_THRESH    = 4500; // Hz — whisper centroid > speech centroid
 const TTS_PITCH_VARIANCE_MAX     = 6.0;  // Hz — unnaturally stable pitch
 const SFM_CHANGE_THRESH          = 0.25; // spectral flatness measure change
-const DUAL_PITCH_DIFF_MIN        = 40;   // Hz minimum difference between two pitches
-const PAUSE_UNIFORMITY_CV_MAX    = 0.15; // CV of pauses < 0.15 = TTS-like
 const LOUDNESS_COMPRESSION_MAX   = 8;    // dB — compressed dynamic range
 
 export function useAudioForensics() {
@@ -66,8 +64,6 @@ export function useAudioForensics() {
 
   // Pitch tracking
   const pitchHistRef   = useRef([]);    // rolling pitch estimates
-  const pauseTimesRef  = useRef([]);    // silence gap durations
-
   // Flags
   const flaggedRef     = useRef({});
 

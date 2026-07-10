@@ -41,6 +41,7 @@ export default function AppealPanel({ flagType, onClose }) {
   const [a11y,        setA11y]        = useState('');
   const [useA11y,     setUseA11y]     = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
+  const [refId] = useState(() => `APL-${Date.now().toString(36).toUpperCase()}`);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -206,7 +207,7 @@ export default function AppealPanel({ flagType, onClose }) {
               A human reviewer will examine your case. No decision has been made. You may continue your interview session. Response within 24 hours.
             </div>
             <div className="appeal-ref">
-              Reference: <strong>APL-{Date.now().toString(36).toUpperCase()}</strong>
+              Reference: <strong>{refId}</strong>
             </div>
             <button className="btn-premium" style={{ marginTop: 20 }} onClick={onClose}>
               Return to Interview

@@ -5,7 +5,6 @@
  * Each artifact can be expanded inline or downloaded as JSON.
  */
 import React, { useEffect, useState } from 'react';
-import { useAegisStore } from './useAegisStore';
 
 const TYPE_META = {
   SESSION_PLAN:     { icon: '📋', color: 'var(--aegis-blue)',   agent: 'Hub (Aria)'     },
@@ -108,26 +107,28 @@ function ArtifactCard({ artifact }) {
 
 export default function ArtifactViewer({ sessionId }) {
   const [artifacts, setArtifacts] = useState([]);
-  const [loading, setLoading]     = useState(false);
+  const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
 
-  const load = async () => {
+  useEffect(() => {
     if (!sessionId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const resp = await fetch(`/api/v1/artifacts/${sessionId}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      setArtifacts(data.artifacts || []);
-    } catch (e) {
-      setError('Backend not connected — artifacts unavailable.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, [sessionId]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const resp = await fetch(`/api/v1/artifacts/${sessionId}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!cancelled) setArtifacts(data.artifacts || []);
+      } catch {
+        if (!cancelled) setError('Backend not connected — artifacts unavailable.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId]);
 
   return (
     <div
@@ -143,7 +144,7 @@ export default function ArtifactViewer({ sessionId }) {
           📦 Agent Artifacts
         </div>
         <button
-          onClick={load}
+          onClick={() => { window.location.reload(); }}
           style={{
             background: 'none', border: '1px solid var(--border)',
             borderRadius: 'var(--r-sm)', padding: '3px 8px',

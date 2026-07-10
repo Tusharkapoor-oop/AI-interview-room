@@ -57,10 +57,10 @@ function ScoreArc({ score, size = 80, strokeW = 6 }) {
 }
 
 export default function MultiModalTrustScore({ compact = false }) {
-  const { riskEvents, identityData, sessionSeconds, integrityScore, addRiskEvent } = useAegisStore();
+  const { riskEvents, identityData, sessionSeconds, addRiskEvent } = useAegisStore();
   const compoundFiredRef = useRef(new Set()); // track compound events to avoid duplicates
 
-  const { score: fraudScore, signals } = useMemo(
+  const { score: fraudScore } = useMemo(
     () => computeFraudScore(riskEvents, sessionSeconds),
     [riskEvents, sessionSeconds]
   );

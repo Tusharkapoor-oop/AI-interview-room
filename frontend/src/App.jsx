@@ -72,7 +72,7 @@ const MODE_COLORS = {
 function TopBar() {
   const {
     phase, setPhase, integrityScore, language, setLanguage,
-    candidateName, sessionConfig, interviewMode,
+    interviewMode,
   } = useAegisStore();
   const { i18n } = useTranslation();
   useEffect(() => { i18n.changeLanguage(language); }, [language]);

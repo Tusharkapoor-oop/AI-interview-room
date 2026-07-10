@@ -2,7 +2,7 @@
  * RecruiterPanel.jsx
  * The permanent admin forensic dashboard — all telemetry permanently logged.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import CyberAvatar from './CyberAvatar';

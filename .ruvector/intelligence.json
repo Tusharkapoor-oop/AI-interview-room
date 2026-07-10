@@ -1,0 +1,27 @@
+{
+  "patterns": {},
+  "memories": [],
+  "trajectories": [],
+  "errors": {},
+  "file_sequences": [],
+  "agents": {},
+  "edges": [],
+  "stats": {
+    "total_patterns": 0,
+    "total_memories": 0,
+    "total_trajectories": 0,
+    "total_errors": 0,
+    "session_count": 0,
+    "last_session": 0
+  },
+  "activeTrajectories": {
+    "traj_1783616731661_cwgg812vn": {
+      "id": "traj_1783616731661_cwgg812vn",
+      "context": "20260709170530-navigate-entire-aegis-ai-intervi: Navigate entire Aegis AI interview platform as real user - every page, screen, workflow, landing page, onboarding, interview arena, calibration, liveness challenge, security dashboard, recruiter panels, score reports, settings",
+      "agent": "browser-session",
+      "file": null,
+      "steps": [],
+      "startTime": 1783616731662
+    }
+  }
+}

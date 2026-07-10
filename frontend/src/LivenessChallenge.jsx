@@ -106,7 +106,9 @@ export default function LivenessChallenge() {
 
   // PlrChallenge state
   const [plrFlashBrightness, setPlrFlashBrightness] = useState(null);
+  // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
   const [plrDone, setPlrDone] = useState(false);
+
 
   const videoRef   = useRef(null);
   const canvasRef  = useRef(null);

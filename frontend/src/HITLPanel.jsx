@@ -25,7 +25,7 @@ const OPTION_META = {
   FLAG_FOR_REVIEW: { label: 'Flag for Review',    icon: '⚑', cls: 'warn'   },
 };
 
-export default function HITLPanel({ event, onDecision, onDismiss }) {
+export default function HITLPanel({ event, onDecision }) {
   const [timeLeft, setTimeLeft]   = useState(event?.expires || 30);
   const [resolved, setResolved]   = useState(false);
   const intervalRef = useRef(null);
@@ -39,7 +39,10 @@ export default function HITLPanel({ event, onDecision, onDismiss }) {
     clearInterval(intervalRef.current);
     onDecision?.({ action, auto, session_id: event?.session_id });
   };
-  handleDecisionRef.current = handleDecision;
+
+  useEffect(() => {
+    handleDecisionRef.current = handleDecision;
+  }, [handleDecision]);
 
   useEffect(() => {
     if (!event || resolved) return;

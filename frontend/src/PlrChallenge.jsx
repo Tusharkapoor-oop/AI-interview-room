@@ -152,6 +152,7 @@ export default function PlrChallenge({ videoRef, onComplete, onBrightnessChange 
   const lastBrightRef    = useRef(null);
   const lastFlashType    = useRef(null);
   const timerRef         = useRef(null);
+  const skipTimerRef     = useRef(null);
 
   // rPPG during liveness challenge
   const rppgSignalRef    = useRef([]);
@@ -192,17 +193,17 @@ export default function PlrChallenge({ videoRef, onComplete, onBrightnessChange 
   }, [onComplete, setPlrPassed]);
 
   const [showSkip, setShowSkip] = useState(false);
-  const skipTimerRef = useRef(null);
+
   useEffect(() => {
     if (phase === 'running') {
       skipTimerRef.current = setTimeout(() => setShowSkip(true), 8000);
       return () => clearTimeout(skipTimerRef.current);
     }
-    if (phase !== 'running' && showSkip) {
-      setShowSkip(false);
-    }
-  }, [phase, showSkip]);
+    const id = setTimeout(() => setShowSkip(false), 0);
+    return () => clearTimeout(id);
+  }, [phase]);
 
+  const runCycleRef = useRef(null);
   const runCycle = useCallback(() => {
     if (cycleRef.current >= FLASH_CYCLES) {
       finalize();
@@ -246,10 +247,14 @@ export default function PlrChallenge({ videoRef, onComplete, onBrightnessChange 
       onBrightnessChange?.(0.5);
 
       if (mountedRef.current) {
-        timerRef.current = setTimeout(runCycle, randomDuration * 0.4);
+        timerRef.current = setTimeout(() => runCycleRef.current?.(), randomDuration * 0.4);
       }
     }, sampleDelay);
   }, [videoRef, finalize, onBrightnessChange]);
+
+  useEffect(() => {
+    runCycleRef.current = runCycle;
+  }, [runCycle]);
 
   const startTest = useCallback(() => {
     cycleRef.current = 0;

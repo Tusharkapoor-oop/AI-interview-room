@@ -13,6 +13,7 @@ export default function AudioWaveform({ active = true, color = '#3b82f6', barCou
   const ctxAudio   = useRef(null);
   const streamRef  = useRef(null);
   const [speaking, setSpeaking] = useState(false);
+  const drawRef = useRef(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -60,8 +61,10 @@ export default function AudioWaveform({ active = true, color = '#3b82f6', barCou
     }
 
     setSpeaking(maxAmp > 0.08);
-    rafRef.current = requestAnimationFrame(draw);
+    rafRef.current = requestAnimationFrame(() => drawRef.current?.());
   }, [barCount, color]);
+
+  useEffect(() => { drawRef.current = draw; }, [draw]);
 
   useEffect(() => {
     if (!active) return;
@@ -76,7 +79,7 @@ export default function AudioWaveform({ active = true, color = '#3b82f6', barCou
         analyserRef.current.smoothingTimeConstant = 0.75;
         sourceRef.current = ctxAudio.current.createMediaStreamSource(stream);
         sourceRef.current.connect(analyserRef.current);
-        rafRef.current = requestAnimationFrame(draw);
+        rafRef.current = requestAnimationFrame(() => drawRef.current?.());
       } catch {
         // Mic denied — show idle animation
         idleAnimation();

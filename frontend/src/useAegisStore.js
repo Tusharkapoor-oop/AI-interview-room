@@ -64,7 +64,6 @@ export const useAegisStore = create((set, get) => ({
     telemetry: {
       gaze_anomaly: false,
       hands_visible: 0,
-      pose: { pitch: 0, yaw: 0, roll: 0 },
       face_detected: false,
       status: 'ok',
       ...t,
@@ -266,7 +265,7 @@ export async function getGlobalCameraStream() {
       if (resolved && resolved.active) {
         return resolved;
       }
-    } catch (e) {
+    } catch {
       // Ignore error and re-acquire
     }
     _cameraStreamPromise = null;

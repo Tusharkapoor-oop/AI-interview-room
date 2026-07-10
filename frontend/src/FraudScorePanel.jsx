@@ -51,7 +51,7 @@ const SIGNAL_LABELS = {
 };
 
 export default function FraudScorePanel({ compact = false }) {
-  const { riskEvents, sessionSeconds, setHitlEvent, integrityScore } = useAegisStore();
+  const { riskEvents, sessionSeconds, setHitlEvent } = useAegisStore();
 
   const { score, verdict, signals, breakdown, confidence, hasCompound } = useMemo(
     () => computeFraudScore(riskEvents, sessionSeconds),

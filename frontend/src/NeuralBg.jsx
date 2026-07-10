@@ -29,6 +29,7 @@ export default function NeuralBg({ anomaly = false, style = {} }) {
 
   useEffect(() => { anomalyRef.current = anomaly; }, [anomaly]);
 
+  const drawRef = useRef(null);
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -104,8 +105,12 @@ export default function NeuralBg({ anomaly = false, style = {} }) {
       ctx.shadowBlur = 0;
     });
 
-    rafRef.current = requestAnimationFrame(draw);
+    rafRef.current = requestAnimationFrame(() => drawRef.current?.());
   }, []);
+
+  useEffect(() => {
+    drawRef.current = draw;
+  }, [draw]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

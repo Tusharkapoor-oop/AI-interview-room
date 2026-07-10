@@ -152,12 +152,12 @@ const InterviewArena = React.memo(function InterviewArena() {
   const [showAppeal, setShowAppeal] = useState(false);
 
   const [showReChallenge, setShowReChallenge] = useState(false);
-  const [showDeepfakeChallenge, setShowDeepfakeChallenge] = useState(false);
   const [showTransparency, setShowTransparency] = useState(true);
+  const sendMsgRef = useRef(null);
 
   // ── Layer 5: Digital Security ──────────────────────────────────────
   useDigitalSecurity(true, (ev) => {
-    sendMsg({ type: 'telemetry_event', event: ev });
+    sendMsgRef.current?.({ type: 'telemetry_event', event: ev });
   });
 
   // ── Layer 5+: Ultra-Strict Application Lockdown ────────────────────────
@@ -172,7 +172,7 @@ const InterviewArena = React.memo(function InterviewArena() {
 
   // ── Research Module 2: Response Timing v3.0 ─────────────────────────
   // KS-test vs human log-normal + 4 AI tool fingerprints + ZCR/centroid VAD
-  const { markQuestionDelivered } = useResponseTiming();
+  useResponseTiming();
 
   // ── Research Module 3: LLM Phraseology v3.0 ───────────────────────
   // FK score + TTR + sentence CV + 30 lexical bundles + 35-signal catalog
@@ -189,12 +189,12 @@ const InterviewArena = React.memo(function InterviewArena() {
 
   // ── Layer 2: Continuous Verification ──────────────────────────
   useContVerification(videoRef, (features) => {
-    sendMsg({ type: 'audio_features', features });
+    sendMsgRef.current?.({ type: 'audio_features', features });
   });
 
   // ── Keystroke Dynamics ────────────────────────────────────
   const keystroke = useKeystrokeDynamics(true, (builtProfile) => {
-    sendMsg({ type: 'keystroke_baseline', profile: builtProfile });
+    sendMsgRef.current?.({ type: 'keystroke_baseline', profile: builtProfile });
   });
 
   // ── [NEW] rPPG — Remote Photoplethysmography (Paper §rPPG) ───────
@@ -212,10 +212,10 @@ const InterviewArena = React.memo(function InterviewArena() {
 
   // Monitor HITL active re-challenge events
   useEffect(() => {
-    if (hitlEvent?.actionType === 'liveness_rechallenge') {
-      setShowReChallenge(true);
-      clearHitlEvent();
-    }
+    if (hitlEvent?.actionType !== 'liveness_rechallenge') return;
+    clearHitlEvent();
+    const id = setTimeout(() => setShowReChallenge(true), 0);
+    return () => clearTimeout(id);
   }, [hitlEvent, clearHitlEvent]);
 
 
@@ -253,7 +253,7 @@ const InterviewArena = React.memo(function InterviewArena() {
     rec.maxAlternatives = 1;
 
     rec.onresult = (e) => {
-      let interim = '';
+      let interim;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const transcript = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
@@ -380,6 +380,10 @@ const InterviewArena = React.memo(function InterviewArena() {
   }, []);
 
   const { send: sendMsg, status: intStatus } = useWebSocket(INT_WS, handleInterview);
+
+  useEffect(() => {
+    sendMsgRef.current = sendMsg;
+  }, [sendMsg]);
 
   // ── Wire all forensic hooks & risk events to Backend WebSocket ─────────
   const lastSentRiskIdxRef = useRef(0);

@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 
-export default function TrustScore({ anomalyCount, sessionSeconds }) {
+export default function TrustScore({ anomalyCount }) {
   const score = useMemo(() => {
     const penalty = Math.min(anomalyCount * 5, 70);
     return Math.max(100 - penalty, 30);

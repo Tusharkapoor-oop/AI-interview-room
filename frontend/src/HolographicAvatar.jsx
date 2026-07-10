@@ -7,8 +7,8 @@
  * - Orbital ring system
  * - DNA helix secondary element
  */
-import React, { useRef, useMemo } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, useMemo, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Float, Sphere, MeshDistortMaterial, Torus, Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -44,26 +44,28 @@ function OrbitalRings({ anomaly, speaking }) {
 }
 
 // ── Floating Data Shards ──────────────────────────────────────────
-function DataShards({ count = 12, anomaly }) {
-  const shards = useMemo(() => Array.from({ length: count }, (_, i) => ({
+function createShards(count) {
+  return Array.from({ length: count }, (_, i) => ({
     id: i,
-    pos: [
-      (Math.random() - 0.5) * 6,
-      (Math.random() - 0.5) * 4,
-      (Math.random() - 0.5) * 3,
-    ],
+    pos: new Array(3).fill(0).map(() => (Math.random() - 0.5) * 6),
+    posY: (Math.random() - 0.5) * 4,
+    posZ: (Math.random() - 0.5) * 3,
     size: 0.04 + Math.random() * 0.12,
     speed: 0.5 + Math.random() * 1.5,
     phase: Math.random() * Math.PI * 2,
-  })), [count]);
+  }));
+}
 
-  const meshRefs = useRef(shards.map(() => React.createRef()));
+function DataShards({ count = 12, anomaly }) {
+  const [shards] = useState(() => createShards(count));
+
+  const meshRefs = useMemo(() => shards.map(() => React.createRef()), [shards]);
 
   useFrame(state => {
     shards.forEach((s, i) => {
-      const mesh = meshRefs.current[i]?.current;
+      const mesh = meshRefs[i]?.current;
       if (!mesh) return;
-      mesh.position.y = s.pos[1] + Math.sin(state.clock.elapsedTime * s.speed + s.phase) * 0.3;
+      mesh.position.y = s.posY + Math.sin(state.clock.elapsedTime * s.speed + s.phase) * 0.3;
       mesh.rotation.x = state.clock.elapsedTime * s.speed * 0.5;
       mesh.rotation.z = state.clock.elapsedTime * s.speed * 0.3;
     });
@@ -72,7 +74,7 @@ function DataShards({ count = 12, anomaly }) {
   return (
     <>
       {shards.map((s, i) => (
-        <mesh key={s.id} ref={meshRefs.current[i]} position={s.pos}>
+        <mesh key={s.id} ref={meshRefs[i]} position={s.pos}>
           <tetrahedronGeometry args={[s.size, 0]} />
           <meshStandardMaterial
             color={anomaly ? '#ef4444' : '#00f5d4'}
@@ -184,7 +186,7 @@ function ScanlineEffect() {
 }
 
 // ── Main Export ───────────────────────────────────────────────────
-export default function HolographicAvatar({ pose, anomaly = false, speaking = false, difficulty = 'medium' }) {
+export default function HolographicAvatar({ pose, anomaly = false, speaking = false }) {
   const headGroupRef = useRef();
 
   useFrame((state, delta) => {

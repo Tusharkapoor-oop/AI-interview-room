@@ -8,8 +8,7 @@ services:
       POSTGRES_DB: aegis
       POSTGRES_USER: aegis
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    ports:
-      - "5432:5432"
+    ports: []
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend-cv/init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,8 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: aegis-redis
-    ports:
-      - "6379:6379"
+    ports: []
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

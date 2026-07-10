@@ -40,6 +40,7 @@ function extractFaceMesh2D(imageData, W, H) {
   return m.slice(0,68);
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function computeFaceSimilarity(m1,m2) {
   if(!m1||!m2||m1.length!==m2.length) return 0;
   let dot=0,a=0,b=0;
@@ -176,18 +177,18 @@ function StepSelfieMatch({ onComplete }) {
 function StepVoiceEnroll({ onComplete }) {
   const [rec,setRec]=useState(false);const [done,setDone]=useState(false);const [secs,setSecs]=useState(0);
   const [wav,setWav]=useState(Array(30).fill(2));const [micOk,setMicOk]=useState(null);
-  const refs={m:useRef(),t:useRef(),r:useRef(),a:useRef(),audioCtx:useRef()};
-  useEffect(()=>()=>{clearInterval(refs.t.current);cancelAnimationFrame(refs.r.current);refs.audioCtx.current?.close();refs.audioCtx.current=null;},[]);
+  const mRef=useRef();const tRef=useRef();const rRef=useRef();const aRef=useRef();const audioCtxRef=useRef();
+  useEffect(()=>()=>{clearInterval(tRef.current);cancelAnimationFrame(rRef.current);audioCtxRef.current?.close();audioCtxRef.current=null;},[]);
   const go=async()=>{
     try{
-      const s=await navigator.mediaDevices.getUserMedia({audio:true});refs.m.current=s;
-      const ctx=new AudioContext();refs.audioCtx.current=ctx;const an=ctx.createAnalyser();an.fftSize=64;
-      ctx.createMediaStreamSource(s).connect(an);refs.a.current=an;
+      const s=await navigator.mediaDevices.getUserMedia({audio:true});mRef.current=s;
+      const ctx=new AudioContext();audioCtxRef.current=ctx;const an=ctx.createAnalyser();an.fftSize=64;
+      ctx.createMediaStreamSource(s).connect(an);aRef.current=an;
       setRec(true);setMicOk(true);setSecs(0);
-      refs.t.current=setInterval(()=>setSecs(v=>v+1),1000);
-      const tick=()=>{const b=new Uint8Array(an.frequencyBinCount);an.getByteFrequencyData(b);setWav(Array.from(b.slice(0,30)).map(v=>Math.max(2,v/8)));refs.r.current=requestAnimationFrame(tick);};
-      refs.r.current=requestAnimationFrame(tick);
-      setTimeout(()=>{clearInterval(refs.t.current);cancelAnimationFrame(refs.r.current);s.getTracks().forEach(t=>t.stop());setRec(false);setDone(true);},5000);
+      tRef.current=setInterval(()=>setSecs(v=>v+1),1000);
+      const tick=()=>{const b=new Uint8Array(an.frequencyBinCount);an.getByteFrequencyData(b);setWav(Array.from(b.slice(0,30)).map(v=>Math.max(2,v/8)));rRef.current=requestAnimationFrame(tick);};
+      rRef.current=requestAnimationFrame(tick);
+      setTimeout(()=>{clearInterval(tRef.current);cancelAnimationFrame(rRef.current);s.getTracks().forEach(t=>t.stop());setRec(false);setDone(true);},5000);
     }catch{setMicOk(false);}
   };
   if(micOk===false) return (
@@ -228,7 +229,7 @@ function StepDeviceCheck({ onComplete }) {
   const [scan,setScan]=useState(false);const [res,setRes]=useState(null);
   const run=async()=>{
     setScan(true);const fp=await generateDeviceFingerprint();
-    let vc={detected:false};
+    let vc;
       try{const devs=await navigator.mediaDevices.enumerateDevices();const labs=devs.filter(d=>d.kind==='videoinput').map(d=>d.label.toLowerCase());const keys=['obs','virtual','manycam','snap camera','droidcam','ndi','streamlabs'];vc={detected:keys.some(k=>labs.some(l=>l.includes(k)))};}catch{vc={detected:false};}
     await new Promise(r=>setTimeout(r,1500));setRes({fp,vc:vc.detected});setScan(false);
   };
@@ -263,7 +264,7 @@ const STEPS=[
 ];
 
 export default function IdentityVerification() {
-  const {setPhase,setIdentityData,setIdentityVerified}=useAegisStore();
+  const {setPhase,setIdentityData,setIdentityVerified,updateIntegrityScore}=useAegisStore();
   const [idx,setIdx]=useState(0);
   const [res,setRes]=useState({});
   const [done,setDone]=useState(false);
@@ -311,7 +312,6 @@ export default function IdentityVerification() {
                   virtualCameraDetected: false,
                   faceMesh: null,
                 });
-                setPassed(false);
                 setDone(true);
                 updateIntegrityScore(-15, 'All identity checks bypassed via dev mode');
               }}

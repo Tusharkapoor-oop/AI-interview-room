@@ -34,7 +34,6 @@ import { useAegisStore } from './useAegisStore';
 const SAMPLE_RATE_MS    = 100;  // 10Hz sampling (was 200ms / 5Hz)
 const WINDOW_SIZE       = 60;   // 6 seconds of data
 const GRID_N            = 8;    // 8×8 = 64 cells (was 4×4)
-const ENTROPY_THRESH    = 0.50; // tighter threshold (was 0.60)
 const LOW_ENT_STREAK    = 4;    // windows needed (was 5)
 const DEVIATION_DEG     = 25;   // paper threshold
 const DEVIATION_FRAMES  = 3;
@@ -204,7 +203,10 @@ export function useGazeEntropy() {
   const kalmanY = useRef(new KalmanFilter1D(0.015, 0.0008));
 
   const telemetryRef = useRef(telemetry);
-  telemetryRef.current = telemetry;
+
+  useEffect(() => {
+    telemetryRef.current = telemetry;
+  }, [telemetry]);
 
   const toCell = (x, y) => {
     const col = Math.min(Math.floor(((x + 1) / 2) * GRID_N), GRID_N - 1);
@@ -473,7 +475,7 @@ export function useGazeEntropy() {
       whitespaceStreak.current  = 0;
       kalmanX.current = new KalmanFilter1D(0.015, 0.0008);
       kalmanY.current = new KalmanFilter1D(0.015, 0.0008);
-      try { delete window.__aegisGazeEntropy; } catch {}
+      try { delete window.__aegisGazeEntropy; } catch { /* not critical */ }
     };
   }, [phase, analyze, refreshContentRects]);
 

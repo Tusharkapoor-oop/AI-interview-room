@@ -10,7 +10,7 @@
  */
 import React, { useMemo } from 'react';
 import { useAegisStore } from './useAegisStore';
-import { computeFraudScore } from './FraudScoreEngine';
+
 
 const QUADRANTS = [
   { id: 'UP_LEFT',    label: 'Upper Left',   x: 0,    y: 0,    tip: 'Top-left — possible side screen or notes' },

@@ -107,7 +107,7 @@ export function useApplicationLockdown(enabled = true) {
             true
           );
         }
-      } catch (_) { /* invalid selector — skip */ }
+      } catch { /* invalid selector — skip */ }
     }
     // Also check for chrome.runtime (extension API)
     if (window.chrome?.runtime?.id && !extensionFlags.current.has('chrome.runtime')) {
@@ -144,7 +144,7 @@ export function useApplicationLockdown(enabled = true) {
           break;
         }
       }
-    } catch (_) {}
+    } catch { /* device enumeration error — skip */ }
   }, [enabled, firePenalty]);
 
   // ── 4. Second Monitor / Window Position Detection ────────────
@@ -260,10 +260,11 @@ export function useApplicationLockdown(enabled = true) {
     document.addEventListener('cut', handleCopy);
 
     const observer = setupExtensionObserver();
-    checkExtensions(); // immediate scan on mount
-
-    detectVirtualCamera();
-    detectSecondMonitor();
+    setTimeout(() => {
+      checkExtensions();
+      detectVirtualCamera();
+      detectSecondMonitor();
+    }, 0);
     patchGetDisplayMedia();
 
     // Periodic checks

@@ -5,10 +5,8 @@
  *   Shows the enrolled voice profile fingerprint (13-bin spectral bars),
  *   live speaker match score, and verification status.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAegisStore } from './useAegisStore';
-
-const FEATURE_BINS = 13;
 
 // ── Voice Fingerprint Visualizer ─────────────────────────────────────────────
 function VoiceFingerprint({ profile, liveFeatures, color }) {

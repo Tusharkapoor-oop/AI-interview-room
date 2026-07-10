@@ -41,7 +41,7 @@ const DETECTION_METHODS = {
 };
 
 // ── Single Threat Row ─────────────────────────────────────────────────────────
-function ThreatRow({ threat, isDetected, isBlocked }) {
+function ThreatRow({ threat, isDetected }) {
   const [expanded, setExpanded] = useState(false);
   const sev = SEV_CONFIG[threat.severity] || SEV_CONFIG.LOW;
   const cat = CAT_CONFIG[threat.cat] || CAT_CONFIG.MISC;

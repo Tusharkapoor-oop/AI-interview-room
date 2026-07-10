@@ -195,7 +195,7 @@ export default function LuxResearchStats() {
   );
 }
 
-function StatCard({ stat, index }) {
+function StatCard({ stat }) {
   const [hovered, setHovered] = useState(false);
 
   return (

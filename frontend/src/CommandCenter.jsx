@@ -27,7 +27,7 @@ import ExtensionThreatCatalog from './ExtensionThreatCatalog';
 function VideoWithGhost({ ghostEnabled, telemetry }) {
   const videoRef = useRef(null);
   const screenRef = useRef(null);
-  const [hasScreenShare, setHasScreenShare] = useState(false);
+  const [hasScreenShare, setHasScreenShare] = useState(!!window.aegisScreenStream);
 
   useEffect(() => {
     getGlobalCameraStream()
@@ -35,7 +35,6 @@ function VideoWithGhost({ ghostEnabled, telemetry }) {
       .catch(() => {});
       
     if (window.aegisScreenStream) {
-      setHasScreenShare(true);
       if (screenRef.current) {
         screenRef.current.srcObject = window.aegisScreenStream;
       }

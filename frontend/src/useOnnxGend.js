@@ -43,7 +43,7 @@ export function useOnnxGend() {
     let powerTotal = 0;
     let powerLogSum = 0;
     let powerCount = 0;
-    let kurtosis = 0;
+    let kurtosis;
 
     for (let k = 0; k < half; k++) {
       let real = 0, imag = 0;
@@ -106,7 +106,6 @@ export function useOnnxGend() {
     const data = imageData.data;
     const w = imageData.width || 224;
     const h = imageData.height || 224;
-    const pixels = w * h;
 
     // downsample to small grid for rudimentary features
     const grid = 7;

@@ -30,24 +30,30 @@ const TOUR_STEPS = [
 export default function LuxConciergePopup({ isOpen, onClose, onComplete }) {
   const [stepIndex, setStepIndex] = useState(0);
   const modalRef = useRef(null);
+  const stepRef = useRef(stepIndex);
+
+  useEffect(() => {
+    stepRef.current = stepIndex;
+  }, [stepIndex]);
 
   useEffect(() => {
     if (!isOpen) return;
-    setStepIndex(0);
+
+    setTimeout(() => setStepIndex(0), 0);
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         onClose?.();
       } else if (e.key === 'ArrowRight') {
-        if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(prev => prev + 1);
+        if (stepRef.current < TOUR_STEPS.length - 1) setStepIndex(prev => prev + 1);
       } else if (e.key === 'ArrowLeft') {
-        if (stepIndex > 0) setStepIndex(prev => prev - 1);
+        if (stepRef.current > 0) setStepIndex(prev => prev - 1);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, stepIndex, onClose]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

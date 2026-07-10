@@ -132,11 +132,6 @@ export default function EnvironmentScan() {
     // Keep global camera stream live for calibration phase
   };
 
-  const skipScan = () => {
-    addRiskEvent({ type: 'ENV_SCAN_SKIPPED', severity: 'LOW', desc: 'Candidate skipped 360° room scan' });
-    setPhase('calibration');
-  };
-
   const currentStep = SCAN_STEPS[stepIdx];
 
   return (

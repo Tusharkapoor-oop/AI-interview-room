@@ -10,7 +10,7 @@ export default function LuxDemo() {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 8)]);
   };
 
-  const handleComplete = (data) => {
+  const handleComplete = () => {
     logEvent(` Concierge onboarding completed! Access code or email verified.`);
     setSessionUnlocked(true);
   };

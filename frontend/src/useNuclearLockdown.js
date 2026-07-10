@@ -248,13 +248,14 @@ function resolveGlobal(path) {
 export function useNuclearLockdown(enabled = true) {
   const {
     phase, addRiskEvent, showToast, setHitlEvent,
-    addDetectedExtension, relaxedProctoringEnabled,
+    addDetectedExtension,
   } = useAegisStore();
 
   const [lockdownOverlay, setLockdownOverlay] = useState(null);
   const [threatCount, setThreatCount] = useState(0);
 
   const detected        = useRef(new Set());   // tracks already-flagged threat IDs
+  const [detectedIds, setDetectedIds] = useState([]);
   const syntheticCount  = useRef(0);
   const storageHashRef  = useRef(null);
   const fullscreenLost  = useRef(false);
@@ -264,7 +265,10 @@ export function useNuclearLockdown(enabled = true) {
   const fireThreat = useCallback((type, severity, desc, threatId = null, showOverlay = false) => {
     if (!enabled || !activePhases.has(phase)) return;
     if (threatId && detected.current.has(threatId)) return; // deduplicate
-    if (threatId) detected.current.add(threatId);
+    if (threatId) {
+      detected.current.add(threatId);
+      setDetectedIds(Array.from(detected.current));
+    }
 
     addRiskEvent({ type, severity, desc });
     showToast(`🚫 ${desc.slice(0, 90)}`, 'error', 8000);
@@ -301,7 +305,7 @@ export function useNuclearLockdown(enabled = true) {
 
         if (el) {
           // Actively neutralize/destroy injected extension overlay
-          try { el.remove(); } catch (_) { el.style.setProperty('display', 'none', 'important'); }
+          try { el.remove(); } catch { el.style.setProperty('display', 'none', 'important'); }
           fireThreat(
             'EXTENSION_DETECTED',
             threat.severity,
@@ -310,14 +314,14 @@ export function useNuclearLockdown(enabled = true) {
             threat.severity === 'CRITICAL'
           );
         }
-      } catch (_) {}
+      } catch { /* extension selector invalid */ }
     }
 
     // Scan for chrome-extension:// iframes (Vector 8 crossover)
     document.querySelectorAll('iframe').forEach(fr => {
       const src = fr.src || fr.getAttribute('src') || '';
       if (src.startsWith('chrome-extension://') || src.startsWith('moz-extension://')) {
-        try { fr.remove(); } catch (_) {}
+        try { fr.remove(); } catch { /* iframe already removed */ }
         fireThreat('EXTENSION_IFRAME', 'HIGH',
           `Hidden extension iframe detected (${src.slice(0, 80)}) — extension injecting UI frame destroyed`,
           `iframe:${src}`, true);
@@ -444,7 +448,7 @@ export function useNuclearLockdown(enabled = true) {
             `css:${href}`, false);
         }
       }
-    } catch (_) {} // SecurityError for cross-origin sheets — that itself is suspicious
+    } catch { /* cross-origin sheet — skip */ }
   }, [enabled, phase, fireThreat]);
 
   // ── VECTOR 7: Storage Tampering Detection ────────────────────────────────
@@ -598,13 +602,15 @@ export function useNuclearLockdown(enabled = true) {
   useEffect(() => {
     if (!enabled || !activePhases.has(phase)) return;
 
-    // Initial scans
-    scanDOM();
-    scanGlobals();
-    detectAdBlocker();
-    scanStylesheets();
-    scanWorkers();
-    detectVirtualMachine();   // VECTOR 11 — run once at session start
+    // Initial scans (deferred to avoid setState-in-effect)
+    setTimeout(() => {
+      scanDOM();
+      scanGlobals();
+      detectAdBlocker();
+      scanStylesheets();
+      scanWorkers();
+      detectVirtualMachine();
+    }, 0);
     storageHashRef.current = computeStorageHash();
 
     // Patch network (runs once at mount)
@@ -648,5 +654,5 @@ export function useNuclearLockdown(enabled = true) {
       patchNetwork, unpatchNetwork, handleKeydown, handlePaste, handleFullscreenChange,
       checkStorageTampering, requestFullscreen]);
 
-  return { lockdownOverlay, threatCount, detectedIds: detected.current, detectVirtualMachine };
+  return { lockdownOverlay, threatCount, detectedIds, detectVirtualMachine };
 }

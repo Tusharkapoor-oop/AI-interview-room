@@ -10,7 +10,7 @@
  *  - HITL alert feed
  *  - Final score override and report generation
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAegisStore } from './useAegisStore';
 
 // ── Question Bank ──────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ function RubricSlider({ dim, value, onChange }) {
   );
 }
 
-function QuestionCard({ q, index, active, onSelect, onScore }) {
+function QuestionCard({ q, index, active, onSelect }) {
   const dc = DIFF_COLOR[q.difficulty] || '#4cc9f0';
   return (
     <div onClick={() => onSelect(q.id)} style={{
@@ -139,7 +139,7 @@ export default function HumanInterviewerPanel() {
   const {
     telemetry, riskEvents, integrityScore, gestureMetrics,
     rppgData, candidateName, sessionConfig, sessionSeconds,
-    addRiskEvent, showToast, setPhase, messages,
+    addRiskEvent, showToast, setPhase,
   } = useAegisStore();
 
   const [isPaused, setIsPaused] = useState(false);
@@ -461,8 +461,8 @@ export default function HumanInterviewerPanel() {
             </div>
 
             {/* Question list */}
-            {filteredQ.map((q, i) => (
-              <QuestionCard key={q.id} q={q} index={i}
+            {filteredQ.map((q) => (
+              <QuestionCard key={q.id} q={q} index={filteredQ.indexOf(q)}
                 active={activeQuestionId === q.id}
                 onSelect={setActiveQuestionId}
               />

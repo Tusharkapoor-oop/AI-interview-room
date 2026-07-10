@@ -161,20 +161,20 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
   const [countdown, setCountdown]     = useState(0);
   const [progress, setProgress]       = useState(0);
   const [results, setResults]         = useState([]);
-  const [failFlags, setFailFlags]     = useState([]);
+const [failFlags, setFailFlags]     = useState([]);
 
   const telemetryLog  = useRef([]);
   const timerRef      = useRef(null);
-  const progressRef   = useRef(null);
   const startTsRef    = useRef(0);
   const telemetryRef  = useRef(telemetry);
-  telemetryRef.current = telemetry;
 
   const challenge = CHALLENGES[currentIdx];
   const [challengeParams] = useState(() => {
     if (challenge.generateParams) return challenge.generateParams();
     return {};
   });
+
+  useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
 
   // ── Run a challenge ────────────────────────────────────────────
   const startChallenge = useCallback(() => {
@@ -233,8 +233,6 @@ export default function ChallengeResponseDeepfake({ onComplete }) {
       onComplete?.({ passed: allPassed, failedChallenges: failFlags, results });
     }
   }, [currentIdx, failFlags, results, showToast, onComplete]);
-
-  const overallProgress = ((currentIdx) / CHALLENGES.length + (phase === 'active' ? progress / CHALLENGES.length : 0));
 
   return (
     <div style={{
